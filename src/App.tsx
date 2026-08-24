@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { demoChannels, demoFeed } from './data/demo'
 import type { AuthPrompt, Channel, FeedFilter, FeedItem } from './types'
 import { loadSet, saveSet } from './lib/storage'
-import { authFlow, authStatus, beginAuth, fetchFeed, logoutTelegram, saveTelegramPost, submitAuth } from './lib/api'
+import { authFlow, authStatus, beginAuth, fetchFeed, healthStatus, logoutTelegram, saveTelegramPost, submitAuth } from './lib/api'
 import { PromptModal } from './components/AuthModal'
 import { FeedCard } from './components/FeedCard'
 import { SponsoredCard } from './components/SponsoredCard'
@@ -33,16 +33,33 @@ export default function App() {
   const [connection, setConnection] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle')
   const [error, setError] = useState('')
   const [authPrompt, setAuthPrompt] = useState<AuthPrompt | null>(null)
+  const [backendReady, setBackendReady] = useState(false)
 
   useEffect(() => {
     hydrateLocalState()
-    authStatus().then(async status => {
+    void bootstrap()
+  }, [])
+
+  async function bootstrap() {
+    try {
+      const health = await healthStatus()
+      if (!health.ok || !health.configured) {
+        setBackendReady(false)
+        setError('Telegram backend is online but not fully configured.')
+        return
+      }
+      setBackendReady(true)
+      const status = await authStatus()
       if (!status.connected) return
-      setConnection('connected'); setMode('live')
+      setConnection('connected')
+      setMode('live')
       const data = await fetchFeed()
       hydrateLiveData(data.channels, data.feed)
-    }).catch(() => {})
-  }, [])
+    } catch {
+      setBackendReady(false)
+      setError('Telegram backend is unavailable. Check the production backend deployment.')
+    }
+  }
 
   function hydrateLocalState() {
     const saved = loadSet('saved')
@@ -71,20 +88,32 @@ export default function App() {
     if (!status.connected) throw new Error('Telegram authorization did not complete.')
     const data = await fetchFeed()
     hydrateLiveData(data.channels, data.feed)
-    setMode('live'); setConnection('connected'); setAuthPrompt(null); setError('')
+    setMode('live')
+    setConnection('connected')
+    setAuthPrompt(null)
+    setError('')
   }
 
   async function connect() {
-    setError(''); setConnection('connecting')
+    setError('')
+    setConnection('connecting')
     try {
+      const health = await healthStatus()
+      if (!health.ok || !health.configured) throw new Error('Telegram backend is not fully configured yet.')
+      setBackendReady(true)
+
       const flow = await settleFlow(await beginAuth())
       if (flow.error) setError(flow.error)
-      if (flow.step === 'done') { await finishConnection(); return }
+      if (flow.step === 'done') {
+        await finishConnection()
+        return
+      }
       const prompt = promptFromFlow(flow)
       if (!prompt) throw new Error(flow.error || 'Telegram login could not start.')
       setAuthPrompt(prompt)
     } catch (e) {
-      setConnection('error'); setError(String((e as Error)?.message || e))
+      setConnection('error')
+      setError(String((e as Error)?.message || e))
     }
   }
 
@@ -93,12 +122,17 @@ export default function App() {
     try {
       const flow = await settleFlow(await submitAuth(value))
       if (flow.error) setError(flow.error)
-      if (flow.step === 'done') { await finishConnection(); return }
+      if (flow.step === 'done') {
+        await finishConnection()
+        return
+      }
       if (flow.step === 'error') throw new Error(flow.error || 'Telegram login failed.')
       const prompt = promptFromFlow(flow)
       if (prompt) setAuthPrompt(prompt)
     } catch (e) {
-      setConnection('error'); setAuthPrompt(null); setError(String((e as Error)?.message || e))
+      setConnection('error')
+      setAuthPrompt(null)
+      setError(String((e as Error)?.message || e))
     }
   }
 
@@ -110,30 +144,41 @@ export default function App() {
       hydrateLiveData(data.channels, data.feed)
       setConnection('connected')
     } catch (e) {
-      setConnection('error'); setError(String((e as Error)?.message || e))
+      setConnection('error')
+      setError(String((e as Error)?.message || e))
     }
   }
 
   async function logout() {
     await logoutTelegram().catch(() => {})
-    setMode('demo'); setConnection('idle'); setChannels(demoChannels); setFeed(demoFeed); hydrateLocalState()
+    setMode('demo')
+    setConnection('idle')
+    setChannels(demoChannels)
+    setFeed(demoFeed)
+    hydrateLocalState()
   }
 
   async function toggleSave(item: FeedItem) {
     const willSave = !item.saved
     setFeed(current => current.map(x => x.id === item.id ? { ...x, saved: willSave } : x))
     const saved = loadSet('saved')
-    if (willSave) saved.add(item.id); else saved.delete(item.id)
+    if (willSave) saved.add(item.id)
+    else saved.delete(item.id)
     saveSet('saved', saved)
     if (willSave && mode === 'live') {
-      try { await saveTelegramPost(item) }
-      catch (e) { setError(`Saved locally. Telegram forward failed: ${String((e as Error)?.message || e)}`) }
+      try {
+        await saveTelegramPost(item)
+      } catch (e) {
+        setError(`Saved locally. Telegram forward failed: ${String((e as Error)?.message || e)}`)
+      }
     }
   }
 
   function markRead(item: FeedItem) {
     setFeed(current => current.map(x => x.id === item.id ? { ...x, unread: false } : x))
-    const read = loadSet('read'); read.add(item.id); saveSet('read', read)
+    const read = loadSet('read')
+    read.add(item.id)
+    saveSet('read', read)
   }
 
   const visibleFeed = useMemo(() => {
@@ -183,7 +228,7 @@ export default function App() {
       <header className="conversation-header">
         <div className="conversation-title">
           <span className="header-avatar"><SendIcon/></span>
-          <div><strong>Telegram.Social</strong><small>{mode === 'live' ? `${channels.length} channels connected` : 'One feed for your Telegram channels'}</small></div>
+          <div><strong>Telegram.Social</strong><small>{mode === 'live' ? `${channels.length} channels connected` : backendReady ? 'Ready to connect Telegram' : 'Demo mode'}</small></div>
         </div>
         <div className="conversation-actions">
           {mode === 'live' && <button className="header-icon" onClick={refresh} title="Refresh"><RefreshIcon /></button>}
@@ -210,7 +255,7 @@ export default function App() {
       <div className="profile-panel">
         <div className="profile-avatar"><SendIcon/></div>
         <strong>Telegram.Social</strong>
-        <span>{mode === 'live' ? 'Connected to Telegram' : 'Demo mode'}</span>
+        <span>{mode === 'live' ? 'Connected to Telegram' : backendReady ? 'Backend ready' : 'Demo mode'}</span>
       </div>
       <div className="info-list">
         <div><span>Channels</span><strong>{channels.length}</strong></div>
