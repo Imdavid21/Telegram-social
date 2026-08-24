@@ -18,13 +18,29 @@ function vibration(ms: number) {
   try { navigator.vibrate?.(ms) } catch {}
 }
 
+function impact(style: 'light' | 'medium' | 'heavy', fallbackMs: number) {
+  const fn = webApp()?.HapticFeedback?.impactOccurred
+  if (fn) fn(style)
+  else vibration(fallbackMs)
+}
+
+function notification(type: 'success' | 'error' | 'warning', fallbackMs: number) {
+  const fn = webApp()?.HapticFeedback?.notificationOccurred
+  if (fn) fn(type)
+  else vibration(fallbackMs)
+}
+
 export const haptics = {
-  light() { webApp()?.HapticFeedback?.impactOccurred?.('light') ?? vibration(8) },
-  medium() { webApp()?.HapticFeedback?.impactOccurred?.('medium') ?? vibration(12) },
-  heavy() { webApp()?.HapticFeedback?.impactOccurred?.('heavy') ?? vibration(18) },
-  success() { webApp()?.HapticFeedback?.notificationOccurred?.('success') ?? vibration(16) },
-  error() { webApp()?.HapticFeedback?.notificationOccurred?.('error') ?? vibration(24) },
-  selection() { webApp()?.HapticFeedback?.selectionChanged?.() ?? vibration(6) }
+  light() { impact('light', 8) },
+  medium() { impact('medium', 12) },
+  heavy() { impact('heavy', 18) },
+  success() { notification('success', 16) },
+  error() { notification('error', 24) },
+  selection() {
+    const fn = webApp()?.HapticFeedback?.selectionChanged
+    if (fn) fn()
+    else vibration(6)
+  }
 }
 
 export function initInteractionEnvironment() {
