@@ -46,6 +46,11 @@ TELEGRAM_API_ID
 TELEGRAM_API_HASH
 SESSION_SECRET
 BACKEND_PROXY_SECRET
+```
+
+Optional Railway hardening:
+
+```text
 PUBLIC_APP_ORIGIN
 ```
 
@@ -64,9 +69,9 @@ The same `BACKEND_PROXY_SECRET` value must be configured on both services.
 - Keep the backend at one replica for V0.2.
 - Generate a Railway public domain.
 - Put that domain into Vercel as `TELEGRAM_BACKEND_URL`.
-- Set the final Vercel production origin on Railway as `PUBLIC_APP_ORIGIN`.
+- Put the shared proxy secret into both Railway and Vercel as `BACKEND_PROXY_SECRET`.
 - Update the Telegram developer app title to a compliant title, for example `Unofficial Telegram Social`.
-- Trigger a new Vercel production deployment after its new proxy variables are saved.
+- Trigger a new Vercel production deployment after the new proxy variables are saved.
 
 ## Final smoke test
 
