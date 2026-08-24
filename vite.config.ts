@@ -9,9 +9,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icon.svg'],
       manifest: {
-        name: 'Telegram.Social',
-        short_name: 'TG.Social',
-        description: 'One feed for every Telegram channel you follow.',
+        name: 'Unofficial Telegram.Social',
+        short_name: 'Unofficial TG',
+        description: 'A unified feed for the Telegram broadcast channels you follow.',
         theme_color: '#17212b',
         background_color: '#0e1621',
         display: 'standalone',
