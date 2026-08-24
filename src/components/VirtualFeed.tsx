@@ -1,25 +1,16 @@
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FeedItem } from '../types'
 
-const OVERSCAN_PX = 1800
+const INITIAL_WINDOW = 36
+const WINDOW_CAP = 84
+const STEP = 18
 
 function estimateHeight(item: FeedItem) {
   if (item.sponsored) return 280
   if (!item.media) return Math.min(520, 180 + Math.ceil(String(item.text || '').length / 80) * 24)
   if (item.media.kind === 'audio' || item.media.kind === 'voice' || item.media.kind === 'document') return 300
   if (item.media.kind === 'poll' || item.media.kind === 'location' || item.media.kind === 'contact') return 260
-  return 760
-}
-
-function lowerBound(prefix: number[], target: number) {
-  let low = 0
-  let high = prefix.length - 1
-  while (low < high) {
-    const mid = Math.floor((low + high) / 2)
-    if (prefix[mid] < target) low = mid + 1
-    else high = mid
-  }
-  return low
+  return 720
 }
 
 function MeasuredRow({ item, index, onHeight, children }: {
@@ -44,77 +35,86 @@ function MeasuredRow({ item, index, onHeight, children }: {
     return () => observer.disconnect()
   }, [item.id, onHeight])
 
-  return <div ref={ref} className="sg-virtual-row" data-feed-index={index}>{children}</div>
+  return <div ref={ref} className="sg-virtual-row" data-feed-index={index} data-post-id={item.id}>{children}</div>
 }
 
 export function VirtualFeed({ items, renderItem }: {
   items: FeedItem[]
   renderItem: (item: FeedItem, index: number) => ReactNode
 }) {
-  const rootRef = useRef<HTMLDivElement>(null)
   const heightsRef = useRef(new Map<string, number>())
+  const topSentinel = useRef<HTMLDivElement>(null)
+  const bottomSentinel = useRef<HTMLDivElement>(null)
+  const [range, setRange] = useState(() => ({ start: 0, end: Math.min(items.length, INITIAL_WINDOW) }))
   const [revision, setRevision] = useState(0)
-  const [viewport, setViewport] = useState(() => ({ top: typeof window === 'undefined' ? 0 : window.scrollY, height: typeof window === 'undefined' ? 900 : window.innerHeight }))
-  const rafRef = useRef<number | null>(null)
-
-  useEffect(() => {
-    const update = () => {
-      rafRef.current = null
-      setViewport({ top: window.scrollY, height: window.innerHeight })
-    }
-    const schedule = () => {
-      if (rafRef.current != null) return
-      rafRef.current = window.requestAnimationFrame(update)
-    }
-    window.addEventListener('scroll', schedule, { passive: true })
-    window.addEventListener('resize', schedule)
-    schedule()
-    return () => {
-      window.removeEventListener('scroll', schedule)
-      window.removeEventListener('resize', schedule)
-      if (rafRef.current != null) window.cancelAnimationFrame(rafRef.current)
-    }
-  }, [])
 
   useEffect(() => {
     const valid = new Set(items.map(item => item.id))
     for (const id of heightsRef.current.keys()) if (!valid.has(id)) heightsRef.current.delete(id)
+    setRange(current => {
+      if (!items.length) return { start: 0, end: 0 }
+      const start = Math.min(current.start, Math.max(0, items.length - 1))
+      const end = Math.max(start + 1, Math.min(items.length, Math.max(current.end, Math.min(items.length, INITIAL_WINDOW))))
+      return { start, end }
+    })
   }, [items])
 
-  const onHeight = useMemo(() => (id: string, height: number) => {
+  const onHeight = useCallback((id: string, height: number) => {
     const previous = heightsRef.current.get(id)
-    if (previous === height || Math.abs((previous || 0) - height) < 2) return
+    if (previous && Math.abs(previous - height) < 2) return
     heightsRef.current.set(id, height)
     setRevision(value => value + 1)
   }, [])
 
-  const model = useMemo(() => {
-    const prefix = new Array(items.length + 1).fill(0)
-    for (let index = 0; index < items.length; index++) {
-      const item = items[index]
-      prefix[index + 1] = prefix[index] + (heightsRef.current.get(item.id) || estimateHeight(item))
-    }
+  const heightFor = useCallback((item: FeedItem) => heightsRef.current.get(item.id) || estimateHeight(item), [])
 
-    const rootTop = rootRef.current ? rootRef.current.getBoundingClientRect().top + window.scrollY : 0
-    const viewStart = Math.max(0, viewport.top - rootTop - OVERSCAN_PX)
-    const viewEnd = Math.max(viewStart, viewport.top - rootTop + viewport.height + OVERSCAN_PX)
-    const start = Math.max(0, Math.min(items.length, lowerBound(prefix, viewStart) - 1))
-    const end = Math.max(start, Math.min(items.length, lowerBound(prefix, viewEnd) + 1))
-    return {
-      start,
-      end,
-      top: prefix[start],
-      bottom: Math.max(0, prefix[items.length] - prefix[end]),
-      total: prefix[items.length]
-    }
-  }, [items, viewport, revision])
+  const spacers = useMemo(() => {
+    let top = 0
+    let bottom = 0
+    for (let i = 0; i < range.start; i++) top += heightFor(items[i])
+    for (let i = range.end; i < items.length; i++) bottom += heightFor(items[i])
+    return { top, bottom }
+  }, [heightFor, items, range, revision])
 
-  return <div ref={rootRef} className="sg-virtual-feed" style={{ minHeight: model.total || undefined }}>
-    {model.top > 0 && <div className="sg-virtual-spacer" style={{ height: model.top }} aria-hidden="true" />}
-    {items.slice(model.start, model.end).map((item, localIndex) => {
-      const index = model.start + localIndex
+  useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined' || !items.length) return
+    const top = topSentinel.current
+    const bottom = bottomSentinel.current
+    if (!top || !bottom) return
+
+    const bottomObserver = new IntersectionObserver(([entry]) => {
+      if (!entry?.isIntersecting) return
+      setRange(current => {
+        if (current.end >= items.length) return current
+        const nextEnd = Math.min(items.length, current.end + STEP)
+        const nextStart = Math.max(0, nextEnd - WINDOW_CAP)
+        return { start: Math.max(current.start, nextStart), end: nextEnd }
+      })
+    }, { rootMargin: '0px 0px 650vh 0px' })
+
+    const topObserver = new IntersectionObserver(([entry]) => {
+      if (!entry?.isIntersecting) return
+      setRange(current => {
+        if (current.start <= 0) return current
+        const nextStart = Math.max(0, current.start - STEP)
+        const nextEnd = Math.min(items.length, Math.max(current.end, nextStart + WINDOW_CAP))
+        return { start: nextStart, end: nextEnd }
+      })
+    }, { rootMargin: '450vh 0px 0px 0px' })
+
+    bottomObserver.observe(bottom)
+    topObserver.observe(top)
+    return () => { bottomObserver.disconnect(); topObserver.disconnect() }
+  }, [items.length, range.start, range.end])
+
+  return <div className="sg-virtual-feed">
+    {spacers.top > 0 ? <div className="sg-virtual-spacer" style={{ height: spacers.top }} aria-hidden="true" /> : null}
+    <div ref={topSentinel} className="sg-virtual-sentinel" aria-hidden="true" />
+    {items.slice(range.start, range.end).map((item, localIndex) => {
+      const index = range.start + localIndex
       return <MeasuredRow item={item} index={index} onHeight={onHeight} key={item.id}>{renderItem(item, index)}</MeasuredRow>
     })}
-    {model.bottom > 0 && <div className="sg-virtual-spacer" style={{ height: model.bottom }} aria-hidden="true" />}
+    <div ref={bottomSentinel} className="sg-virtual-sentinel" aria-hidden="true" />
+    {spacers.bottom > 0 ? <div className="sg-virtual-spacer" style={{ height: spacers.bottom }} aria-hidden="true" /> : null}
   </div>
 }
