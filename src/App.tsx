@@ -6,12 +6,11 @@ import { authFlow, authStatus, beginAuth, fetchFeed, healthStatus, logoutTelegra
 import { PromptModal } from './components/AuthModal'
 import { FeedCard } from './components/FeedCard'
 import { SponsoredCard } from './components/SponsoredCard'
-import { BellIcon, BookmarkIcon, HomeIcon, ImageIcon, LogOutIcon, RefreshIcon, SearchIcon, SendIcon } from './components/Icons'
+import { BellIcon, BookmarkIcon, HomeIcon, ImageIcon, LogOutIcon, RefreshIcon, SearchIcon } from './components/Icons'
 
 const APP_NAME = 'Unofficial Telegram.Social'
-
 const nav: Array<{ id: FeedFilter; label: string; icon: typeof HomeIcon }> = [
-  { id: 'all', label: 'All', icon: HomeIcon },
+  { id: 'all', label: 'For you', icon: HomeIcon },
   { id: 'unread', label: 'Unread', icon: BellIcon },
   { id: 'saved', label: 'Saved', icon: BookmarkIcon },
   { id: 'media', label: 'Media', icon: ImageIcon }
@@ -19,6 +18,7 @@ const nav: Array<{ id: FeedFilter; label: string; icon: typeof HomeIcon }> = [
 
 type Flow = { step: string; error?: string | null; meta?: Record<string, unknown> }
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
 function promptFromFlow(flow: Flow): AuthPrompt | null {
   if (flow.step === 'phone') return { type: 'phone', title: 'Your phone number', hint: 'Enter your Telegram number with country code.' }
   if (flow.step === 'code') return { type: 'code', title: 'Verification code', hint: flow.meta?.viaApp ? 'We sent the code to Telegram on your other device.' : 'Enter the code Telegram sent you.' }
@@ -37,10 +37,7 @@ export default function App() {
   const [authPrompt, setAuthPrompt] = useState<AuthPrompt | null>(null)
   const [backendReady, setBackendReady] = useState(false)
 
-  useEffect(() => {
-    hydrateLocalState()
-    void bootstrap()
-  }, [])
+  useEffect(() => { hydrateLocalState(); void bootstrap() }, [])
 
   async function bootstrap() {
     try {
@@ -103,13 +100,9 @@ export default function App() {
       const health = await healthStatus()
       if (!health.ok || !health.configured) throw new Error('Telegram backend is not fully configured yet.')
       setBackendReady(true)
-
       const flow = await settleFlow(await beginAuth())
       if (flow.error) setError(flow.error)
-      if (flow.step === 'done') {
-        await finishConnection()
-        return
-      }
+      if (flow.step === 'done') return void await finishConnection()
       const prompt = promptFromFlow(flow)
       if (!prompt) throw new Error(flow.error || 'Telegram login could not start.')
       setAuthPrompt(prompt)
@@ -124,10 +117,7 @@ export default function App() {
     try {
       const flow = await settleFlow(await submitAuth(value))
       if (flow.error) setError(flow.error)
-      if (flow.step === 'done') {
-        await finishConnection()
-        return
-      }
+      if (flow.step === 'done') return void await finishConnection()
       if (flow.step === 'error') throw new Error(flow.error || 'Telegram login failed.')
       const prompt = promptFromFlow(flow)
       if (prompt) setAuthPrompt(prompt)
@@ -164,23 +154,17 @@ export default function App() {
     const willSave = !item.saved
     setFeed(current => current.map(x => x.id === item.id ? { ...x, saved: willSave } : x))
     const saved = loadSet('saved')
-    if (willSave) saved.add(item.id)
-    else saved.delete(item.id)
+    if (willSave) saved.add(item.id); else saved.delete(item.id)
     saveSet('saved', saved)
     if (willSave && mode === 'live') {
-      try {
-        await saveTelegramPost(item)
-      } catch (e) {
-        setError(`Saved locally. Telegram forward failed: ${String((e as Error)?.message || e)}`)
-      }
+      try { await saveTelegramPost(item) }
+      catch (e) { setError(`Saved locally. Telegram forward failed: ${String((e as Error)?.message || e)}`) }
     }
   }
 
   function markRead(item: FeedItem) {
     setFeed(current => current.map(x => x.id === item.id ? { ...x, unread: false } : x))
-    const read = loadSet('read')
-    read.add(item.id)
-    saveSet('read', read)
+    const read = loadSet('read'); read.add(item.id); saveSet('read', read)
   }
 
   const visibleFeed = useMemo(() => {
@@ -197,76 +181,69 @@ export default function App() {
 
   const unreadTotal = feed.reduce((n, item) => n + (item.unread ? 1 : 0), 0)
 
-  return <div className="telegram-shell">
-    <aside className="chat-sidebar">
-      <div className="sidebar-top">
-        <button className="telegram-logo" aria-label={APP_NAME}><span className="brand-glyph">T</span></button>
-        <div className="sidebar-search"><SearchIcon/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search" /></div>
-      </div>
-
-      <div className="folder-tabs">
-        {nav.map(entry => <button key={entry.id} className={filter === entry.id ? 'active' : ''} onClick={() => setFilter(entry.id)}>
-          {entry.label}{entry.id === 'unread' && unreadTotal > 0 && <span>{unreadTotal}</span>}
-        </button>)}
-      </div>
-
-      <div className="channel-list">
-        {channels.map(channel => <button key={channel.id} className="channel-row" onClick={() => setQuery(channel.title)}>
-          <span className="channel-avatar" style={{ background: channel.accent }}>{channel.initials}</span>
-          <span className="channel-copy"><strong>{channel.title}</strong><small>{channel.username ? `@${channel.username}` : 'Telegram channel'}</small></span>
-          {channel.unread > 0 && <b>{channel.unread}</b>}
-        </button>)}
-      </div>
-
-      <div className="sidebar-account">
-        <button onClick={mode === 'live' ? logout : connect} disabled={connection === 'connecting'}>
-          {mode === 'live' ? <LogOutIcon/> : <SendIcon/>}
-          <span>{connection === 'connecting' ? 'Connecting…' : mode === 'live' ? 'Disconnect' : 'Connect Telegram'}</span>
-        </button>
-      </div>
-    </aside>
-
-    <main className="conversation-pane">
-      <header className="conversation-header">
-        <div className="conversation-title">
-          <span className="header-avatar"><span className="brand-glyph">T</span></span>
-          <div><strong>{APP_NAME}</strong><small>{mode === 'live' ? `${channels.length} channels connected` : backendReady ? 'Ready to connect Telegram' : 'Demo mode'}</small></div>
+  return <div className="social-app">
+    <header className="social-topbar">
+      <div className="social-topbar-inner">
+        <a className="social-brand" href="/" aria-label={APP_NAME}><span className="brand-mark">T</span><span>Telegram.Social</span></a>
+        <div className="social-search"><SearchIcon/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search channels and posts" /></div>
+        <div className="social-top-actions">
+          {mode === 'live' && <button className="icon-button" onClick={refresh} title="Refresh"><RefreshIcon/></button>}
+          <button className="primary-connect" onClick={mode === 'live' ? logout : connect} disabled={connection === 'connecting'}>
+            {mode === 'live' ? <><LogOutIcon/> Disconnect</> : connection === 'connecting' ? 'Connecting…' : 'Connect Telegram'}
+          </button>
         </div>
-        <div className="conversation-actions">
-          {mode === 'live' && <button className="header-icon" onClick={refresh} title="Refresh"><RefreshIcon /></button>}
-          {mode === 'demo' && <button className="connect-button" onClick={connect} disabled={connection === 'connecting'}>{connection === 'connecting' ? 'Connecting…' : 'Connect'}</button>}
+      </div>
+    </header>
+
+    <div className="social-layout">
+      <aside className="social-left">
+        <nav className="feed-nav">
+          {nav.map(entry => { const Icon = entry.icon; return <button key={entry.id} className={filter === entry.id ? 'active' : ''} onClick={() => setFilter(entry.id)}><Icon/><span>{entry.label}</span>{entry.id === 'unread' && unreadTotal > 0 && <b>{unreadTotal}</b>}</button> })}
+        </nav>
+        <div className="left-note"><strong>Channels, without the chat.</strong><span>A calm feed built from the Telegram channels you already follow.</span></div>
+        <div className="legal-links"><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a></div>
+      </aside>
+
+      <main className="social-feed-column">
+        <section className="feed-intro">
+          <div><span className="feed-kicker">YOUR TELEGRAM FEED</span><h1>What’s happening</h1><p>{mode === 'live' ? `${channels.length} channels connected` : backendReady ? 'Connect Telegram to turn your channels into one feed.' : 'Previewing the feed in demo mode.'}</p></div>
+          <span className={`connection-dot ${backendReady ? 'online' : ''}`}></span>
+        </section>
+
+        <div className="mobile-feed-tabs">
+          {nav.map(entry => <button key={entry.id} className={filter === entry.id ? 'active' : ''} onClick={() => setFilter(entry.id)}>{entry.label}</button>)}
         </div>
-      </header>
 
-      <div className="feed-tabs">
-        {nav.map(entry => { const Icon = entry.icon; return <button key={entry.id} className={filter === entry.id ? 'active' : ''} onClick={() => setFilter(entry.id)}><Icon/>{entry.label}</button> })}
-      </div>
+        {error && <div className="error-banner"><span>{error}</span><button onClick={() => setError('')}>Dismiss</button></div>}
 
-      {error && <div className="error-banner"><span>{error}</span><button onClick={() => setError('')}>Dismiss</button></div>}
+        <div className="message-stream social-stream">
+          {visibleFeed.length ? visibleFeed.map(item => {
+            const channel = channels.find(c => c.id === item.channelId)
+            if (!channel) return null
+            return item.sponsored ? <SponsoredCard key={item.id} item={item} channel={channel} /> : <FeedCard key={item.id} item={item} channel={channel} live={mode === 'live'} onSave={toggleSave} onRead={markRead} />
+          }) : <div className="empty-state"><strong>No posts here</strong><span>Try another feed or search.</span></div>}
+        </div>
+      </main>
 
-      <div className="message-stream">
-        {visibleFeed.length ? visibleFeed.map(item => {
-          const channel = channels.find(c => c.id === item.channelId)
-          if (!channel) return null
-          return item.sponsored ? <SponsoredCard key={item.id} item={item} channel={channel} /> : <FeedCard key={item.id} item={item} channel={channel} live={mode === 'live'} onSave={toggleSave} onRead={markRead} />
-        }) : <div className="empty-state"><strong>No posts here</strong><span>Try another filter or search.</span></div>}
-      </div>
-    </main>
-
-    <aside className="info-rail">
-      <div className="profile-panel">
-        <div className="profile-avatar"><span className="brand-glyph profile-glyph">T</span></div>
-        <strong>{APP_NAME}</strong>
-        <span>{mode === 'live' ? 'Connected to Telegram' : backendReady ? 'Backend ready' : 'Demo mode'}</span>
-      </div>
-      <div className="info-list">
-        <div><span>Channels</span><strong>{channels.length}</strong></div>
-        <div><span>Unread</span><strong>{unreadTotal}</strong></div>
-      </div>
-      <div className="info-note">A unified timeline for Telegram broadcast channels. This is an unofficial client using the Telegram API and is not affiliated with Telegram.</div>
-      {mode === 'demo' ? <button className="rail-connect" onClick={connect}>Connect Telegram</button> : <button className="rail-connect secondary" onClick={logout}>Disconnect</button>}
-      <div className="legal-links"><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a></div>
-    </aside>
+      <aside className="social-right">
+        <section className="side-card">
+          <div className="side-card-heading"><strong>Channels</strong><span>{channels.length}</span></div>
+          <div className="channel-stack">
+            {channels.slice(0, 7).map(channel => <button key={channel.id} onClick={() => setQuery(channel.title)}>
+              <span className="channel-avatar small" style={{ background: channel.accent }}>{channel.initials}</span>
+              <span><strong>{channel.title}</strong><small>{channel.username ? `@${channel.username}` : 'Telegram channel'}</small></span>
+              {channel.unread > 0 && <b>{channel.unread}</b>}
+            </button>)}
+          </div>
+        </section>
+        <section className="side-card compact-card">
+          <strong>{mode === 'live' ? 'Telegram connected' : 'Bring your channels here'}</strong>
+          <p>{mode === 'live' ? 'Your feed is live. New posts appear here when you refresh.' : 'Sign in with your Telegram account. DMs and groups stay out of this product.'}</p>
+          {mode === 'demo' && <button className="side-connect" onClick={connect}>Connect Telegram</button>}
+        </section>
+        <p className="unofficial-note">Unofficial client using the Telegram API. Not affiliated with Telegram.</p>
+      </aside>
+    </div>
 
     <PromptModal prompt={authPrompt} onSubmit={submitPrompt} onCancel={() => { setAuthPrompt(null); setConnection('idle') }} />
   </div>
