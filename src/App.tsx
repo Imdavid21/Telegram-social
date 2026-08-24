@@ -6,10 +6,10 @@ import { authFlow, authStatus, beginAuth, fetchFeed, logoutTelegram, saveTelegra
 import { PromptModal } from './components/AuthModal'
 import { FeedCard } from './components/FeedCard'
 import { SponsoredCard } from './components/SponsoredCard'
-import { BellIcon, BookmarkIcon, HomeIcon, ImageIcon, LogOutIcon, RefreshIcon, SearchIcon, SettingsIcon } from './components/Icons'
+import { BellIcon, BookmarkIcon, HomeIcon, ImageIcon, LogOutIcon, RefreshIcon, SearchIcon, SendIcon } from './components/Icons'
 
 const nav: Array<{ id: FeedFilter; label: string; icon: typeof HomeIcon }> = [
-  { id: 'all', label: 'Home', icon: HomeIcon },
+  { id: 'all', label: 'All', icon: HomeIcon },
   { id: 'unread', label: 'Unread', icon: BellIcon },
   { id: 'saved', label: 'Saved', icon: BookmarkIcon },
   { id: 'media', label: 'Media', icon: ImageIcon }
@@ -18,9 +18,9 @@ const nav: Array<{ id: FeedFilter; label: string; icon: typeof HomeIcon }> = [
 type Flow = { step: string; error?: string | null; meta?: Record<string, unknown> }
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 function promptFromFlow(flow: Flow): AuthPrompt | null {
-  if (flow.step === 'phone') return { type: 'phone', title: 'Your Telegram number', hint: 'Include country code, for example +91…' }
-  if (flow.step === 'code') return { type: 'code', title: 'Enter the Telegram code', hint: flow.meta?.viaApp ? 'Check Telegram on another signed-in device.' : 'Enter the code Telegram sent you.' }
-  if (flow.step === 'password') return { type: 'password', title: 'Two-step verification', hint: String(flow.meta?.hint || 'Enter your Telegram 2FA password.') }
+  if (flow.step === 'phone') return { type: 'phone', title: 'Your phone number', hint: 'Enter your Telegram number with country code.' }
+  if (flow.step === 'code') return { type: 'code', title: 'Verification code', hint: flow.meta?.viaApp ? 'We sent the code to Telegram on your other device.' : 'Enter the code Telegram sent you.' }
+  if (flow.step === 'password') return { type: 'password', title: 'Two-step verification', hint: String(flow.meta?.hint || 'Enter your Telegram password.') }
   return null
 }
 
@@ -149,67 +149,75 @@ export default function App() {
   }, [feed, channels, filter, query])
 
   const unreadTotal = feed.reduce((n, item) => n + (item.unread ? 1 : 0), 0)
-  const savedTotal = feed.reduce((n, item) => n + (item.saved ? 1 : 0), 0)
 
-  return <div className="app-shell">
-    <aside className="sidebar">
-      <div className="brand"><div className="brand-mark">T</div><span>Telegram.Social</span></div>
-      <nav className="main-nav">
-        {nav.map(entry => {
-          const Icon = entry.icon
-          const badge = entry.id === 'unread' ? unreadTotal : entry.id === 'saved' ? savedTotal : 0
-          return <button key={entry.id} className={filter === entry.id ? 'active' : ''} onClick={() => setFilter(entry.id)}><Icon/><span>{entry.label}</span>{badge > 0 && <b>{badge}</b>}</button>
-        })}
-      </nav>
-      <div className="sidebar-label">YOUR CHANNELS</div>
+  return <div className="telegram-shell">
+    <aside className="chat-sidebar">
+      <div className="sidebar-top">
+        <button className="telegram-logo" aria-label="Telegram.Social"><SendIcon /></button>
+        <div className="sidebar-search"><SearchIcon/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search" /></div>
+      </div>
+
+      <div className="folder-tabs">
+        {nav.map(entry => <button key={entry.id} className={filter === entry.id ? 'active' : ''} onClick={() => setFilter(entry.id)}>
+          {entry.label}{entry.id === 'unread' && unreadTotal > 0 && <span>{unreadTotal}</span>}
+        </button>)}
+      </div>
+
       <div className="channel-list">
-        {channels.slice(0, 8).map(channel => <button key={channel.id} onClick={() => setQuery(channel.title)}>
-          <span className="mini-avatar" style={{ background: channel.accent }}>{channel.initials}</span>
-          <span className="channel-name">{channel.title}</span>
+        {channels.map(channel => <button key={channel.id} className="channel-row" onClick={() => setQuery(channel.title)}>
+          <span className="channel-avatar" style={{ background: channel.accent }}>{channel.initials}</span>
+          <span className="channel-copy"><strong>{channel.title}</strong><small>{channel.username ? `@${channel.username}` : 'Telegram channel'}</small></span>
           {channel.unread > 0 && <b>{channel.unread}</b>}
         </button>)}
       </div>
-      <div className="sidebar-footer"><button onClick={mode === 'live' ? logout : connect}>{mode === 'live' ? <LogOutIcon/> : <SettingsIcon/>}{mode === 'live' ? 'Disconnect' : 'Connect Telegram'}</button></div>
+
+      <div className="sidebar-account">
+        <button onClick={mode === 'live' ? logout : connect} disabled={connection === 'connecting'}>
+          {mode === 'live' ? <LogOutIcon/> : <SendIcon/>}
+          <span>{connection === 'connecting' ? 'Connecting…' : mode === 'live' ? 'Disconnect' : 'Connect Telegram'}</span>
+        </button>
+      </div>
     </aside>
 
-    <main className="feed-column">
-      <header className="topbar">
-        <div>
-          <div className="mobile-brand">Telegram.Social</div>
-          <h1>{filter === 'all' ? 'Your feed' : nav.find(x => x.id === filter)?.label}</h1>
-          <p>{mode === 'live' ? `${channels.length} Telegram channels` : 'Demo feed · connect Telegram when ready'}</p>
+    <main className="conversation-pane">
+      <header className="conversation-header">
+        <div className="conversation-title">
+          <span className="header-avatar"><SendIcon/></span>
+          <div><strong>Telegram.Social</strong><small>{mode === 'live' ? `${channels.length} channels connected` : 'One feed for your Telegram channels'}</small></div>
         </div>
-        <div className="topbar-actions">
-          {mode === 'live' && <button className="round-button" onClick={refresh} title="Refresh"><RefreshIcon /></button>}
-          <button className={`connection-pill ${connection}`} onClick={mode === 'live' ? undefined : connect} disabled={connection === 'connecting'}>
-            <span className="status-dot" />{connection === 'connecting' ? 'Connecting…' : mode === 'live' ? 'Telegram connected' : 'Connect Telegram'}
-          </button>
+        <div className="conversation-actions">
+          {mode === 'live' && <button className="header-icon" onClick={refresh} title="Refresh"><RefreshIcon /></button>}
+          {mode === 'demo' && <button className="connect-button" onClick={connect} disabled={connection === 'connecting'}>{connection === 'connecting' ? 'Connecting…' : 'Connect'}</button>}
         </div>
       </header>
 
-      <div className="mobile-nav">{nav.map(entry => { const Icon = entry.icon; return <button key={entry.id} className={filter === entry.id ? 'active' : ''} onClick={() => setFilter(entry.id)}><Icon/><span>{entry.label}</span></button> })}</div>
-      <div className="search-wrap"><SearchIcon/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search across every channel" />{query && <button onClick={() => setQuery('')}>Clear</button>}</div>
+      <div className="feed-tabs">
+        {nav.map(entry => { const Icon = entry.icon; return <button key={entry.id} className={filter === entry.id ? 'active' : ''} onClick={() => setFilter(entry.id)}><Icon/>{entry.label}</button> })}
+      </div>
+
       {error && <div className="error-banner"><span>{error}</span><button onClick={() => setError('')}>Dismiss</button></div>}
 
-      <div className="feed-list">
+      <div className="message-stream">
         {visibleFeed.length ? visibleFeed.map(item => {
           const channel = channels.find(c => c.id === item.channelId)
           if (!channel) return null
           return item.sponsored ? <SponsoredCard key={item.id} item={item} channel={channel} /> : <FeedCard key={item.id} item={item} channel={channel} live={mode === 'live'} onSave={toggleSave} onRead={markRead} />
-        }) : <div className="empty-state"><strong>Nothing here yet.</strong><span>Try another filter or clear the search.</span></div>}
+        }) : <div className="empty-state"><strong>No posts here</strong><span>Try another filter or search.</span></div>}
       </div>
     </main>
 
-    <aside className="right-rail">
-      <div className="rail-card intro-card">
-        <span className="eyebrow">THE SIGNAL LAYER</span>
-        <h2>Telegram is the inbox.<br/>This is the feed.</h2>
-        <p>One timeline for every channel you follow. No groups. No DMs. No channel hopping.</p>
-        {mode === 'demo' ? <button className="primary-button" onClick={connect}>Connect Telegram</button> : <button className="secondary-button" onClick={logout}><LogOutIcon/>Disconnect</button>}
+    <aside className="info-rail">
+      <div className="profile-panel">
+        <div className="profile-avatar"><SendIcon/></div>
+        <strong>Telegram.Social</strong>
+        <span>{mode === 'live' ? 'Connected to Telegram' : 'Demo mode'}</span>
       </div>
-      <div className="rail-card stats-card"><div><span>Channels</span><strong>{channels.length}</strong></div><div><span>Unread</span><strong>{unreadTotal}</strong></div><div><span>Saved</span><strong>{savedTotal}</strong></div></div>
-      <div className="rail-card privacy-card"><span className="eyebrow">SESSION DESIGN</span><p>The live Telegram session is encrypted into an HttpOnly browser cookie. The server holds the Telegram application credentials, not your frontend.</p></div>
-      <div className="rail-links"><span>V0.1</span><span>Telegram MTProto</span></div>
+      <div className="info-list">
+        <div><span>Channels</span><strong>{channels.length}</strong></div>
+        <div><span>Unread</span><strong>{unreadTotal}</strong></div>
+      </div>
+      <div className="info-note">A unified timeline for Telegram channels. DMs and groups stay out of the feed.</div>
+      {mode === 'demo' ? <button className="rail-connect" onClick={connect}>Connect Telegram</button> : <button className="rail-connect secondary" onClick={logout}>Disconnect</button>}
     </aside>
 
     <PromptModal prompt={authPrompt} onSubmit={submitPrompt} onCancel={() => { setAuthPrompt(null); setConnection('idle') }} />
