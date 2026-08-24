@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import type { AlbumMedia, MediaAsset } from '../types'
 import { fetchMediaTicket } from '../lib/api'
 import { persistVideoMuted, storedVideoMuted, videoRegistry } from '../lib/videoRegistry'
@@ -90,7 +90,7 @@ function TicketAsset({ asset, compact = false }: { asset: MediaAsset; compact?: 
     setAttempt(value => value + 1)
   }
 
-  function openLightbox(event: React.MouseEvent<HTMLImageElement>) {
+  function openLightbox(event: ReactMouseEvent<HTMLImageElement>) {
     const rect = event.currentTarget.getBoundingClientRect()
     setLightboxRect({ top: rect.top, left: rect.left, width: rect.width, height: rect.height })
   }
