@@ -1,10 +1,11 @@
 {
   "name": "telegram-social",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/dev.mjs",
+    "dev:web": "vite",
     "dev:server": "node --env-file-if-exists=.env --watch server/index.mjs",
     "build": "vite build",
     "start": "node --env-file-if-exists=.env server/index.mjs",
