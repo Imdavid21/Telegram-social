@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Unofficial Telegram.Social icon">
+  <defs>
+    <linearGradient id="bg" x1="70" y1="50" x2="450" y2="470" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3390ec"/>
+      <stop offset="1" stop-color="#236eb5"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="120" fill="#17212b"/>
+  <circle cx="256" cy="256" r="172" fill="url(#bg)"/>
+  <path d="M159 181c0-17 13-30 30-30h134c17 0 30 13 30 30s-13 30-30 30h-37v120c0 17-13 30-30 30s-30-13-30-30V211h-37c-17 0-30-13-30-30Z" fill="#fff"/>
+  <circle cx="337" cy="337" r="44" fill="#17212b" stroke="#fff" stroke-width="14"/>
+</svg>
