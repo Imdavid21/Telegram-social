@@ -50,27 +50,32 @@ export default function App() {
       setBackendReady(true)
       const status = await authStatus()
       if (!status.connected) return
-      setConnection('connected')
-      setMode('live')
+
       const data = await fetchFeed()
       hydrateLiveData(data.channels, data.feed)
-    } catch {
+      setConnection('connected')
+      setMode('live')
+    } catch (e) {
       setBackendReady(false)
-      setError('Telegram backend is unavailable. Check the production backend deployment.')
+      setConnection('error')
+      setError(String((e as Error)?.message || 'Telegram backend is unavailable. Check the production backend deployment.'))
     }
   }
 
   function hydrateLocalState() {
     const saved = loadSet('saved')
     const read = loadSet('read')
-    setFeed(current => current.map(item => ({ ...item, saved: saved.has(item.id) || item.saved, unread: read.has(item.id) ? false : item.unread })))
+    setFeed(current => (Array.isArray(current) ? current : []).map(item => ({ ...item, saved: saved.has(item.id) || item.saved, unread: read.has(item.id) ? false : item.unread })))
   }
 
-  function hydrateLiveData(nextChannels: Channel[], nextFeed: FeedItem[]) {
+  function hydrateLiveData(nextChannels?: Channel[], nextFeed?: FeedItem[]) {
     const saved = loadSet('saved')
     const read = loadSet('read')
-    setChannels(nextChannels)
-    setFeed(nextFeed.map(item => ({ ...item, saved: saved.has(item.id), unread: read.has(item.id) ? false : item.unread })))
+    const safeChannels = Array.isArray(nextChannels) ? nextChannels : []
+    const safeFeed = Array.isArray(nextFeed) ? nextFeed : []
+
+    setChannels(safeChannels)
+    setFeed(safeFeed.map(item => ({ ...item, saved: saved.has(item.id), unread: read.has(item.id) ? false : item.unread })))
   }
 
   async function settleFlow(initial: Flow): Promise<Flow> {
@@ -152,7 +157,7 @@ export default function App() {
 
   async function toggleSave(item: FeedItem) {
     const willSave = !item.saved
-    setFeed(current => current.map(x => x.id === item.id ? { ...x, saved: willSave } : x))
+    setFeed(current => (Array.isArray(current) ? current : []).map(x => x.id === item.id ? { ...x, saved: willSave } : x))
     const saved = loadSet('saved')
     if (willSave) saved.add(item.id); else saved.delete(item.id)
     saveSet('saved', saved)
@@ -163,23 +168,26 @@ export default function App() {
   }
 
   function markRead(item: FeedItem) {
-    setFeed(current => current.map(x => x.id === item.id ? { ...x, unread: false } : x))
+    setFeed(current => (Array.isArray(current) ? current : []).map(x => x.id === item.id ? { ...x, unread: false } : x))
     const read = loadSet('read'); read.add(item.id); saveSet('read', read)
   }
 
+  const safeChannels = Array.isArray(channels) ? channels : []
+  const safeFeed = Array.isArray(feed) ? feed : []
+
   const visibleFeed = useMemo(() => {
     const q = query.trim().toLowerCase()
-    return feed.filter(item => {
-      const channel = channels.find(c => c.id === item.channelId)
+    return safeFeed.filter(item => {
+      const channel = safeChannels.find(c => c.id === item.channelId)
       if (filter === 'unread' && !item.unread) return false
       if (filter === 'saved' && !item.saved) return false
       if (filter === 'media' && !item.media) return false
-      if (q && !`${item.text} ${channel?.title || ''} ${channel?.username || ''}`.toLowerCase().includes(q)) return false
+      if (q && !`${item.text || ''} ${channel?.title || ''} ${channel?.username || ''}`.toLowerCase().includes(q)) return false
       return true
     })
-  }, [feed, channels, filter, query])
+  }, [safeFeed, safeChannels, filter, query])
 
-  const unreadTotal = feed.reduce((n, item) => n + (item.unread ? 1 : 0), 0)
+  const unreadTotal = safeFeed.reduce((n, item) => n + (item.unread ? 1 : 0), 0)
 
   return <div className="social-app">
     <header className="social-topbar">
@@ -206,7 +214,7 @@ export default function App() {
 
       <main className="social-feed-column">
         <section className="feed-intro">
-          <div><span className="feed-kicker">YOUR TELEGRAM FEED</span><h1>What’s happening</h1><p>{mode === 'live' ? `${channels.length} sources connected` : backendReady ? 'Connect Telegram to turn your activity into one feed.' : 'Previewing the feed in demo mode.'}</p></div>
+          <div><span className="feed-kicker">YOUR TELEGRAM FEED</span><h1>What’s happening</h1><p>{mode === 'live' ? `${safeChannels.length} sources connected` : backendReady ? 'Connect Telegram to turn your activity into one feed.' : 'Previewing the feed in demo mode.'}</p></div>
           <span className={`connection-dot ${backendReady ? 'online' : ''}`}></span>
         </section>
 
@@ -218,7 +226,7 @@ export default function App() {
 
         <div className="message-stream social-stream">
           {visibleFeed.length ? visibleFeed.map(item => {
-            const channel = channels.find(c => c.id === item.channelId)
+            const channel = safeChannels.find(c => c.id === item.channelId)
             if (!channel) return null
             return item.sponsored ? <SponsoredCard key={item.id} item={item} channel={channel} /> : <FeedCard key={item.id} item={item} channel={channel} live={mode === 'live'} onSave={toggleSave} onRead={markRead} />
           }) : <div className="empty-state"><strong>No activity here</strong><span>Try another feed or search.</span></div>}
@@ -227,9 +235,9 @@ export default function App() {
 
       <aside className="social-right">
         <section className="side-card">
-          <div className="side-card-heading"><strong>Sources</strong><span>{channels.length}</span></div>
+          <div className="side-card-heading"><strong>Sources</strong><span>{safeChannels.length}</span></div>
           <div className="channel-stack">
-            {channels.slice(0, 7).map(channel => <button key={channel.id} onClick={() => setQuery(channel.title)}>
+            {safeChannels.slice(0, 7).map(channel => <button key={channel.id} onClick={() => setQuery(channel.title)}>
               <span className="channel-avatar small" style={{ background: channel.accent }}>{channel.initials}</span>
               <span><strong>{channel.title}</strong><small>{channel.username ? `@${channel.username}` : 'Telegram'}</small></span>
               {channel.unread > 0 && <b>{channel.unread}</b>}
