@@ -248,37 +248,48 @@ function reactions(message) {
   }))
 }
 
-function isBroadcastDialog(dialog) {
-  const entity = dialog?.entity
-  if (!entity) return false
-  if (entity.broadcast === true) return true
-
-  const className = String(entity.className || entity.constructor?.name || '').toLowerCase()
-  const isChannelEntity = className === 'channel' || className.endsWith('.channel') || ('broadcast' in entity && 'megagroup' in entity)
-  if (!isChannelEntity) return false
-
-  return entity.megagroup !== true && entity.gigagroup !== true
+function entityType(entity) {
+  const className = String(entity?.className || entity?.constructor?.name || '').toLowerCase()
+  if (className.includes('user')) return 'person'
+  if (className.includes('chat')) return 'group'
+  if (className.includes('channel')) {
+    if (entity?.megagroup || entity?.gigagroup) return 'group'
+    return 'channel'
+  }
+  return 'conversation'
 }
 
-async function getBroadcastDialogs(client) {
+function entityTitle(entity) {
+  const fullName = [entity?.firstName, entity?.lastName].filter(Boolean).join(' ').trim()
+  return entity?.title || fullName || entity?.username || 'Telegram conversation'
+}
+
+function messageTimestamp(message) {
+  if (message?.date instanceof Date) return message.date.getTime()
+  const raw = Number(message?.date || 0)
+  if (!raw) return Date.now()
+  return raw > 1_000_000_000_000 ? raw : raw * 1000
+}
+
+function isBroadcastEntity(entity) {
+  return entity?.broadcast === true && entity?.megagroup !== true && entity?.gigagroup !== true
+}
+
+async function getFeedDialogs(client) {
   const dialogs = await client.getDialogs({ limit: 250 })
+  const usable = dialogs.filter(dialog => dialog?.entity?.id != null).slice(0, 80)
   const typeCounts = {}
-  for (const dialog of dialogs) {
-    const entity = dialog?.entity
-    const type = String(entity?.className || entity?.constructor?.name || 'unknown')
+  for (const dialog of usable) {
+    const type = entityType(dialog.entity)
     typeCounts[type] = (typeCounts[type] || 0) + 1
   }
-
-  const broadcastDialogs = dialogs.filter(isBroadcastDialog).slice(0, 60)
-  console.log('Telegram feed discovery', {
-    dialogs: dialogs.length,
-    broadcastChannels: broadcastDialogs.length,
-    entityTypes: typeCounts
-  })
-  return broadcastDialogs
+  console.log('Telegram feed discovery', { dialogs: dialogs.length, included: usable.length, entityTypes: typeCounts })
+  return usable
 }
 
 async function getSponsoredFor(client, entity) {
+  if (!isBroadcastEntity(entity)) return { postsBetween: 0, messages: [] }
+
   let cache = sponsorCacheByClient.get(client)
   if (!cache) {
     cache = new Map()
@@ -318,7 +329,7 @@ app.get('/', (_req, res) => {
 })
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, configured, runtime: 'persistent-node', version: '0.2.1' })
+  res.json({ ok: true, configured, runtime: 'persistent-node', version: '0.3.0' })
 })
 
 app.get('/api/ready', (_req, res) => {
@@ -407,45 +418,58 @@ app.get('/api/feed', async (req, res) => {
     const client = await getClient(req)
     if (!client) return res.status(401).json({ error: 'Connect Telegram first.' })
 
-    const dialogs = await getBroadcastDialogs(client)
+    const dialogs = await getFeedDialogs(client)
     const entityMap = new Map()
-    const rows = await mapLimit(dialogs, 4, async dialog => {
+    const rows = await mapLimit(dialogs, 5, async dialog => {
       const entity = dialog.entity
-      const channelId = String(entity.id)
-      entityMap.set(channelId, entity)
-      const channel = {
-        id: channelId,
-        title: entity.title || 'Untitled channel',
+      const sourceId = String(entity.id)
+      const title = entityTitle(entity)
+      const type = entityType(entity)
+      entityMap.set(sourceId, entity)
+
+      const source = {
+        id: sourceId,
+        title,
         username: entity.username || undefined,
-        initials: initials(entity.title),
-        accent: accent(channelId),
+        initials: initials(title),
+        accent: accent(`${type}-${sourceId}`),
         unread: Number(dialog.unreadCount || 0),
-        followers: compactNumber(entity.participantsCount)
+        followers: compactNumber(entity.participantsCount),
+        type
       }
 
-      const messages = await client.getMessages(entity, { limit: 16 })
+      const messages = await client.getMessages(entity, { limit: 24 })
       const posts = []
+      const readInboxMaxId = Number(dialog.readInboxMaxId || 0)
+
       for (const message of messages) {
         if (!message?.id) continue
+        const hasMedia = Boolean(message.photo || message.video || message.document)
+        const text = String(message.message || '')
+        if (!text && !hasMedia) continue
+
         let media
-        if (message.photo || message.video || message.document) {
+        if (hasMedia) {
           media = {
             kind: message.video ? 'video' : 'photo',
-            src: `/api/media/${encodeURIComponent(channelId)}/${message.id}`
+            src: `/api/media/${encodeURIComponent(sourceId)}/${message.id}`
           }
         }
+
         posts.push({
-          id: `${channelId}-${message.id}`,
+          id: `${sourceId}-${message.id}`,
           messageId: Number(message.id),
-          channelId,
-          timestamp: Number(message.date || 0) * 1000,
-          text: message.message || '',
-          unread: Number(dialog.unreadCount || 0) > 0,
+          channelId: sourceId,
+          timestamp: messageTimestamp(message),
+          text,
+          unread: !message.out && Number(message.id) > readInboxMaxId,
           saved: false,
           media,
           reactions: reactions(message),
           views: compactNumber(message.views),
-          comments: Number(message.replies?.replies || 0) || 0
+          comments: Number(message.replies?.replies || 0) || 0,
+          outgoing: Boolean(message.out),
+          sourceType: type
         })
       }
 
@@ -453,9 +477,9 @@ app.get('/api/feed', async (req, res) => {
       for (const sponsoredMessage of sponsored.messages) {
         const randomId = Buffer.from(sponsoredMessage.randomId || []).toString('base64url')
         posts.push({
-          id: `sponsored-${channelId}-${randomId}`,
+          id: `sponsored-${sourceId}-${randomId}`,
           messageId: 0,
-          channelId,
+          channelId: sourceId,
           timestamp: Date.now(),
           text: sponsoredMessage.message || '',
           unread: false,
@@ -473,17 +497,17 @@ app.get('/api/feed', async (req, res) => {
         })
       }
 
-      return { channel, posts }
+      return { source, posts }
     })
 
-    const channels = rows.map(row => row.channel)
+    const channels = rows.map(row => row.source)
     const feed = rows.flatMap(row => row.posts).sort((a, b) => b.timestamp - a.timestamp)
-    console.log('Telegram feed response', { channels: channels.length, posts: feed.length })
     entitiesByClient.set(client, entityMap)
+    console.log('Telegram feed response', { sources: channels.length, posts: feed.length })
     res.setHeader('Cache-Control', 'private, no-store')
     res.json({ channels, feed })
   } catch (err) {
-    console.error('Telegram feed error', String(err?.message || err))
+    console.error('Telegram feed failed', String(err?.message || err))
     res.status(500).json({ error: String(err?.message || err) })
   }
 })
@@ -517,7 +541,7 @@ app.post('/api/save', async (req, res) => {
     if (!client) return res.status(401).json({ error: 'Connect Telegram first.' })
     const map = entitiesByClient.get(client)
     const entity = map?.get(String(req.body?.channelId))
-    if (!entity) return res.status(404).json({ error: 'Channel not loaded.' })
+    if (!entity) return res.status(404).json({ error: 'Conversation not loaded.' })
 
     const messages = await client.getMessages(entity, { ids: [Number(req.body?.messageId)] })
     const message = messages?.[0]
