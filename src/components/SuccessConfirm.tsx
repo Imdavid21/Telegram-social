@@ -10,7 +10,8 @@ export function SuccessConfirm({ onComplete }: { onComplete: () => void }) {
     const length = path.getTotalLength()
     path.style.strokeDasharray = `${length}`
     path.style.strokeDashoffset = `${length}`
-    const frame = requestAnimationFrame(() => { path.dataset.drawn = 'true' })
+    path.getBoundingClientRect()
+    const frame = requestAnimationFrame(() => { path.style.strokeDashoffset = '0' })
     const handleEnd = (event: TransitionEvent) => {
       if (event.propertyName !== 'stroke-dashoffset') return
       haptics.success()
