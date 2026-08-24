@@ -2,7 +2,25 @@
 
 A web-first Telegram channel reader that merges posts from subscribed broadcast channels into one social-style timeline.
 
-> Development codename: `Telegram.Social`. Before public launch, review Telegram's current branding and API terms. Third-party app naming and sponsored-message requirements may apply.
+> `Telegram.Social` is the development/product codename. Review Telegram's current API branding terms before a broad public launch.
+
+## Production architecture
+
+The production deployment deliberately separates the stateless web layer from the stateful Telegram client:
+
+```text
+Browser
+  ↓
+Vercel: Vite/React PWA
+  ↓ same-origin /api/*
+Vercel API gateway
+  ↓ authenticated server-to-server proxy
+Railway: persistent Node/Express + Teleproto
+  ↓ MTProto
+Telegram
+```
+
+The multi-step Telegram phone/code/2FA handshake must stay on a persistent process. Vercel does not own MTProto state anymore.
 
 ## What it does
 
@@ -13,66 +31,105 @@ A web-first Telegram channel reader that merges posts from subscribed broadcast 
 - Search and unread filters
 - Save posts locally
 - Forward posts to Telegram Saved Messages
-- Open the original Telegram post
+- Open original Telegram posts
 - Share posts
 - PWA install support
-- Demo mode without Telegram credentials
-- Baseline handling for Telegram sponsored messages
+- Demo mode before Telegram connection
+- Telegram sponsored-message retrieval and reporting baseline
 
 ## Stack
 
-- React
-- Vite
+- React 19
+- Vite 8
 - TypeScript
-- Express
+- Express 5
 - Teleproto / MTProto
-- Vercel Functions
+- Vercel for the frontend and stateless API gateway
+- Railway for the persistent Telegram backend
 
 ## Local development
 
-1. Copy `.env.example` to `.env`.
-2. Add your Telegram API credentials from `my.telegram.org`.
-3. Install dependencies.
-4. Run the development server.
+Copy `.env.example` to `.env`, replace the Telegram credentials and session secret, then run:
 
 ```bash
 npm install
 npm run dev
 ```
 
-## Environment variables
+`npm run dev` now starts both Vite and the local Express/Teleproto server. Vite proxies `/api/*` to port `8787`.
 
-```bash
-TELEGRAM_API_ID=
-TELEGRAM_API_HASH=
-SESSION_SECRET=
+## Railway variables
+
+Set these on the Railway backend service:
+
+```text
+TELEGRAM_API_ID
+TELEGRAM_API_HASH
+SESSION_SECRET
+BACKEND_PROXY_SECRET
+NODE_ENV=production
+PUBLIC_APP_ORIGIN=https://your-production-vercel-domain
 ```
 
-`SESSION_SECRET` should be a long random value. Telegram credentials must never be exposed to the frontend.
+`SESSION_SECRET` and `BACKEND_PROXY_SECRET` must each be at least 32 characters and should be unrelated random values.
 
-## Vercel
+Railway config is defined in `railway.json`. The service starts `server/index.mjs` and uses `/api/ready` as its deployment healthcheck.
 
-This repository includes `vercel.json` and a catch-all Vercel function under `api/[...path].mjs`.
+Generate a public Railway domain after the backend is healthy.
 
-Add the required environment variables in Vercel before enabling live Telegram authentication.
+## Vercel variables
 
-### Important deployment note
+Set these on the Vercel project:
 
-The current interactive login handshake keeps temporary authorization state in server memory. That is fine for local development and controlled testing but is not reliable enough for production on stateless serverless infrastructure. Before opening login to real users, move the temporary auth challenge state into a durable short-lived store such as Vercel KV, Redis, or another encrypted server-side store.
+```text
+TELEGRAM_BACKEND_URL=https://your-service.up.railway.app
+BACKEND_PROXY_SECRET=<same value as Railway>
+```
+
+The Telegram API ID, API hash, and session-encryption secret do not need to live on Vercel after this migration.
+
+`api/[...path].mjs` is now a stateless reverse proxy. It forwards the browser's same-origin `/api/*` calls to Railway and forwards `Set-Cookie` back to the browser, so Telegram session cookies remain first-party on the Vercel application domain.
+
+## Health endpoints
+
+Railway exposes:
+
+```text
+GET /api/health
+GET /api/ready
+```
+
+`/api/health` always describes backend availability without exposing secrets. `/api/ready` returns success only when the production Telegram/backend secrets are configured.
+
+Through the Vercel application, `/api/health` should return a payload similar to:
+
+```json
+{
+  "ok": true,
+  "configured": true,
+  "runtime": "persistent-node",
+  "version": "0.2.0"
+}
+```
 
 ## Security model
 
-- Telegram API ID/hash stay server-side.
-- Authenticated Telegram sessions are encrypted before being stored in an HttpOnly cookie.
-- The app does not require a centralized message database for V0.1.
-- Telegram messages are fetched through the user's authorized session.
+- Telegram API credentials exist only on the persistent backend.
+- Telegram `StringSession` data is AES-256-GCM encrypted before being placed in an HttpOnly, Secure, SameSite=Lax cookie.
+- The Vercel gateway and Railway backend authenticate server-to-server using `BACKEND_PROXY_SECRET`.
+- Production mutating API requests validate their browser origin.
+- No Telegram password, login code, API hash, or session string is stored in localStorage.
+- No centralized Telegram message database is required.
+- Established sessions survive backend process restarts because the encrypted Telegram session is held by the browser; the backend reconnects from it as needed.
+
+## Scaling note
+
+Keep the Railway Telegram backend at one replica for this version. Active login handshakes use an in-process Teleproto client. Established sessions are restart-safe, but an authorization flow that is in progress during a backend restart/deployment may need to be started again.
+
+Horizontal scaling should only be enabled after auth-flow affinity or a purpose-built persistent Telegram session service is introduced.
 
 ## Scope
 
-V0.1 deliberately focuses on broadcast channels rather than becoming a full Telegram replacement. DMs and normal group messaging are out of scope for the initial product.
-
-## Product idea
+The app deliberately focuses on broadcast channels. DMs and normal group messaging are out of scope.
 
 Telegram is the inbox. This app is the feed.
-
-The product takes the core Evergram concept and rebuilds it independently for the web/PWA rather than using or forking Evergram's private Android application code.
