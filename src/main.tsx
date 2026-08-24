@@ -1,10 +1,12 @@
 import { Component, StrictMode, type ErrorInfo, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
+import { initInteractionEnvironment } from './lib/interaction'
 import './styles.css'
 import './production.css'
 import './feed.css'
 import './feed-engine.css'
+import './landing.css'
 
 async function clearLegacyPwa() {
   if ('serviceWorker' in navigator) {
@@ -52,11 +54,11 @@ class RenderBoundary extends Component<{ children: ReactNode }, { error: string 
 
   render() {
     if (this.state.error) {
-      return <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, background: '#0b1116', color: '#f3f7fa', fontFamily: 'Inter, system-ui, sans-serif' }}>
-        <section style={{ width: 'min(520px, 100%)', padding: 24, border: '1px solid #222f39', borderRadius: 16, background: '#121a22' }}>
-          <strong style={{ display: 'block', marginBottom: 8 }}>Supergram hit a rendering error.</strong>
-          <p style={{ margin: '0 0 16px', color: '#9aa9b5', lineHeight: 1.5 }}>{this.state.error}</p>
-          <button onClick={() => location.reload()} style={{ border: 0, borderRadius: 10, padding: '10px 14px', background: '#2AABEE', color: '#fff', fontWeight: 700 }}>Reload</button>
+      return <main style={{ minHeight: 'var(--tg-viewport-height, 100vh)', display: 'grid', placeItems: 'center', padding: 24, background: '#0e1114', color: '#f4f7f9', fontFamily: 'Inter, system-ui, sans-serif' }}>
+        <section style={{ width: 'min(520px, 100%)', padding: 24, border: '1px solid #25313b', borderRadius: 16, background: '#11161b' }}>
+          <strong style={{ display: 'block', marginBottom: 8 }}>Supergram could not render this view.</strong>
+          <p style={{ margin: '0 0 16px', color: '#8e9caa', lineHeight: 1.5 }}>{this.state.error}</p>
+          <button className="pressable" onClick={() => location.reload()} style={{ border: 0, borderRadius: 10, padding: '10px 14px', background: '#2aabee', color: '#fff', fontWeight: 700 }}>Reload</button>
         </section>
       </main>
     }
@@ -65,8 +67,9 @@ class RenderBoundary extends Component<{ children: ReactNode }, { error: string 
 }
 
 void clearLegacyPwa()
+initInteractionEnvironment()
 
 const root = document.getElementById('root')
 if (!root) throw new Error('App root not found')
-root.innerHTML = '<div style="min-height:100vh;display:grid;place-items:center;background:#0b1116;color:#8294a3;font:14px system-ui">Loading Supergram…</div>'
+root.innerHTML = '<div style="min-height:var(--tg-viewport-height,100vh);display:grid;place-items:center;background:#0e1114;color:#8e9caa;font:14px system-ui">Loading Supergram…</div>'
 createRoot(root).render(<StrictMode><RenderBoundary><App /></RenderBoundary></StrictMode>)
