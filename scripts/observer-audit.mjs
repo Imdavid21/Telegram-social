@@ -13,17 +13,32 @@ function collect(root) {
 }
 
 const violations = []
-const rootMarginLiteral = /rootMargin\s*:\s*['"`]([^'"`]+)['"`]/g
+const staticRootMargin = /rootMargin\s*:\s*(['"])(.*?)\1/g
+const templateRootMargin = /rootMargin\s*:\s*`([^`]*)`/g
+const validStaticToken = /^[-+]?\d*\.?\d+(?:px|%)$|^0$/
+const forbiddenUnit = /[-+]?\d*\.?\d+(?:vh|vw|vmin|vmax|rem|em|ch|ex|cm|mm|in|pt|pc)\b/i
 
 for (const file of collect('src')) {
   const source = fs.readFileSync(file, 'utf8')
   let match
-  while ((match = rootMarginLiteral.exec(source))) {
-    const margin = match[1]
+
+  while ((match = staticRootMargin.exec(source))) {
+    const margin = match[2]
     const tokens = margin.trim().split(/\s+/)
     for (const token of tokens) {
-      if (/^[-+]?\d*\.?\d+(?:px|%)$/.test(token) || token === '0') continue
+      if (validStaticToken.test(token)) continue
       violations.push(`${file}: invalid IntersectionObserver rootMargin token "${token}" in "${margin}"`)
+    }
+  }
+
+  while ((match = templateRootMargin.exec(source))) {
+    const margin = match[1]
+    // Dynamic expressions such as `${bottomMarginPx}px` are valid at runtime.
+    // We cannot resolve them statically, so only reject units that IntersectionObserver
+    // does not support anywhere in the template literal.
+    const forbidden = margin.match(forbiddenUnit)
+    if (forbidden) {
+      violations.push(`${file}: unsupported IntersectionObserver rootMargin unit in template "${margin}"`)
     }
   }
 }
