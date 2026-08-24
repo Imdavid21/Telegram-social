@@ -51,11 +51,11 @@ class RenderBoundary extends Component<{ children: ReactNode }, { error: string 
 
   render() {
     if (this.state.error) {
-      return <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, background: '#0b1118', color: '#eef4f8', fontFamily: 'Inter, system-ui, sans-serif' }}>
-        <section style={{ width: 'min(520px, 100%)', padding: 24, border: '1px solid #25313b', borderRadius: 16, background: '#111a23' }}>
-          <strong style={{ display: 'block', marginBottom: 8 }}>The feed hit a rendering error.</strong>
-          <p style={{ margin: '0 0 16px', color: '#8ea0ae', lineHeight: 1.5 }}>{this.state.error}</p>
-          <button onClick={() => location.reload()} style={{ border: 0, borderRadius: 10, padding: '10px 14px', background: '#3390ec', color: '#fff', fontWeight: 700 }}>Reload</button>
+      return <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, background: '#0b1116', color: '#f3f7fa', fontFamily: 'Inter, system-ui, sans-serif' }}>
+        <section style={{ width: 'min(520px, 100%)', padding: 24, border: '1px solid #222f39', borderRadius: 16, background: '#121a22' }}>
+          <strong style={{ display: 'block', marginBottom: 8 }}>Supergram hit a rendering error.</strong>
+          <p style={{ margin: '0 0 16px', color: '#9aa9b5', lineHeight: 1.5 }}>{this.state.error}</p>
+          <button onClick={() => location.reload()} style={{ border: 0, borderRadius: 10, padding: '10px 14px', background: '#2AABEE', color: '#fff', fontWeight: 700 }}>Reload</button>
         </section>
       </main>
     }
@@ -67,5 +67,5 @@ void clearLegacyPwa()
 
 const root = document.getElementById('root')
 if (!root) throw new Error('App root not found')
-root.innerHTML = '<div style="min-height:100vh;display:grid;place-items:center;background:#0b1118;color:#8294a3;font:14px system-ui">Loading feed…</div>'
+root.innerHTML = '<div style="min-height:100vh;display:grid;place-items:center;background:#0b1116;color:#8294a3;font:14px system-ui">Loading Supergram…</div>'
 createRoot(root).render(<StrictMode><RenderBoundary><App /></RenderBoundary></StrictMode>)
