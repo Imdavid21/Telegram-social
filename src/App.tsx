@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import ProductApp from './ProductApp'
 import { LandingPage } from './components/LandingPage'
 import { PromptModal } from './components/AuthModal'
+import { ScrollAnchorBridge } from './components/ScrollAnchorBridge'
 import type { AuthPrompt } from './types'
 import { authFlow, authStatus, beginAuth, healthStatus, submitAuth } from './lib/api'
 import { haptics } from './lib/interaction'
@@ -108,7 +109,7 @@ export default function App() {
     }
   }
 
-  if (connected) return <ProductApp />
+  if (connected) return <ScrollAnchorBridge><ProductApp /></ScrollAnchorBridge>
 
   return <>
     <LandingPage onConnect={connect} connecting={connecting} backendReady={backendReady} booting={connected === null} error={error} />
