@@ -13,11 +13,29 @@ type RawFeedState = {
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) },
+    cache: 'no-store',
+    headers: {
+      Accept: 'application/json',
+      ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(init?.headers || {})
+    },
     ...init
   })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`)
+
+  const text = await res.text()
+  let data: any = {}
+
+  if (text) {
+    try {
+      data = JSON.parse(text)
+    } catch {
+      throw new Error(`Invalid JSON response from ${url} (${res.status}).`)
+    }
+  } else if (res.status !== 204) {
+    throw new Error(`Empty API response from ${url} (${res.status}).`)
+  }
+
+  if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`)
   return data as T
 }
 
