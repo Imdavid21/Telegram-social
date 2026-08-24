@@ -49,7 +49,7 @@ function normalizeItem(item: FeedItem, existing?: FeedItem): FeedItem {
     ...item,
     text: String(item?.text || ''),
     reactions: Array.isArray(item?.reactions) ? item.reactions : [],
-    saved: existing?.saved ?? saved.has(item.id) || Boolean(item.saved),
+    saved: existing?.saved ?? (saved.has(item.id) || Boolean(item.saved)),
     unread: existing?.unread === false || read.has(item.id) ? false : Boolean(item.unread)
   }
 }
@@ -375,7 +375,7 @@ export default function App() {
           if (Array.isArray(result.updates) && result.updates.length) applyIncrementalUpdates(result.updates)
           syncTokenRef.current = Math.max(syncTokenRef.current, Number(result.syncToken || 0))
           setConnection('connected')
-        } catch (e) {
+        } catch {
           if (controller.signal.aborted || !active) break
           setConnection('error')
           await delay(2500)
