@@ -185,7 +185,7 @@ export default function App() {
     <header className="social-topbar">
       <div className="social-topbar-inner">
         <a className="social-brand" href="/" aria-label={APP_NAME}><span className="brand-mark">T</span><span>Telegram.Social</span></a>
-        <div className="social-search"><SearchIcon/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search channels and posts" /></div>
+        <div className="social-search"><SearchIcon/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search Telegram activity" /></div>
         <div className="social-top-actions">
           {mode === 'live' && <button className="icon-button" onClick={refresh} title="Refresh"><RefreshIcon/></button>}
           <button className="primary-connect" onClick={mode === 'live' ? logout : connect} disabled={connection === 'connecting'}>
@@ -200,13 +200,13 @@ export default function App() {
         <nav className="feed-nav">
           {nav.map(entry => { const Icon = entry.icon; return <button key={entry.id} className={filter === entry.id ? 'active' : ''} onClick={() => setFilter(entry.id)}><Icon/><span>{entry.label}</span>{entry.id === 'unread' && unreadTotal > 0 && <b>{unreadTotal}</b>}</button> })}
         </nav>
-        <div className="left-note"><strong>Channels, without the chat.</strong><span>A calm feed built from the Telegram channels you already follow.</span></div>
+        <div className="left-note"><strong>Telegram, without the inbox.</strong><span>One calm feed built from the conversations, groups, and channels already in your account.</span></div>
         <div className="legal-links"><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a></div>
       </aside>
 
       <main className="social-feed-column">
         <section className="feed-intro">
-          <div><span className="feed-kicker">YOUR TELEGRAM FEED</span><h1>What’s happening</h1><p>{mode === 'live' ? `${channels.length} channels connected` : backendReady ? 'Connect Telegram to turn your channels into one feed.' : 'Previewing the feed in demo mode.'}</p></div>
+          <div><span className="feed-kicker">YOUR TELEGRAM FEED</span><h1>What’s happening</h1><p>{mode === 'live' ? `${channels.length} sources connected` : backendReady ? 'Connect Telegram to turn your activity into one feed.' : 'Previewing the feed in demo mode.'}</p></div>
           <span className={`connection-dot ${backendReady ? 'online' : ''}`}></span>
         </section>
 
@@ -221,24 +221,24 @@ export default function App() {
             const channel = channels.find(c => c.id === item.channelId)
             if (!channel) return null
             return item.sponsored ? <SponsoredCard key={item.id} item={item} channel={channel} /> : <FeedCard key={item.id} item={item} channel={channel} live={mode === 'live'} onSave={toggleSave} onRead={markRead} />
-          }) : <div className="empty-state"><strong>No posts here</strong><span>Try another feed or search.</span></div>}
+          }) : <div className="empty-state"><strong>No activity here</strong><span>Try another feed or search.</span></div>}
         </div>
       </main>
 
       <aside className="social-right">
         <section className="side-card">
-          <div className="side-card-heading"><strong>Channels</strong><span>{channels.length}</span></div>
+          <div className="side-card-heading"><strong>Sources</strong><span>{channels.length}</span></div>
           <div className="channel-stack">
             {channels.slice(0, 7).map(channel => <button key={channel.id} onClick={() => setQuery(channel.title)}>
               <span className="channel-avatar small" style={{ background: channel.accent }}>{channel.initials}</span>
-              <span><strong>{channel.title}</strong><small>{channel.username ? `@${channel.username}` : 'Telegram channel'}</small></span>
+              <span><strong>{channel.title}</strong><small>{channel.username ? `@${channel.username}` : 'Telegram'}</small></span>
               {channel.unread > 0 && <b>{channel.unread}</b>}
             </button>)}
           </div>
         </section>
         <section className="side-card compact-card">
-          <strong>{mode === 'live' ? 'Telegram connected' : 'Bring your channels here'}</strong>
-          <p>{mode === 'live' ? 'Your feed is live. New posts appear here when you refresh.' : 'Sign in with your Telegram account. DMs and groups stay out of this product.'}</p>
+          <strong>{mode === 'live' ? 'Telegram connected' : 'Bring your Telegram here'}</strong>
+          <p>{mode === 'live' ? 'Your feed combines recent activity across Telegram. Refresh to pull the latest messages.' : 'Sign in with your Telegram account and turn recent activity into one scrollable feed.'}</p>
           {mode === 'demo' && <button className="side-connect" onClick={connect}>Connect Telegram</button>}
         </section>
         <p className="unofficial-note">Unofficial client using the Telegram API. Not affiliated with Telegram.</p>
