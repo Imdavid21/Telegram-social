@@ -1,6 +1,7 @@
 export type FeedFilter = 'all' | 'unread' | 'saved' | 'media'
 
 export type SourceType = 'person' | 'group' | 'channel' | 'conversation'
+export type MediaKind = 'photo' | 'video' | 'gif' | 'audio' | 'voice' | 'document' | 'sticker' | 'album' | 'poll' | 'location' | 'contact'
 
 export interface Channel {
   id: string
@@ -13,6 +14,32 @@ export interface Channel {
   muted?: boolean
   type?: SourceType
   avatar?: string
+  private?: boolean
+  archived?: boolean
+}
+
+export interface MediaAsset {
+  kind: Exclude<MediaKind, 'album'>
+  src?: string
+  ticketEndpoint?: string
+  gradient?: string
+  label?: string
+  mimeType?: string
+  name?: string
+  size?: number
+  duration?: number
+  width?: number
+  height?: number
+  round?: boolean
+  supportsStreaming?: boolean
+  groupId?: string
+  messageId?: number
+}
+
+export interface AlbumMedia {
+  kind: 'album'
+  groupId?: string
+  items: MediaAsset[]
 }
 
 export interface FeedItem {
@@ -25,15 +52,10 @@ export interface FeedItem {
   saved: boolean
   outgoing?: boolean
   sourceType?: SourceType
-  media?: {
-    kind: 'photo' | 'video' | 'gif' | 'audio' | 'document'
-    src?: string
-    gradient?: string
-    label?: string
-    mimeType?: string
-    fileName?: string
-    size?: number
-  }
+  edited?: boolean
+  noForwards?: boolean
+  groupId?: string
+  media?: MediaAsset | AlbumMedia
   reactions: Array<{ emoji: string; count: number }>
   views?: string
   comments?: number
@@ -47,6 +69,29 @@ export interface FeedItem {
     additionalInfo?: string
   }
 }
+
+export interface FeedDiagnostics {
+  loaded?: number
+  telegramTotal?: number
+  mainTotal?: number
+  archivedTotal?: number
+  archivedLoaded?: number
+  entityTypes?: Record<string, number>
+}
+
+export interface FeedPage {
+  channels: Channel[]
+  feed: FeedItem[]
+  nextCursor: string | null
+  hasMore: boolean
+  syncToken: number
+  diagnostics?: FeedDiagnostics
+}
+
+export type FeedUpdate =
+  | { seq: number; type: 'upsert'; post: FeedItem; source?: Channel }
+  | { seq: number; type: 'source'; source: Channel }
+  | { seq: number; type: 'delete'; sourceId?: string | null; messageIds: number[] }
 
 export interface TelegramCredentials {
   apiId: number
