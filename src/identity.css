@@ -11,9 +11,14 @@
 .sg-new-posts{animation:sg-new-post-pill var(--duration-slow) var(--ease-spring) both}
 .sg-unread-dot{animation:sg-dot-in var(--duration-normal) var(--ease-spring) both}
 .sg-action.is-active{animation:sg-action-confirm var(--duration-normal) var(--ease-spring)}
+.sg-post.is-confirming{transform:scale(.996);transition:transform var(--duration-fast) var(--ease-smooth)}
+.sg-save-slot{position:relative;width:34px;height:34px;display:grid;place-items:center}
+.sg-success-confirm{position:absolute;inset:-2px;display:grid;place-items:center;border-radius:50%;background:var(--sg-bg);color:var(--sg-blue);animation:sg-confirm-in var(--duration-fast) var(--ease-smooth) both;pointer-events:none}
+.sg-success-confirm svg{width:25px;height:25px}.sg-success-confirm path{stroke-dashoffset:100;transition:stroke-dashoffset var(--duration-normal) var(--ease-spring)}.sg-success-confirm path[data-drawn='true']{stroke-dashoffset:0}
 
 @keyframes sg-new-post-pill{from{opacity:0;transform:translateY(-8px) scale(.96)}to{opacity:1;transform:none}}
 @keyframes sg-dot-in{from{opacity:0;transform:scale(.2)}to{opacity:1;transform:scale(1)}}
 @keyframes sg-action-confirm{0%{transform:scale(.88)}70%{transform:scale(1.12)}100%{transform:scale(1)}}
+@keyframes sg-confirm-in{from{opacity:0;transform:scale(.82)}to{opacity:1;transform:scale(1)}}
 
-@media(prefers-reduced-motion:reduce){.sg-new-posts,.sg-unread-dot,.sg-action.is-active{animation:none}}
+@media(prefers-reduced-motion:reduce){.sg-new-posts,.sg-unread-dot,.sg-action.is-active,.sg-success-confirm{animation:none}.sg-success-confirm path{transition-duration:.001ms}}
