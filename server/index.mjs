@@ -248,9 +248,34 @@ function reactions(message) {
   }))
 }
 
+function isBroadcastDialog(dialog) {
+  const entity = dialog?.entity
+  if (!entity) return false
+  if (entity.broadcast === true) return true
+
+  const className = String(entity.className || entity.constructor?.name || '').toLowerCase()
+  const isChannelEntity = className === 'channel' || className.endsWith('.channel') || ('broadcast' in entity && 'megagroup' in entity)
+  if (!isChannelEntity) return false
+
+  return entity.megagroup !== true && entity.gigagroup !== true
+}
+
 async function getBroadcastDialogs(client) {
-  const dialogs = await client.getDialogs({ limit: 160 })
-  return dialogs.filter(dialog => dialog?.entity?.broadcast === true).slice(0, 45)
+  const dialogs = await client.getDialogs({ limit: 250 })
+  const typeCounts = {}
+  for (const dialog of dialogs) {
+    const entity = dialog?.entity
+    const type = String(entity?.className || entity?.constructor?.name || 'unknown')
+    typeCounts[type] = (typeCounts[type] || 0) + 1
+  }
+
+  const broadcastDialogs = dialogs.filter(isBroadcastDialog).slice(0, 60)
+  console.log('Telegram feed discovery', {
+    dialogs: dialogs.length,
+    broadcastChannels: broadcastDialogs.length,
+    entityTypes: typeCounts
+  })
+  return broadcastDialogs
 }
 
 async function getSponsoredFor(client, entity) {
@@ -293,7 +318,7 @@ app.get('/', (_req, res) => {
 })
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, configured, runtime: 'persistent-node', version: '0.2.0' })
+  res.json({ ok: true, configured, runtime: 'persistent-node', version: '0.2.1' })
 })
 
 app.get('/api/ready', (_req, res) => {
@@ -398,7 +423,7 @@ app.get('/api/feed', async (req, res) => {
         followers: compactNumber(entity.participantsCount)
       }
 
-      const messages = await client.getMessages(entity, { limit: 12 })
+      const messages = await client.getMessages(entity, { limit: 16 })
       const posts = []
       for (const message of messages) {
         if (!message?.id) continue
@@ -415,7 +440,7 @@ app.get('/api/feed', async (req, res) => {
           channelId,
           timestamp: Number(message.date || 0) * 1000,
           text: message.message || '',
-          unread: true,
+          unread: Number(dialog.unreadCount || 0) > 0,
           saved: false,
           media,
           reactions: reactions(message),
@@ -453,10 +478,12 @@ app.get('/api/feed', async (req, res) => {
 
     const channels = rows.map(row => row.channel)
     const feed = rows.flatMap(row => row.posts).sort((a, b) => b.timestamp - a.timestamp)
+    console.log('Telegram feed response', { channels: channels.length, posts: feed.length })
     entitiesByClient.set(client, entityMap)
     res.setHeader('Cache-Control', 'private, no-store')
     res.json({ channels, feed })
   } catch (err) {
+    console.error('Telegram feed error', String(err?.message || err))
     res.status(500).json({ error: String(err?.message || err) })
   }
 })
