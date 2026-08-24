@@ -1,14 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import type { AuthPrompt, Channel, FeedFilter, FeedItem } from './types'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { AlbumMedia, AuthPrompt, Channel, FeedDiagnostics, FeedFilter, FeedItem, FeedPage, FeedUpdate, MediaAsset } from './types'
 import { loadSet, saveSet } from './lib/storage'
-import { authFlow, authStatus, beginAuth, fetchFeed, healthStatus, logoutTelegram, saveTelegramPost, submitAuth } from './lib/api'
+import { ApiError, authFlow, authStatus, beginAuth, fetchFeed, fetchFeedUpdates, healthStatus, logoutTelegram, saveTelegramPost, submitAuth } from './lib/api'
 import { PromptModal } from './components/AuthModal'
 import { FeedCard } from './components/FeedCard'
 import { SponsoredCard } from './components/SponsoredCard'
-import { BellIcon, BookmarkIcon, CloseIcon, HomeIcon, ImageIcon, LogOutIcon, MoonIcon, RefreshIcon, SearchIcon, SettingsIcon, SunIcon } from './components/Icons'
+import { VirtualFeed } from './components/VirtualFeed'
+import { BellIcon, BookmarkIcon, CloseIcon, HomeIcon, ImageIcon, MoonIcon, RefreshIcon, SearchIcon, SettingsIcon, SunIcon } from './components/Icons'
 
 const APP_NAME = 'Supergram'
-const PAGE_SIZE = 24
+const API_PAGE_SIZE = 40
 const nav: Array<{ id: FeedFilter; label: string; icon: typeof HomeIcon }> = [
   { id: 'all', label: 'Home', icon: HomeIcon },
   { id: 'unread', label: 'Unread', icon: BellIcon },
@@ -19,7 +20,6 @@ const nav: Array<{ id: FeedFilter; label: string; icon: typeof HomeIcon }> = [
 type Flow = { step: string; error?: string | null; meta?: Record<string, unknown> }
 type Me = { id: string; firstName: string; username?: string }
 type Theme = 'dark' | 'light'
-type QueuedFeed = { channels: Channel[]; feed: FeedItem[] } | null
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 function promptFromFlow(flow: Flow): AuthPrompt | null {
@@ -41,12 +41,87 @@ function initials(value?: string) {
   return String(value || 'SG').split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]?.toUpperCase()).join('') || 'SG'
 }
 
+function normalizeItem(item: FeedItem, existing?: FeedItem): FeedItem {
+  const saved = loadSet('saved')
+  const read = loadSet('read')
+  return {
+    ...existing,
+    ...item,
+    text: String(item?.text || ''),
+    reactions: Array.isArray(item?.reactions) ? item.reactions : [],
+    saved: existing?.saved ?? saved.has(item.id) || Boolean(item.saved),
+    unread: existing?.unread === false || read.has(item.id) ? false : Boolean(item.unread)
+  }
+}
+
+function mergeChannels(current: Channel[], incoming: Channel[]) {
+  const map = new Map<string, Channel>()
+  for (const channel of current) if (channel?.id) map.set(channel.id, channel)
+  for (const channel of incoming) if (channel?.id) map.set(channel.id, { ...map.get(channel.id), ...channel })
+  return [...map.values()]
+}
+
+function mergeFeed(current: FeedItem[], incoming: FeedItem[]) {
+  const map = new Map<string, FeedItem>()
+  for (const item of current) if (item?.id) map.set(item.id, item)
+  for (const item of incoming) {
+    if (!item?.id) continue
+    map.set(item.id, normalizeItem(item, map.get(item.id)))
+  }
+  return [...map.values()].sort((a, b) => b.timestamp - a.timestamp || b.id.localeCompare(a.id))
+}
+
+function collapseAlbums(feed: FeedItem[]) {
+  const groups = new Map<string, FeedItem[]>()
+  for (const item of feed) {
+    if (!item.groupId || !item.media || item.sponsored || item.media.kind === 'album') continue
+    const key = `${item.channelId}:${item.groupId}`
+    const group = groups.get(key) || []
+    group.push(item)
+    groups.set(key, group)
+  }
+
+  const emitted = new Set<string>()
+  const output: FeedItem[] = []
+  for (const item of feed) {
+    if (!item.groupId || !item.media || item.sponsored || item.media.kind === 'album') {
+      output.push(item)
+      continue
+    }
+    const key = `${item.channelId}:${item.groupId}`
+    if (emitted.has(key)) continue
+    emitted.add(key)
+    const members = groups.get(key) || [item]
+    if (members.length < 2) {
+      output.push(item)
+      continue
+    }
+
+    const first = members[0]
+    const assets = members
+      .map(member => member.media && member.media.kind !== 'album' ? { ...member.media, messageId: member.messageId } as MediaAsset : null)
+      .filter((asset): asset is MediaAsset => Boolean(asset))
+    const album: AlbumMedia = { kind: 'album', groupId: item.groupId, items: assets }
+    output.push({
+      ...first,
+      id: `album:${item.channelId}:${item.groupId}`,
+      timestamp: Math.max(...members.map(member => member.timestamp)),
+      text: members.find(member => String(member.text || '').trim())?.text || '',
+      unread: members.some(member => member.unread),
+      saved: members.some(member => member.saved),
+      noForwards: members.some(member => member.noForwards),
+      media: album
+    })
+  }
+  return output
+}
+
 function SourceBubble({ channel, active, onClick }: { channel: Channel; active: boolean; onClick: () => void }) {
   const [failed, setFailed] = useState(false)
   return <button type="button" className={`sg-source-bubble ${active ? 'is-active' : ''}`} onClick={onClick} title={channel.title}>
     <span className="sg-source-ring">
       <span className="sg-source-avatar" style={{ background: channel.accent || '#2AABEE' }}>
-        {channel.avatar && !failed ? <img src={channel.avatar} alt="" onError={() => setFailed(true)} /> : channel.initials || initials(channel.title)}
+        {channel.avatar && !failed ? <img src={channel.avatar} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)} /> : channel.initials || initials(channel.title)}
       </span>
     </span>
     <span>{channel.title}</span>
@@ -68,18 +143,25 @@ export default function App() {
   const [me, setMe] = useState<Me | null>(null)
   const [theme, setTheme] = useState<Theme>(() => safeTheme())
   const [searchOpen, setSearchOpen] = useState(false)
-  const [renderLimit, setRenderLimit] = useState(PAGE_SIZE)
-  const [queuedFeed, setQueuedFeed] = useState<QueuedFeed>(null)
-  const [newCount, setNewCount] = useState(0)
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
+  const [hasMore, setHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [queuedPosts, setQueuedPosts] = useState<FeedItem[]>([])
   const [lastRefresh, setLastRefresh] = useState<number | null>(null)
+  const [diagnostics, setDiagnostics] = useState<FeedDiagnostics | null>(null)
   const endRef = useRef<HTMLDivElement>(null)
   const searchInput = useRef<HTMLInputElement>(null)
   const scrollPositions = useRef<Record<FeedFilter, number>>({ all: 0, unread: 0, saved: 0, media: 0 })
   const keyboardIndex = useRef(0)
+  const syncTokenRef = useRef(0)
+  const loadingMoreRef = useRef(false)
+  const feedRef = useRef<FeedItem[]>([])
 
   const safeChannels = Array.isArray(channels) ? channels : []
   const safeFeed = Array.isArray(feed) ? feed : []
+  const newCount = queuedPosts.length
 
+  useEffect(() => { feedRef.current = safeFeed }, [safeFeed])
   useEffect(() => { void bootstrap() }, [])
 
   useEffect(() => {
@@ -93,6 +175,17 @@ export default function App() {
     const timer = window.setTimeout(() => searchInput.current?.focus(), 50)
     return () => window.clearTimeout(timer)
   }, [searchOpen])
+
+  function applyPage(page: FeedPage, replace = false) {
+    const normalized = page.feed.map(item => normalizeItem(item))
+    setChannels(current => replace ? mergeChannels([], page.channels) : mergeChannels(current, page.channels))
+    setFeed(current => replace ? mergeFeed([], normalized) : mergeFeed(current, normalized))
+    setNextCursor(page.nextCursor)
+    setHasMore(page.hasMore)
+    syncTokenRef.current = Math.max(syncTokenRef.current, page.syncToken)
+    if (page.diagnostics) setDiagnostics(page.diagnostics)
+    setLastRefresh(Date.now())
+  }
 
   async function bootstrap() {
     setBooting(true)
@@ -108,33 +201,16 @@ export default function App() {
       setMe(status.user || null)
       if (!status.connected) return
 
-      const data = await fetchFeed()
-      hydrateLiveData(data.channels, data.feed)
+      const page = await fetchFeed(null, API_PAGE_SIZE)
+      applyPage(page, true)
       setConnection('connected')
       setMode('live')
-      setLastRefresh(Date.now())
     } catch (e) {
       setConnection('error')
       setError(String((e as Error)?.message || 'Could not load Supergram.'))
     } finally {
       setBooting(false)
     }
-  }
-
-  function hydrateLiveData(nextChannels?: Channel[], nextFeed?: FeedItem[]) {
-    const saved = loadSet('saved')
-    const read = loadSet('read')
-    const safeNextChannels = Array.isArray(nextChannels) ? nextChannels.filter(Boolean) : []
-    const safeNextFeed = Array.isArray(nextFeed) ? nextFeed.filter(Boolean) : []
-
-    setChannels(safeNextChannels)
-    setFeed(safeNextFeed.map(item => ({
-      ...item,
-      text: String(item?.text || ''),
-      reactions: Array.isArray(item?.reactions) ? item.reactions : [],
-      saved: saved.has(item.id) || Boolean(item.saved),
-      unread: read.has(item.id) ? false : Boolean(item.unread)
-    })))
   }
 
   async function settleFlow(initial: Flow): Promise<Flow> {
@@ -149,14 +225,13 @@ export default function App() {
   async function finishConnection() {
     const status = await authStatus()
     if (!status.connected) throw new Error('Telegram authorization did not complete.')
-    const data = await fetchFeed()
-    hydrateLiveData(data.channels, data.feed)
+    const page = await fetchFeed(null, API_PAGE_SIZE)
+    applyPage(page, true)
     setMe(status.user || null)
     setMode('live')
     setConnection('connected')
     setAuthPrompt(null)
     setError('')
-    setLastRefresh(Date.now())
   }
 
   async function connect() {
@@ -198,20 +273,23 @@ export default function App() {
     if (mode !== 'live') return
     if (!quiet) setConnection('connecting')
     try {
-      const data = await fetchFeed()
-      const nextChannels = Array.isArray(data.channels) ? data.channels : []
-      const nextFeed = Array.isArray(data.feed) ? data.feed : []
-      const currentIds = new Set(safeFeed.map(item => item.id))
-      const incoming = nextFeed.filter(item => !currentIds.has(item.id)).length
+      const page = await fetchFeed(null, API_PAGE_SIZE)
+      setChannels(current => mergeChannels(current, page.channels))
+      const currentIds = new Set(feedRef.current.map(item => item.id))
+      const newRows = page.feed.filter(item => !currentIds.has(item.id)).map(item => normalizeItem(item))
+      const existingRows = page.feed.filter(item => currentIds.has(item.id)).map(item => normalizeItem(item))
+      setFeed(current => mergeFeed(current, existingRows))
 
-      if (incoming > 0 && window.scrollY > 420) {
-        setQueuedFeed({ channels: nextChannels, feed: nextFeed })
-        setNewCount(incoming)
-      } else {
-        hydrateLiveData(nextChannels, nextFeed)
-        setQueuedFeed(null)
-        setNewCount(0)
+      if (newRows.length && window.scrollY > 420) {
+        setQueuedPosts(current => mergeFeed(current, newRows))
+      } else if (newRows.length) {
+        setFeed(current => mergeFeed(current, newRows))
       }
+
+      setNextCursor(page.nextCursor)
+      setHasMore(page.hasMore)
+      syncTokenRef.current = Math.max(syncTokenRef.current, page.syncToken)
+      if (page.diagnostics) setDiagnostics(page.diagnostics)
       setLastRefresh(Date.now())
       setConnection('connected')
     } catch (e) {
@@ -220,12 +298,98 @@ export default function App() {
     }
   }
 
+  const loadMore = useCallback(async () => {
+    if (mode !== 'live' || !hasMore || !nextCursor || loadingMoreRef.current) return
+    loadingMoreRef.current = true
+    setLoadingMore(true)
+    try {
+      const page = await fetchFeed(nextCursor, API_PAGE_SIZE)
+      applyPage(page, false)
+    } catch (e) {
+      if (e instanceof ApiError && (e.status === 410 || e.code === 'CURSOR_EXPIRED')) {
+        try {
+          const fresh = await fetchFeed(null, API_PAGE_SIZE)
+          applyPage(fresh, false)
+        } catch (restartError) {
+          setError(`Could not restore infinite scroll: ${String((restartError as Error)?.message || restartError)}`)
+        }
+      } else {
+        setError(`Could not load older posts: ${String((e as Error)?.message || e)}`)
+      }
+    } finally {
+      loadingMoreRef.current = false
+      setLoadingMore(false)
+    }
+  }, [mode, hasMore, nextCursor])
+
+  useEffect(() => {
+    const el = endRef.current
+    if (!el || mode !== 'live' || !hasMore || typeof IntersectionObserver === 'undefined') return
+    const observer = new IntersectionObserver(entries => {
+      if (entries.some(entry => entry.isIntersecting)) void loadMore()
+    }, { rootMargin: '1800px 0px' })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [loadMore, mode, hasMore])
+
+  function applyIncrementalUpdates(updates: FeedUpdate[]) {
+    const sourceUpdates = updates.flatMap(update => update.type === 'source' ? [update.source] : update.type === 'upsert' && update.source ? [update.source] : [])
+    if (sourceUpdates.length) setChannels(current => mergeChannels(current, sourceUpdates))
+
+    const upserts = updates.filter((update): update is Extract<FeedUpdate, { type: 'upsert' }> => update.type === 'upsert')
+    const deletions = updates.filter((update): update is Extract<FeedUpdate, { type: 'delete' }> => update.type === 'delete')
+
+    if (deletions.length) {
+      setFeed(current => current.filter(item => !deletions.some(update => {
+        if (!update.messageIds.includes(item.messageId)) return false
+        return update.sourceId ? item.channelId === update.sourceId : true
+      })))
+      setQueuedPosts(current => current.filter(item => !deletions.some(update => {
+        if (!update.messageIds.includes(item.messageId)) return false
+        return update.sourceId ? item.channelId === update.sourceId : true
+      })))
+    }
+
+    if (!upserts.length) return
+    const existingIds = new Set(feedRef.current.map(item => item.id))
+    const changedExisting = upserts.filter(update => existingIds.has(update.post.id)).map(update => normalizeItem(update.post))
+    const brandNew = upserts.filter(update => !existingIds.has(update.post.id)).map(update => normalizeItem(update.post))
+    if (changedExisting.length) setFeed(current => mergeFeed(current, changedExisting))
+    if (brandNew.length) {
+      if (window.scrollY > 420) setQueuedPosts(current => mergeFeed(current, brandNew))
+      else setFeed(current => mergeFeed(current, brandNew))
+    }
+    setLastRefresh(Date.now())
+  }
+
+  useEffect(() => {
+    if (mode !== 'live') return
+    const controller = new AbortController()
+    let active = true
+
+    const loop = async () => {
+      while (active && !controller.signal.aborted) {
+        try {
+          const result = await fetchFeedUpdates(syncTokenRef.current, controller.signal)
+          if (!active) break
+          if (Array.isArray(result.updates) && result.updates.length) applyIncrementalUpdates(result.updates)
+          syncTokenRef.current = Math.max(syncTokenRef.current, Number(result.syncToken || 0))
+          setConnection('connected')
+        } catch (e) {
+          if (controller.signal.aborted || !active) break
+          setConnection('error')
+          await delay(2500)
+        }
+      }
+    }
+    void loop()
+    return () => { active = false; controller.abort() }
+  }, [mode])
+
   function applyQueuedFeed() {
-    if (!queuedFeed) return
-    hydrateLiveData(queuedFeed.channels, queuedFeed.feed)
-    setQueuedFeed(null)
-    setNewCount(0)
-    setRenderLimit(PAGE_SIZE)
+    if (!queuedPosts.length) return
+    setFeed(current => mergeFeed(current, queuedPosts))
+    setQueuedPosts([])
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -238,15 +402,29 @@ export default function App() {
     setMe(null)
     setSourceFilter(null)
     setQuery('')
-    setQueuedFeed(null)
-    setNewCount(0)
+    setQueuedPosts([])
+    setNextCursor(null)
+    setHasMore(false)
+    setDiagnostics(null)
+    syncTokenRef.current = 0
+  }
+
+  function groupMembers(item: FeedItem, rows: FeedItem[]) {
+    if (!item.groupId) return rows.filter(row => row.id === item.id)
+    return rows.filter(row => row.channelId === item.channelId && row.groupId === item.groupId)
   }
 
   async function toggleSave(item: FeedItem) {
     const willSave = !item.saved
-    setFeed(current => (Array.isArray(current) ? current : []).map(row => row.id === item.id ? { ...row, saved: willSave } : row))
+    setFeed(current => current.map(row => {
+      const match = row.id === item.id || Boolean(item.groupId && row.channelId === item.channelId && row.groupId === item.groupId)
+      return match ? { ...row, saved: willSave } : row
+    }))
     const saved = loadSet('saved')
-    if (willSave) saved.add(item.id); else saved.delete(item.id)
+    const members = groupMembers(item, feedRef.current)
+    for (const member of members.length ? members : [item]) {
+      if (willSave) saved.add(member.id); else saved.delete(member.id)
+    }
     saveSet('saved', saved)
     if (willSave && mode === 'live') {
       try { await saveTelegramPost(item) }
@@ -255,9 +433,13 @@ export default function App() {
   }
 
   function markRead(item: FeedItem) {
-    setFeed(current => (Array.isArray(current) ? current : []).map(row => row.id === item.id ? { ...row, unread: false } : row))
+    setFeed(current => current.map(row => {
+      const match = row.id === item.id || Boolean(item.groupId && row.channelId === item.channelId && row.groupId === item.groupId)
+      return match ? { ...row, unread: false } : row
+    }))
     const read = loadSet('read')
-    read.add(item.id)
+    const members = groupMembers(item, feedRef.current)
+    for (const member of members.length ? members : [item]) read.add(member.id)
     saveSet('read', read)
   }
 
@@ -265,7 +447,6 @@ export default function App() {
     scrollPositions.current[filter] = window.scrollY
     setFilter(next)
     setSourceFilter(null)
-    setRenderLimit(PAGE_SIZE)
     keyboardIndex.current = 0
     requestAnimationFrame(() => window.scrollTo({ top: scrollPositions.current[next] || 0 }))
   }
@@ -273,14 +454,14 @@ export default function App() {
   function selectSource(id: string | null) {
     setSourceFilter(current => current === id ? null : id)
     setFilter('all')
-    setRenderLimit(PAGE_SIZE)
     keyboardIndex.current = 0
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
+  const collapsedFeed = useMemo(() => collapseAlbums(safeFeed), [safeFeed])
   const visibleFeed = useMemo(() => {
     const q = query.trim().toLowerCase()
-    return safeFeed.filter(item => {
+    return collapsedFeed.filter(item => {
       const channel = safeChannels.find(source => source.id === item.channelId)
       if (!channel) return false
       if (sourceFilter && channel.id !== sourceFilter) return false
@@ -290,35 +471,14 @@ export default function App() {
       if (q && !`${item.text || ''} ${channel.title || ''} ${channel.username || ''}`.toLowerCase().includes(q)) return false
       return true
     })
-  }, [safeFeed, safeChannels, filter, query, sourceFilter])
+  }, [collapsedFeed, safeChannels, filter, query, sourceFilter])
 
-  const renderedFeed = visibleFeed.slice(0, renderLimit)
   const unreadTotal = safeFeed.reduce((total, item) => total + (item.unread ? 1 : 0), 0)
   const topSources = useMemo(() => [...safeChannels].sort((a, b) => Number(b.unread || 0) - Number(a.unread || 0)).slice(0, 12), [safeChannels])
   const searchSources = useMemo(() => {
     const q = query.trim().toLowerCase()
     return (q ? safeChannels.filter(channel => `${channel.title} ${channel.username || ''}`.toLowerCase().includes(q)) : topSources).slice(0, 8)
   }, [query, safeChannels, topSources])
-
-  useEffect(() => {
-    setRenderLimit(PAGE_SIZE)
-  }, [filter, query, sourceFilter])
-
-  useEffect(() => {
-    const el = endRef.current
-    if (!el || renderLimit >= visibleFeed.length || typeof IntersectionObserver === 'undefined') return
-    const observer = new IntersectionObserver(entries => {
-      if (entries.some(entry => entry.isIntersecting)) setRenderLimit(current => Math.min(current + PAGE_SIZE, visibleFeed.length))
-    }, { rootMargin: '1000px 0px' })
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [renderLimit, visibleFeed.length])
-
-  useEffect(() => {
-    if (mode !== 'live') return
-    const interval = window.setInterval(() => { void refresh(true) }, 60_000)
-    return () => window.clearInterval(interval)
-  }, [mode, safeFeed.length])
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -336,22 +496,21 @@ export default function App() {
         setSearchOpen(false)
         return
       }
-      if (!renderedFeed.length) return
+      if (!visibleFeed.length) return
       if (event.key.toLowerCase() === 'j' || event.key.toLowerCase() === 'k') {
         event.preventDefault()
         const delta = event.key.toLowerCase() === 'j' ? 1 : -1
-        keyboardIndex.current = Math.max(0, Math.min(renderedFeed.length - 1, keyboardIndex.current + delta))
-        const selector = `[data-feed-index="${keyboardIndex.current}"]`
-        document.querySelector(selector)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        keyboardIndex.current = Math.max(0, Math.min(visibleFeed.length - 1, keyboardIndex.current + delta))
+        document.querySelector(`[data-feed-index="${keyboardIndex.current}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       }
       if (event.key.toLowerCase() === 's') {
-        const item = renderedFeed[keyboardIndex.current]
+        const item = visibleFeed[keyboardIndex.current]
         if (item) void toggleSave(item)
       }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [renderedFeed])
+  }, [visibleFeed])
 
   if (mode !== 'live') {
     return <div className="sg-auth-shell">
@@ -413,20 +572,21 @@ export default function App() {
         {error && <div className="sg-feed-error"><span>{error}</span><button type="button" onClick={() => setError('')}><CloseIcon /></button></div>}
 
         <section className="sg-feed" aria-live="polite">
-          {renderedFeed.length ? renderedFeed.map((item, index) => {
+          {visibleFeed.length ? <VirtualFeed items={visibleFeed} renderItem={(item, index) => {
             const channel = safeChannels.find(source => source.id === item.channelId)
             if (!channel) return null
             return item.sponsored
-              ? <SponsoredCard key={item.id} item={item} channel={channel} index={index} />
-              : <FeedCard key={item.id} item={item} channel={channel} live onSave={toggleSave} onRead={markRead} index={index} />
-          }) : <div className="sg-empty">
+              ? <SponsoredCard item={item} channel={channel} index={index} />
+              : <FeedCard item={item} channel={channel} live onSave={toggleSave} onRead={markRead} index={index} />
+          }} /> : <div className="sg-empty">
             <div className="sg-empty-icon">S</div>
             <strong>{query ? 'Nothing matched your search' : filter === 'unread' ? 'You’re caught up' : 'No posts here yet'}</strong>
-            <span>{query ? 'Try a source name, username, or message text.' : 'Refresh the feed or switch sources.'}</span>
+            <span>{query ? 'Try a source name, username, or message text.' : hasMore ? 'Loading older Telegram history…' : 'Refresh the feed or switch sources.'}</span>
             <button type="button" onClick={() => void refresh()}>Refresh</button>
           </div>}
           <div ref={endRef} className="sg-feed-sentinel" aria-hidden="true" />
-          {renderLimit < visibleFeed.length && <div className="sg-feed-loading"><span /></div>}
+          {loadingMore && <div className="sg-feed-loading"><span /></div>}
+          {!hasMore && safeFeed.length > API_PAGE_SIZE && <div className="sg-feed-end">You reached the beginning of this Telegram history.</div>}
         </section>
       </div>
 
@@ -438,7 +598,7 @@ export default function App() {
         </div>
 
         <section className="sg-side-section">
-          <div className="sg-side-title"><strong>Sources for you</strong><span>{safeChannels.length}</span></div>
+          <div className="sg-side-title"><strong>Sources for you</strong><span>{diagnostics?.telegramTotal ?? safeChannels.length}</span></div>
           <div className="sg-suggestions">
             {topSources.slice(0, 5).map(channel => <button type="button" key={channel.id} onClick={() => selectSource(channel.id)}>
               <span className="sg-mini-avatar" style={{ background: channel.accent || '#2AABEE' }}>{channel.initials || initials(channel.title)}</span>
@@ -449,9 +609,10 @@ export default function App() {
         </section>
 
         <section className="sg-side-section sg-scroll-notes">
-          <strong>Scroll shortcuts</strong>
+          <strong>Scroll status</strong>
+          <p>{safeFeed.length} messages loaded · {diagnostics?.archivedTotal ?? 0} archived sources</p>
           <p><kbd>J</kbd> next <kbd>K</kbd> previous <kbd>S</kbd> save <kbd>/</kbd> search</p>
-          {lastRefresh && <span>Last synced {new Date(lastRefresh).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
+          {lastRefresh && <span>Live sync {connection === 'connected' ? 'active' : 'reconnecting'} · {new Date(lastRefresh).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
         </section>
 
         <footer className="sg-footer-copy">Unofficial client using the Telegram API. Not affiliated with Telegram.<div><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a></div></footer>
@@ -462,14 +623,14 @@ export default function App() {
       <button type="button" className="sg-search-scrim" aria-label="Close search" onClick={() => setSearchOpen(false)} />
       <section className="sg-search-panel">
         <div className="sg-search-head"><strong>Search</strong><button type="button" className="sg-icon-button" onClick={() => setSearchOpen(false)}><CloseIcon /></button></div>
-        <label className="sg-search-field"><SearchIcon /><input ref={searchInput} value={query} onChange={event => setQuery(event.target.value)} placeholder="Search sources and messages" /><kbd>Esc</kbd></label>
+        <label className="sg-search-field"><SearchIcon /><input ref={searchInput} value={query} onChange={event => setQuery(event.target.value)} placeholder="Search loaded sources and messages" /><kbd>Esc</kbd></label>
         <div className="sg-search-results">
           <span>{query ? 'Sources' : 'Recent sources'}</span>
           {searchSources.map(channel => <button type="button" key={channel.id} onClick={() => { selectSource(channel.id); setSearchOpen(false) }}>
             <span className="sg-mini-avatar" style={{ background: channel.accent || '#2AABEE' }}>{channel.initials || initials(channel.title)}</span>
             <span><strong>{channel.title}</strong><small>{channel.username ? `@${channel.username}` : channel.type || 'Telegram'}</small></span>
           </button>)}
-          {query && visibleFeed.length > 0 && <div className="sg-search-count">{visibleFeed.length} matching {visibleFeed.length === 1 ? 'post' : 'posts'} in the feed</div>}
+          {query && visibleFeed.length > 0 && <div className="sg-search-count">{visibleFeed.length} matching {visibleFeed.length === 1 ? 'post' : 'posts'} currently loaded</div>}
         </div>
       </section>
     </div>}
