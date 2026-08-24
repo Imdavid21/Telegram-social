@@ -1,5 +1,7 @@
 export type FeedFilter = 'all' | 'unread' | 'saved' | 'media'
 
+export type SourceType = 'person' | 'group' | 'channel' | 'conversation'
+
 export interface Channel {
   id: string
   title: string
@@ -9,6 +11,8 @@ export interface Channel {
   unread: number
   followers?: string
   muted?: boolean
+  type?: SourceType
+  avatar?: string
 }
 
 export interface FeedItem {
@@ -19,11 +23,16 @@ export interface FeedItem {
   text: string
   unread: boolean
   saved: boolean
+  outgoing?: boolean
+  sourceType?: SourceType
   media?: {
-    kind: 'photo' | 'video'
+    kind: 'photo' | 'video' | 'gif' | 'audio' | 'document'
     src?: string
     gradient?: string
     label?: string
+    mimeType?: string
+    fileName?: string
+    size?: number
   }
   reactions: Array<{ emoji: string; count: number }>
   views?: string
