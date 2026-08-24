@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { AlbumMedia, MediaAsset } from '../types'
 import { fetchMediaTicket } from '../lib/api'
 import { persistVideoMuted, storedVideoMuted, videoRegistry } from '../lib/videoRegistry'
+import { MediaLightbox, type FlipRect } from './MediaLightbox'
 
 function formatBytes(value?: number) {
   const size = Number(value || 0)
@@ -35,11 +36,10 @@ function TicketAsset({ asset, compact = false }: { asset: MediaAsset; compact?: 
   const [loaded, setLoaded] = useState(false)
   const [preload, setPreload] = useState<'metadata' | 'auto'>('metadata')
   const [muted, setMuted] = useState(() => asset.kind === 'gif' ? true : storedVideoMuted())
+  const [lightboxRect, setLightboxRect] = useState<FlipRect | null>(null)
   const needsTicket = Boolean(asset.ticketEndpoint && !asset.src)
 
-  useEffect(() => {
-    setLoaded(false)
-  }, [url])
+  useEffect(() => { setLoaded(false) }, [url])
 
   useEffect(() => {
     if (!needsTicket || url) return
@@ -65,17 +65,14 @@ function TicketAsset({ asset, compact = false }: { asset: MediaAsset; compact?: 
     const node = video.current
     const host = root.current
     if (!node || !host || typeof IntersectionObserver === 'undefined') return
-
     const preloadObserver = new IntersectionObserver(entries => {
       setPreload(entries.some(entry => entry.isIntersecting) ? 'auto' : 'metadata')
     }, { rootMargin: '200vh 0px' })
-
     const playbackObserver = new IntersectionObserver(entries => {
       const visible = entries.some(entry => entry.isIntersecting && entry.intersectionRatio >= .7)
       if (visible) void videoRegistry.requestPlay(node)
       else videoRegistry.requestPause(node)
     }, { threshold: [.2, .7] })
-
     preloadObserver.observe(host)
     playbackObserver.observe(node)
     return () => {
@@ -91,6 +88,11 @@ function TicketAsset({ asset, compact = false }: { asset: MediaAsset; compact?: 
     setUrl('')
     setError('')
     setAttempt(value => value + 1)
+  }
+
+  function openLightbox(event: React.MouseEvent<HTMLImageElement>) {
+    const rect = event.currentTarget.getBoundingClientRect()
+    setLightboxRect({ top: rect.top, left: rect.left, width: rect.width, height: rect.height })
   }
 
   const style = aspect(asset) ? { aspectRatio: aspect(asset) } : undefined
@@ -154,15 +156,17 @@ function TicketAsset({ asset, compact = false }: { asset: MediaAsset; compact?: 
     </div>
   }
 
-  return <div ref={root} className={`sg-media-asset ${asset.kind === 'sticker' ? 'is-sticker' : ''} ${compact ? 'is-compact' : ''}`} style={style}>
-    <img className={`media-reveal ${loaded ? 'loaded' : ''}`} src={url} alt="Telegram media" loading="lazy" decoding="async" onLoad={() => setLoaded(true)} onError={retry} />
-  </div>
+  return <>
+    <div ref={root} className={`sg-media-asset ${asset.kind === 'sticker' ? 'is-sticker' : ''} ${compact ? 'is-compact' : ''}`} style={style}>
+      <img className={`media-reveal sg-lightbox-trigger ${loaded ? 'loaded' : ''}`} src={url} alt="Telegram media" loading="lazy" decoding="async" onLoad={() => setLoaded(true)} onError={retry} onClick={openLightbox} />
+    </div>
+    {lightboxRect ? <MediaLightbox src={url} sourceRect={lightboxRect} onClose={() => setLightboxRect(null)} /> : null}
+  </>
 }
 
 export function MediaRenderer({ media }: { media: MediaAsset | AlbumMedia }) {
   const albumItems = useMemo(() => media.kind === 'album' ? media.items.slice(0, 4) : [], [media])
   if (media.kind !== 'album') return <TicketAsset asset={media} />
-
   return <div className={`sg-album sg-album-${Math.min(4, albumItems.length)}`}>
     {albumItems.map((asset, index) => <div className="sg-album-cell" key={`${asset.messageId || index}-${index}`}>
       <TicketAsset asset={asset} compact />
