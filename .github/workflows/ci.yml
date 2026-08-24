@@ -20,5 +20,5 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: node --check server/index.mjs
-      - run: node --check 'api/[...path].mjs'
+      - run: node --check api/proxy.mjs
       - run: pnpm run build
