@@ -56,7 +56,7 @@ function TicketAsset({ asset, compact = false }: { asset: MediaAsset; compact?: 
       void fetchMediaTicket(asset.ticketEndpoint!, controller.signal)
         .then(ticket => { setUrl(ticket.url); setError('') })
         .catch(() => setError('Media unavailable'))
-    }, { rootMargin: '200vh 0px' })
+    }, { rootMargin: '200% 0px' })
     observer.observe(el)
     return () => { observer.disconnect(); controller.abort() }
   }, [asset.ticketEndpoint, attempt, needsTicket, url])
@@ -67,7 +67,7 @@ function TicketAsset({ asset, compact = false }: { asset: MediaAsset; compact?: 
     if (!node || !host || typeof IntersectionObserver === 'undefined') return
     const preloadObserver = new IntersectionObserver(entries => {
       setPreload(entries.some(entry => entry.isIntersecting) ? 'auto' : 'metadata')
-    }, { rootMargin: '200vh 0px' })
+    }, { rootMargin: '200% 0px' })
     const playbackObserver = new IntersectionObserver(entries => {
       const visible = entries.some(entry => entry.isIntersecting && entry.intersectionRatio >= .7)
       if (visible) void videoRegistry.requestPlay(node)
