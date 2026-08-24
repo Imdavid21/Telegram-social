@@ -33,9 +33,8 @@ for (const file of collect('src')) {
 
   while ((match = templateRootMargin.exec(source))) {
     const margin = match[1]
-    // Dynamic expressions such as `${bottomMarginPx}px` are valid at runtime.
-    // We cannot resolve them statically, so only reject units that IntersectionObserver
-    // does not support anywhere in the template literal.
+    // Runtime interpolation is allowed here because the observer receives resolved px values.
+    // The audit only blocks CSS units that IntersectionObserver does not support.
     const forbidden = margin.match(forbiddenUnit)
     if (forbidden) {
       violations.push(`${file}: unsupported IntersectionObserver rootMargin unit in template "${margin}"`)
