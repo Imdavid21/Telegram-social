@@ -12,8 +12,8 @@ export default defineConfig({
         name: 'Telegram.Social',
         short_name: 'TG.Social',
         description: 'One feed for every Telegram channel you follow.',
-        theme_color: '#0b0d0f',
-        background_color: '#0b0d0f',
+        theme_color: '#17212b',
+        background_color: '#0e1621',
         display: 'standalone',
         start_url: '/',
         icons: [
