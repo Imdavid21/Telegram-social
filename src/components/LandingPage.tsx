@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { BrandMark } from './BrandMark'
 import { BookmarkIcon, ImageIcon, MessageIcon, RefreshIcon } from './Icons'
 
@@ -12,7 +12,7 @@ type LandingPageProps = {
 
 const sources = ['Product Hunt', 'Tech Signals', 'Design Notes', 'Markets', 'AI Research']
 
-function Reveal({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+function Reveal({ children, className = '' }: { children: ReactNode; className?: string }) {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const node = ref.current
@@ -83,7 +83,7 @@ export function LandingPage({ onConnect, connecting, backendReady, booting, erro
         <ProductPreview />
       </section>
 
-      <Reveal className="lp-proof" >
+      <Reveal className="lp-proof">
         <p>Supergram keeps the interaction model simple. Scroll back in time, let fresh posts wait above you, and open media only when it enters your attention.</p>
       </Reveal>
 
