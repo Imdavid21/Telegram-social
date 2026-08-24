@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import ProductApp from './ProductApp'
 import { LandingPage } from './components/LandingPage'
+import { DemoPage } from './components/DemoPage'
 import { PromptModal } from './components/AuthModal'
 import { ScrollAnchorBridge } from './components/ScrollAnchorBridge'
 import type { AuthPrompt } from './types'
@@ -23,6 +24,7 @@ export default function App() {
   const [connecting, setConnecting] = useState(false)
   const [authPrompt, setAuthPrompt] = useState<AuthPrompt | null>(null)
   const [error, setError] = useState('')
+  const demoMode = new URLSearchParams(window.location.search).get('demo') === '1'
 
   useEffect(() => {
     let active = true
@@ -67,6 +69,7 @@ export default function App() {
     setAuthPrompt(null)
     setError('')
     setConnected(true)
+    if (demoMode) window.location.href = '/'
   }
 
   async function connect() {
@@ -109,10 +112,11 @@ export default function App() {
     }
   }
 
+  if (demoMode && !connected) return <><DemoPage onConnect={connect} /><PromptModal prompt={authPrompt} onSubmit={submitPrompt} onCancel={() => { setAuthPrompt(null); setConnecting(false) }} /></>
   if (connected) return <ScrollAnchorBridge><ProductApp /></ScrollAnchorBridge>
 
   return <>
-    <LandingPage onConnect={connect} connecting={connecting} backendReady={backendReady} booting={connected === null} error={error} />
+    <LandingPage onConnect={connect} onDemo={() => { window.location.href = '/?demo=1' }} connecting={connecting} backendReady={backendReady} booting={connected === null} error={error} />
     <PromptModal prompt={authPrompt} onSubmit={submitPrompt} onCancel={() => { setAuthPrompt(null); setConnecting(false) }} />
   </>
 }
