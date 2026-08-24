@@ -11,6 +11,14 @@ const HOP_BY_HOP = new Set([
   'content-length'
 ])
 
+const RESPONSE_STRIP = new Set([
+  ...HOP_BY_HOP,
+  'set-cookie',
+  'content-encoding',
+  'etag',
+  'last-modified'
+])
+
 function normalizeBaseUrl(value) {
   return String(value || '').trim().replace(/\/$/, '')
 }
@@ -22,12 +30,24 @@ function copyRequestHeaders(req) {
     if (Array.isArray(value)) headers.set(key, value.join(', '))
     else headers.set(key, String(value))
   }
+
+  // The Vercel function buffers the upstream response. Ask Railway for identity
+  // encoding so we never forward a stale gzip/br header with decompressed bytes.
+  headers.set('accept-encoding', 'identity')
+
+  // API responses are session-specific and must always have a body. Prevent a
+  // browser validator from turning a feed request into an empty 304 response.
+  headers.delete('if-none-match')
+  headers.delete('if-modified-since')
+  headers.delete('if-match')
+  headers.delete('if-unmodified-since')
+
   return headers
 }
 
 function copyResponseHeaders(upstream, res) {
   for (const [key, value] of upstream.headers.entries()) {
-    if (HOP_BY_HOP.has(key.toLowerCase()) || key.toLowerCase() === 'set-cookie') continue
+    if (RESPONSE_STRIP.has(key.toLowerCase())) continue
     res.setHeader(key, value)
   }
 
@@ -50,6 +70,13 @@ function clientErrorPayload(body) {
   }
 }
 
+function jsonError(res, status, message) {
+  res.statusCode = status
+  res.setHeader('content-type', 'application/json; charset=utf-8')
+  res.setHeader('cache-control', 'private, no-store, max-age=0')
+  return res.end(JSON.stringify({ error: message }))
+}
+
 export default async function handler(req, res) {
   const rawPath = Array.isArray(req.query?.path) ? req.query.path.join('/') : String(req.query?.path || '')
 
@@ -65,16 +92,8 @@ export default async function handler(req, res) {
   const backend = normalizeBaseUrl(process.env.TELEGRAM_BACKEND_URL)
   const proxySecret = String(process.env.BACKEND_PROXY_SECRET || '')
 
-  if (!backend) {
-    res.statusCode = 503
-    res.setHeader('content-type', 'application/json')
-    return res.end(JSON.stringify({ error: 'Telegram backend URL is not configured in Vercel.' }))
-  }
-  if (proxySecret.length < 32) {
-    res.statusCode = 503
-    res.setHeader('content-type', 'application/json')
-    return res.end(JSON.stringify({ error: 'Backend proxy secret is not configured in Vercel.' }))
-  }
+  if (!backend) return jsonError(res, 503, 'Telegram backend URL is not configured in Vercel.')
+  if (proxySecret.length < 32) return jsonError(res, 503, 'Backend proxy secret is not configured in Vercel.')
 
   const targetUrl = new URL(`${backend}/api/${rawPath}`)
 
@@ -103,16 +122,56 @@ export default async function handler(req, res) {
       headers,
       body,
       redirect: 'manual',
+      cache: 'no-store',
       signal: AbortSignal.timeout(55_000)
     })
 
+    if (upstream.status === 304) {
+      console.error('Unexpected conditional Telegram backend response', { path: rawPath })
+      return jsonError(res, 502, 'Telegram backend returned an empty conditional response.')
+    }
+
+    const contentType = String(upstream.headers.get('content-type') || '')
+    const buffer = Buffer.from(await upstream.arrayBuffer())
+
     res.statusCode = upstream.status
     copyResponseHeaders(upstream, res)
-    const buffer = Buffer.from(await upstream.arrayBuffer())
+
+    if (contentType.includes('application/json')) {
+      let parsed
+      try {
+        parsed = buffer.length ? JSON.parse(buffer.toString('utf8')) : {}
+      } catch (error) {
+        console.error('Invalid JSON from Telegram backend', {
+          path: rawPath,
+          status: upstream.status,
+          bytes: buffer.length,
+          contentEncoding: upstream.headers.get('content-encoding'),
+          error: String(error?.message || error)
+        })
+        return jsonError(res, 502, 'Telegram backend returned malformed JSON.')
+      }
+
+      if (rawPath === 'feed') {
+        console.log('Telegram feed proxy payload', {
+          status: upstream.status,
+          bytes: buffer.length,
+          channels: Array.isArray(parsed?.channels) ? parsed.channels.length : null,
+          feed: Array.isArray(parsed?.feed) ? parsed.feed.length : null,
+          keys: parsed && typeof parsed === 'object' ? Object.keys(parsed) : []
+        })
+      }
+
+      res.setHeader('content-type', 'application/json; charset=utf-8')
+      res.setHeader('cache-control', 'private, no-store, max-age=0')
+      return res.end(JSON.stringify(parsed))
+    }
+
+    // Media and other binary responses keep their MIME type, but never inherit
+    // the upstream content-encoding because Node fetch may already decompress it.
     return res.end(buffer)
-  } catch {
-    res.statusCode = 502
-    res.setHeader('content-type', 'application/json')
-    return res.end(JSON.stringify({ error: 'Telegram backend is unreachable.' }))
+  } catch (error) {
+    console.error('Telegram backend proxy failed', { path: rawPath, error: String(error?.message || error) })
+    return jsonError(res, 502, 'Telegram backend is unreachable.')
   }
 }
