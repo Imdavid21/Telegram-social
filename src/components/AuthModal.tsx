@@ -28,10 +28,10 @@ export function PromptModal({ prompt, onSubmit, onCancel }: {
       finally { setSubmitting(false) }
     }}>
       <button type="button" className="icon-button modal-close" onClick={onCancel} aria-label="Cancel Telegram login"><CloseIcon /></button>
-      <div className="eyebrow">TELEGRAM AUTH</div>
       <h2>{prompt.title}</h2>
       <p>{prompt.hint}</p>
       <input ref={input} className="text-input" type={prompt.type === 'password' ? 'password' : 'text'} value={value} onChange={e => setValue(e.target.value)} autoComplete={prompt.type === 'password' ? 'current-password' : 'one-time-code'} />
+      <div className="auth-disclosure">Unofficial Telegram.Social uses the Telegram API to sign in as your Telegram account. It is not affiliated with or endorsed by Telegram.</div>
       <button className="primary-button" type="submit" disabled={!value.trim() || submitting}>{submitting ? 'Checking…' : 'Continue'}</button>
     </form>
   </div>
