@@ -5,7 +5,8 @@ const INITIAL_WINDOW = 36
 const WINDOW_CAP = 84
 const STEP = 18
 
-function estimateHeight(item: FeedItem) {
+function estimateHeight(item?: FeedItem) {
+  if (!item) return 0
   if (item.sponsored) return 280
   if (!item.media) return Math.min(520, 180 + Math.ceil(String(item.text || '').length / 80) * 24)
   if (item.media.kind === 'audio' || item.media.kind === 'voice' || item.media.kind === 'document') return 300
@@ -66,15 +67,21 @@ export function VirtualFeed({ items, renderItem }: {
     setRevision(value => value + 1)
   }, [])
 
-  const heightFor = useCallback((item: FeedItem) => heightsRef.current.get(item.id) || estimateHeight(item), [])
+  const heightFor = useCallback((item?: FeedItem) => item ? (heightsRef.current.get(item.id) || estimateHeight(item)) : 0, [])
+
+  const safeRange = useMemo(() => {
+    const start = Math.max(0, Math.min(range.start, items.length))
+    const end = Math.max(start, Math.min(range.end, items.length))
+    return { start, end }
+  }, [items.length, range])
 
   const spacers = useMemo(() => {
     let top = 0
     let bottom = 0
-    for (let i = 0; i < range.start; i++) top += heightFor(items[i])
-    for (let i = range.end; i < items.length; i++) bottom += heightFor(items[i])
+    for (let i = 0; i < safeRange.start; i++) top += heightFor(items[i])
+    for (let i = safeRange.end; i < items.length; i++) bottom += heightFor(items[i])
     return { top, bottom }
-  }, [heightFor, items, range, revision])
+  }, [heightFor, items, safeRange, revision])
 
   useEffect(() => {
     if (typeof IntersectionObserver === 'undefined' || !items.length) return
@@ -105,13 +112,13 @@ export function VirtualFeed({ items, renderItem }: {
     bottomObserver.observe(bottom)
     topObserver.observe(top)
     return () => { bottomObserver.disconnect(); topObserver.disconnect() }
-  }, [items.length, range.start, range.end])
+  }, [items.length, safeRange.start, safeRange.end])
 
   return <div className="sg-virtual-feed">
     {spacers.top > 0 ? <div className="sg-virtual-spacer" style={{ height: spacers.top }} aria-hidden="true" /> : null}
     <div ref={topSentinel} className="sg-virtual-sentinel" aria-hidden="true" />
-    {items.slice(range.start, range.end).map((item, localIndex) => {
-      const index = range.start + localIndex
+    {items.slice(safeRange.start, safeRange.end).map((item, localIndex) => {
+      const index = safeRange.start + localIndex
       return <MeasuredRow item={item} index={index} onHeight={onHeight} key={item.id}>{renderItem(item, index)}</MeasuredRow>
     })}
     <div ref={bottomSentinel} className="sg-virtual-sentinel" aria-hidden="true" />
