@@ -8,6 +8,8 @@ import { FeedCard } from './components/FeedCard'
 import { SponsoredCard } from './components/SponsoredCard'
 import { BellIcon, BookmarkIcon, HomeIcon, ImageIcon, LogOutIcon, RefreshIcon, SearchIcon, SendIcon } from './components/Icons'
 
+const APP_NAME = 'Unofficial Telegram.Social'
+
 const nav: Array<{ id: FeedFilter; label: string; icon: typeof HomeIcon }> = [
   { id: 'all', label: 'All', icon: HomeIcon },
   { id: 'unread', label: 'Unread', icon: BellIcon },
@@ -198,7 +200,7 @@ export default function App() {
   return <div className="telegram-shell">
     <aside className="chat-sidebar">
       <div className="sidebar-top">
-        <button className="telegram-logo" aria-label="Telegram.Social"><SendIcon /></button>
+        <button className="telegram-logo" aria-label={APP_NAME}><span className="brand-glyph">T</span></button>
         <div className="sidebar-search"><SearchIcon/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search" /></div>
       </div>
 
@@ -227,8 +229,8 @@ export default function App() {
     <main className="conversation-pane">
       <header className="conversation-header">
         <div className="conversation-title">
-          <span className="header-avatar"><SendIcon/></span>
-          <div><strong>Telegram.Social</strong><small>{mode === 'live' ? `${channels.length} channels connected` : backendReady ? 'Ready to connect Telegram' : 'Demo mode'}</small></div>
+          <span className="header-avatar"><span className="brand-glyph">T</span></span>
+          <div><strong>{APP_NAME}</strong><small>{mode === 'live' ? `${channels.length} channels connected` : backendReady ? 'Ready to connect Telegram' : 'Demo mode'}</small></div>
         </div>
         <div className="conversation-actions">
           {mode === 'live' && <button className="header-icon" onClick={refresh} title="Refresh"><RefreshIcon /></button>}
@@ -253,16 +255,17 @@ export default function App() {
 
     <aside className="info-rail">
       <div className="profile-panel">
-        <div className="profile-avatar"><SendIcon/></div>
-        <strong>Telegram.Social</strong>
+        <div className="profile-avatar"><span className="brand-glyph profile-glyph">T</span></div>
+        <strong>{APP_NAME}</strong>
         <span>{mode === 'live' ? 'Connected to Telegram' : backendReady ? 'Backend ready' : 'Demo mode'}</span>
       </div>
       <div className="info-list">
         <div><span>Channels</span><strong>{channels.length}</strong></div>
         <div><span>Unread</span><strong>{unreadTotal}</strong></div>
       </div>
-      <div className="info-note">A unified timeline for Telegram channels. DMs and groups stay out of the feed.</div>
+      <div className="info-note">A unified timeline for Telegram broadcast channels. This is an unofficial client using the Telegram API and is not affiliated with Telegram.</div>
       {mode === 'demo' ? <button className="rail-connect" onClick={connect}>Connect Telegram</button> : <button className="rail-connect secondary" onClick={logout}>Disconnect</button>}
+      <div className="legal-links"><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a></div>
     </aside>
 
     <PromptModal prompt={authPrompt} onSubmit={submitPrompt} onCancel={() => { setAuthPrompt(null); setConnection('idle') }} />
