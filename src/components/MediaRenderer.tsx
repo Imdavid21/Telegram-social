@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { AlbumMedia, MediaAsset } from '../types'
 import { fetchMediaTicket } from '../lib/api'
+import { persistVideoMuted, storedVideoMuted, videoRegistry } from '../lib/videoRegistry'
 
 function formatBytes(value?: number) {
   const size = Number(value || 0)
@@ -31,39 +32,58 @@ function TicketAsset({ asset, compact = false }: { asset: MediaAsset; compact?: 
   const [url, setUrl] = useState(asset.src || '')
   const [error, setError] = useState('')
   const [attempt, setAttempt] = useState(0)
+  const [loaded, setLoaded] = useState(false)
+  const [preload, setPreload] = useState<'metadata' | 'auto'>('metadata')
+  const [muted, setMuted] = useState(() => asset.kind === 'gif' ? true : storedVideoMuted())
   const needsTicket = Boolean(asset.ticketEndpoint && !asset.src)
+
+  useEffect(() => {
+    setLoaded(false)
+  }, [url])
 
   useEffect(() => {
     if (!needsTicket || url) return
     const el = root.current
+    const controller = new AbortController()
     if (!el || typeof IntersectionObserver === 'undefined') {
-      const controller = new AbortController()
       void fetchMediaTicket(asset.ticketEndpoint!, controller.signal).then(ticket => setUrl(ticket.url)).catch(() => setError('Media unavailable'))
       return () => controller.abort()
     }
 
-    const controller = new AbortController()
     const observer = new IntersectionObserver(entries => {
       if (!entries.some(entry => entry.isIntersecting)) return
       observer.disconnect()
       void fetchMediaTicket(asset.ticketEndpoint!, controller.signal)
         .then(ticket => { setUrl(ticket.url); setError('') })
         .catch(() => setError('Media unavailable'))
-    }, { rootMargin: '900px 0px' })
+    }, { rootMargin: '200vh 0px' })
     observer.observe(el)
     return () => { observer.disconnect(); controller.abort() }
   }, [asset.ticketEndpoint, attempt, needsTicket, url])
 
   useEffect(() => {
     const node = video.current
-    if (!node || typeof IntersectionObserver === 'undefined') return
-    const observer = new IntersectionObserver(entries => {
-      const visible = entries.some(entry => entry.isIntersecting && entry.intersectionRatio >= .72)
-      if (visible) void node.play().catch(() => {})
-      else node.pause()
-    }, { threshold: [.2, .72] })
-    observer.observe(node)
-    return () => observer.disconnect()
+    const host = root.current
+    if (!node || !host || typeof IntersectionObserver === 'undefined') return
+
+    const preloadObserver = new IntersectionObserver(entries => {
+      setPreload(entries.some(entry => entry.isIntersecting) ? 'auto' : 'metadata')
+    }, { rootMargin: '200vh 0px' })
+
+    const playbackObserver = new IntersectionObserver(entries => {
+      const visible = entries.some(entry => entry.isIntersecting && entry.intersectionRatio >= .7)
+      if (visible) void videoRegistry.requestPlay(node)
+      else videoRegistry.requestPause(node)
+    }, { threshold: [.2, .7] })
+
+    preloadObserver.observe(host)
+    playbackObserver.observe(node)
+    return () => {
+      preloadObserver.disconnect()
+      playbackObserver.disconnect()
+      videoRegistry.clear(node)
+      node.pause()
+    }
   }, [url, asset.kind])
 
   function retry() {
@@ -80,7 +100,7 @@ function TicketAsset({ asset, compact = false }: { asset: MediaAsset; compact?: 
   if (asset.kind === 'poll' || asset.kind === 'location' || asset.kind === 'contact') {
     return <div ref={root} className={`sg-media-meta sg-media-${asset.kind}`}>
       <strong>{asset.kind === 'poll' ? 'Telegram poll' : asset.kind === 'location' ? 'Location' : 'Contact'}</strong>
-      <span>Open in Telegram for the interactive version.</span>
+      <span>Open the original Telegram post to use the interactive version.</span>
     </div>
   }
 
@@ -88,7 +108,7 @@ function TicketAsset({ asset, compact = false }: { asset: MediaAsset; compact?: 
     return <div ref={root} className="sg-document">
       <div className="sg-document-icon">DOC</div>
       <div><strong>{asset.name || 'Telegram file'}</strong><span>{[asset.mimeType, formatBytes(asset.size)].filter(Boolean).join(' · ')}</span></div>
-      {url ? <a href={url} target="_blank" rel="noreferrer">Open</a> : <span className="sg-media-loading">{error || 'Preparing…'}</span>}
+      {url ? <a className="pressable" href={url} target="_blank" rel="noreferrer">Open</a> : <span className="sg-media-loading">{error || 'Preparing file…'}</span>}
     </div>
   }
 
@@ -100,7 +120,7 @@ function TicketAsset({ asset, compact = false }: { asset: MediaAsset; compact?: 
   }
 
   if (animatedSticker) {
-    return <div ref={root} className="sg-media-meta"><strong>Animated sticker</strong><span>This Telegram sticker format is not browser-renderable yet.</span></div>
+    return <div ref={root} className="sg-media-meta"><strong>Animated sticker</strong><span>This Telegram sticker format needs a dedicated browser renderer before it can play here.</span></div>
   }
 
   if (!url) {
@@ -110,14 +130,32 @@ function TicketAsset({ asset, compact = false }: { asset: MediaAsset; compact?: 
   }
 
   if (asset.kind === 'video' || (asset.kind === 'gif' && mime.startsWith('video/'))) {
+    const gif = asset.kind === 'gif'
     return <div ref={root} className={`sg-media-asset ${compact ? 'is-compact' : ''}`} style={style}>
-      <video ref={video} src={url} controls={asset.kind === 'video'} muted={asset.kind === 'gif'} loop={asset.kind === 'gif'} playsInline preload="metadata" onError={retry} />
+      <video
+        ref={video}
+        className={`media-reveal ${loaded ? 'loaded' : ''}`}
+        src={url}
+        controls={!gif}
+        muted={gif ? true : muted}
+        loop={gif}
+        playsInline
+        preload={preload}
+        onLoadedData={() => setLoaded(true)}
+        onVolumeChange={event => {
+          if (gif) return
+          const nextMuted = event.currentTarget.muted
+          setMuted(nextMuted)
+          persistVideoMuted(nextMuted)
+        }}
+        onError={retry}
+      />
       {asset.duration ? <span className="sg-duration">{formatDuration(asset.duration)}</span> : null}
     </div>
   }
 
   return <div ref={root} className={`sg-media-asset ${asset.kind === 'sticker' ? 'is-sticker' : ''} ${compact ? 'is-compact' : ''}`} style={style}>
-    <img src={url} alt="Telegram media" loading="lazy" decoding="async" onError={retry} />
+    <img className={`media-reveal ${loaded ? 'loaded' : ''}`} src={url} alt="Telegram media" loading="lazy" decoding="async" onLoad={() => setLoaded(true)} onError={retry} />
   </div>
 }
 
