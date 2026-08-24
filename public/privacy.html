@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#17212b" />
+  <title>Privacy · Unofficial Telegram.Social</title>
+  <style>
+    body{margin:0;background:#0e1621;color:#dbe4ec;font:15px/1.65 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{max-width:760px;margin:auto;padding:56px 24px 80px}a{color:#6ab7ff}h1,h2{color:#fff;letter-spacing:-.02em}h1{font-size:30px}h2{margin-top:34px;font-size:18px}p,li{color:#9fb0bf}code{color:#c8d8e5;background:#17212b;padding:2px 5px;border-radius:4px}.back{display:inline-block;margin-bottom:24px;text-decoration:none}
+  </style>
+</head>
+<body><main>
+<a class="back" href="/">← Back to the app</a>
+<h1>Privacy Policy</h1>
+<p>Effective August 24, 2026. Unofficial Telegram.Social is an independent third-party client that uses the Telegram API. It is not affiliated with or endorsed by Telegram.</p>
+<h2>What the app processes</h2>
+<ul>
+<li>Your Telegram phone number, verification code, and two-step-verification password are transmitted only as needed to complete Telegram authentication. Verification codes and passwords are not intentionally stored.</li>
+<li>After successful authentication, Telegram session data is encrypted server-side and returned to your browser in an HttpOnly, Secure cookie. The cookie is used to reconnect your Telegram account without repeating login on every visit.</li>
+<li>Broadcast-channel metadata, posts, reactions, view counts, replies metadata, media, and official sponsored messages are fetched from Telegram on demand for your authorized account.</li>
+<li>Read and saved UI state may be stored locally in your browser. Saving a live post can also forward it to your Telegram Saved Messages when you request that action.</li>
+</ul>
+<h2>What is not intentionally stored</h2>
+<p>The service does not maintain a centralized database of your Telegram messages. Telegram verification codes, two-step-verification passwords, API hashes, and raw Telegram session strings are not stored in browser localStorage.</p>
+<h2>Service providers</h2>
+<p>The web application may be delivered through Vercel, the persistent application backend through Railway, and Telegram provides the messaging/API infrastructure. Those providers process network and operational data according to their own policies.</p>
+<h2>Retention</h2>
+<p>Temporary login flows expire after approximately 10 minutes. Idle in-memory Telegram client connections are recycled after approximately 30 minutes. The encrypted browser session cookie is configured for up to 30 days unless you disconnect or clear browser data. Local browser preferences remain until you remove them.</p>
+<h2>Security</h2>
+<p>Production traffic uses HTTPS. Telegram application credentials remain on the persistent backend. Session material is encrypted using authenticated encryption before it is placed in the HttpOnly cookie. No system can guarantee absolute security.</p>
+<h2>Your controls</h2>
+<p>You can disconnect from Telegram in the app to remove its session cookies, and you can clear browser site data to remove local UI state. You may also revoke sessions from Telegram's own Devices settings.</p>
+<h2>Contact</h2>
+<p>For privacy or security issues, use the project repository at <a href="https://github.com/Imdavid21/Telegram-social">github.com/Imdavid21/Telegram-social</a>.</p>
+</main></body></html>
