@@ -89,6 +89,10 @@ export function VirtualFeed({ items, renderItem }: {
     const bottom = bottomSentinel.current
     if (!top || !bottom) return
 
+    const viewportHeight = Math.max(600, window.innerHeight || 0)
+    const bottomMarginPx = Math.max(1800, Math.round(viewportHeight * 6.5))
+    const topMarginPx = Math.max(1400, Math.round(viewportHeight * 4.5))
+
     const bottomObserver = new IntersectionObserver(([entry]) => {
       if (!entry?.isIntersecting) return
       setRange(current => {
@@ -97,7 +101,7 @@ export function VirtualFeed({ items, renderItem }: {
         const nextStart = Math.max(0, nextEnd - WINDOW_CAP)
         return { start: Math.max(current.start, nextStart), end: nextEnd }
       })
-    }, { rootMargin: '0px 0px 650vh 0px' })
+    }, { rootMargin: `0px 0px ${bottomMarginPx}px 0px` })
 
     const topObserver = new IntersectionObserver(([entry]) => {
       if (!entry?.isIntersecting) return
@@ -107,7 +111,7 @@ export function VirtualFeed({ items, renderItem }: {
         const nextEnd = Math.min(items.length, Math.max(current.end, nextStart + WINDOW_CAP))
         return { start: nextStart, end: nextEnd }
       })
-    }, { rootMargin: '450vh 0px 0px 0px' })
+    }, { rootMargin: `${topMarginPx}px 0px 0px 0px` })
 
     bottomObserver.observe(bottom)
     topObserver.observe(top)
