@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { demoChannels, demoFeed } from './data/demo'
 import type { AuthPrompt, Channel, FeedFilter, FeedItem } from './types'
 import { loadSet, saveSet } from './lib/storage'
-import { authFlow, authStatus, beginAuth, fetchFeed, logoutTelegram, saveTelegramPost, submitAuth } from './lib/api'
+import { authFlow, authStatus, beginAuth, fetchFeed, healthStatus, logoutTelegram, saveTelegramPost, submitAuth } from './lib/api'
 import { PromptModal } from './components/AuthModal'
 import { FeedCard } from './components/FeedCard'
 import { SponsoredCard } from './components/SponsoredCard'
@@ -77,6 +77,12 @@ export default function App() {
   async function connect() {
     setError(''); setConnection('connecting')
     try {
+      const health = await healthStatus()
+      if (!health.ok || !health.configured) {
+        throw new Error(health.configured
+          ? 'Telegram API server is unavailable on this deployment.'
+          : 'Telegram server credentials are not configured. Check TELEGRAM_API_ID and TELEGRAM_API_HASH in Vercel.')
+      }
       const flow = await settleFlow(await beginAuth())
       if (flow.error) setError(flow.error)
       if (flow.step === 'done') { await finishConnection(); return }
