@@ -4,6 +4,7 @@ import { BookmarkIcon, ImageIcon, MessageIcon, RefreshIcon } from './Icons'
 
 type LandingPageProps = {
   onConnect: () => void
+  onDemo: () => void
   connecting: boolean
   backendReady: boolean
   booting: boolean
@@ -59,11 +60,11 @@ function ProductPreview() {
   </div>
 }
 
-export function LandingPage({ onConnect, connecting, backendReady, booting, error }: LandingPageProps) {
+export function LandingPage({ onConnect, onDemo, connecting, backendReady, booting, error }: LandingPageProps) {
   return <div className="lp-page">
     <header className="lp-nav">
       <a className="lp-wordmark" href="/" aria-label="Supergram home"><BrandMark /><strong>Supergram</strong></a>
-      <nav><a href="#product">Product</a><a href="#privacy">Privacy</a><a href="/terms.html">Terms</a></nav>
+      <nav><button type="button" className="lp-nav-link" onClick={onDemo}>Demo</button><a href="#product">Product</a><a href="#privacy">Privacy</a><a href="/terms.html">Terms</a></nav>
       <button className="lp-nav-cta pressable" type="button" onClick={onConnect} disabled={booting || connecting || !backendReady}>{connecting ? 'Connecting…' : 'Open Supergram'}</button>
     </header>
 
@@ -75,20 +76,19 @@ export function LandingPage({ onConnect, connecting, backendReady, booting, erro
           <p className="lp-hero-body">Supergram turns the channels, groups, and conversations you already follow into one continuous timeline, with media that loads when it matters and new posts that never knock you out of place.</p>
           <div className="lp-hero-actions">
             <button className="lp-primary pressable" type="button" onClick={onConnect} disabled={booting || connecting || !backendReady}>{booting ? 'Checking connection…' : connecting ? 'Connecting to Telegram…' : 'Continue with Telegram'}</button>
-            <a className="lp-secondary pressable" href="#product">See the product</a>
+            <button className="lp-secondary pressable" type="button" onClick={onDemo}>Open live demo</button>
           </div>
+          <p className="lp-demo-note">The demo uses sample content and works without a Telegram login.</p>
           {error ? <p className="lp-error">{error}</p> : null}
           <div className="lp-trust"><span className={backendReady ? 'is-ready' : ''}><i />{backendReady ? 'Telegram API ready' : booting ? 'Checking backend' : 'Backend unavailable'}</span><span>Unofficial Telegram client</span></div>
         </div>
         <ProductPreview />
       </section>
 
-      <Reveal className="lp-proof">
-        <p>Supergram keeps the interaction model simple. Scroll back in time, let fresh posts wait above you, and open media only when it enters your attention.</p>
-      </Reveal>
+      <Reveal className="lp-proof"><p>Supergram keeps the interaction model simple. Scroll back in time, let fresh posts wait above you, and open media only when it enters your attention.</p></Reveal>
 
       <section id="product" className="lp-product-section">
-        <Reveal className="lp-section-intro"><p className="lp-eyebrow">The product</p><h2>Telegram history behaves better when it respects your position.</h2><p>Infinite history is cursor-paginated instead of repeatedly refetched. The feed keeps a bounded render window, and media stays lazy until it approaches the viewport.</p></Reveal>
+        <Reveal className="lp-section-intro"><p className="lp-eyebrow">The product</p><h2>Telegram history behaves better when it respects your position.</h2><p>Infinite history is cursor-paginated instead of repeatedly refetched. The feed keeps a bounded render window, and media stays lazy until it approaches the viewport.</p><button type="button" className="lp-text-link lp-demo-link" onClick={onDemo}>Try the public demo</button></Reveal>
         <div className="lp-behaviors">
           <Reveal><span className="lp-step">01</span><h3>Scroll into older history</h3><p>Reaching the end requests the next Telegram history cursor and merges it into the same timeline without resetting what is already on screen.</p></Reveal>
           <Reveal><span className="lp-step">02</span><h3>Keep fresh posts out of the way</h3><p>New arrivals sit in a small queue when you are reading further down. A single control returns you to the top before those posts enter the feed.</p></Reveal>
@@ -101,11 +101,9 @@ export function LandingPage({ onConnect, connecting, backendReady, booting, erro
         <Reveal className="lp-privacy-panel"><div><strong>Session</strong><span>Encrypted HttpOnly cookie</span></div><div><strong>Messages</strong><span>Fetched from Telegram on demand</span></div><div><strong>Media</strong><span>Short-lived authenticated delivery</span></div><div><strong>Local state</strong><span>Read, saved, theme, and feed preferences</span></div></Reveal>
       </section>
 
-      <section className="lp-final">
-        <Reveal><BrandMark className="lp-final-mark" /><h2>Your Telegram is already full of things worth following. Supergram gives them a better place to land.</h2><button className="lp-primary pressable" type="button" onClick={onConnect} disabled={booting || connecting || !backendReady}>Open Supergram</button></Reveal>
-      </section>
+      <section className="lp-final"><Reveal><BrandMark className="lp-final-mark" /><h2>Your Telegram is already full of things worth following. Supergram gives them a better place to land.</h2><div className="lp-hero-actions lp-final-actions"><button className="lp-primary pressable" type="button" onClick={onConnect} disabled={booting || connecting || !backendReady}>Open Supergram</button><button className="lp-secondary pressable" type="button" onClick={onDemo}>View demo</button></div></Reveal></section>
     </main>
 
-    <footer className="lp-footer"><a className="lp-wordmark" href="/"><BrandMark /><strong>Supergram</strong></a><p>Independent software using the Telegram API. Supergram is not affiliated with Telegram.</p><div><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a><a href="https://github.com/Imdavid21/Telegram-social" target="_blank" rel="noreferrer">GitHub</a></div></footer>
+    <footer className="lp-footer"><a className="lp-wordmark" href="/"><BrandMark /><strong>Supergram</strong></a><p>Independent software using the Telegram API. Supergram is not affiliated with Telegram.</p><div><button type="button" className="lp-footer-button" onClick={onDemo}>Demo</button><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a><a href="https://github.com/Imdavid21/Telegram-social" target="_blank" rel="noreferrer">GitHub</a></div></footer>
   </div>
 }
