@@ -2,6 +2,8 @@ import type { Channel, FeedItem } from '../types'
 
 type FlowState = { step: 'starting'|'processing'|'phone'|'code'|'password'|'done'|'error'; error?: string | null; meta?: Record<string, unknown> }
 
+type HealthState = { ok: boolean; configured: boolean; runtime?: string; version?: string }
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     credentials: 'same-origin',
@@ -13,6 +15,9 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   return data as T
 }
 
+export function healthStatus() {
+  return request<HealthState>('/api/health')
+}
 export function authStatus() {
   return request<{ connected: boolean; user?: { id: string; firstName: string; username?: string } }>('/api/auth/status')
 }
