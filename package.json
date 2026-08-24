@@ -10,9 +10,10 @@
     "dev": "node scripts/dev.mjs",
     "dev:web": "vite",
     "dev:server": "node --env-file-if-exists=.env --watch server/index.mjs",
-    "build": "vite build",
+    "copy:audit": "node scripts/copy-audit.mjs",
+    "build": "npm run copy:audit && vite build",
     "start": "node --env-file-if-exists=.env server/index.mjs",
-    "vercel-build": "vite build"
+    "vercel-build": "npm run copy:audit && vite build"
   },
   "dependencies": {
     "cookie-parser": "^1.4.7",
