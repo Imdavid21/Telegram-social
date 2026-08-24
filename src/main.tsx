@@ -7,6 +7,7 @@ import './production.css'
 import './feed.css'
 import './feed-engine.css'
 import './landing.css'
+import './identity.css'
 
 async function clearLegacyPwa() {
   if ('serviceWorker' in navigator) {
