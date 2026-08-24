@@ -40,7 +40,28 @@ function copyResponseHeaders(upstream, res) {
   if (cookies.length) res.setHeader('set-cookie', cookies)
 }
 
+function clientErrorPayload(body) {
+  const source = body && typeof body === 'object' ? body : {}
+  return {
+    kind: String(source.kind || 'client').slice(0, 32),
+    message: String(source.message || 'Unknown client error').slice(0, 800),
+    stack: String(source.stack || '').slice(0, 5000),
+    path: String(source.path || '/').slice(0, 300)
+  }
+}
+
 export default async function handler(req, res) {
+  const rawPath = Array.isArray(req.query?.path) ? req.query.path.join('/') : String(req.query?.path || '')
+
+  // Keep crash reporting local to Vercel so a frontend failure can be diagnosed
+  // even when the Telegram backend is unreachable.
+  if (rawPath === 'client-error' && String(req.method || '').toUpperCase() === 'POST') {
+    console.error('Supergram client error', clientErrorPayload(req.body))
+    res.statusCode = 204
+    res.setHeader('cache-control', 'no-store')
+    return res.end()
+  }
+
   const backend = normalizeBaseUrl(process.env.TELEGRAM_BACKEND_URL)
   const proxySecret = String(process.env.BACKEND_PROXY_SECRET || '')
 
@@ -55,7 +76,6 @@ export default async function handler(req, res) {
     return res.end(JSON.stringify({ error: 'Backend proxy secret is not configured in Vercel.' }))
   }
 
-  const rawPath = Array.isArray(req.query?.path) ? req.query.path.join('/') : String(req.query?.path || '')
   const targetUrl = new URL(`${backend}/api/${rawPath}`)
 
   for (const [key, value] of Object.entries(req.query || {})) {
@@ -90,7 +110,7 @@ export default async function handler(req, res) {
     copyResponseHeaders(upstream, res)
     const buffer = Buffer.from(await upstream.arrayBuffer())
     return res.end(buffer)
-  } catch (error) {
+  } catch {
     res.statusCode = 502
     res.setHeader('content-type', 'application/json')
     return res.end(JSON.stringify({ error: 'Telegram backend is unreachable.' }))
