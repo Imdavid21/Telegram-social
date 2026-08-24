@@ -2,7 +2,7 @@ import crypto from 'node:crypto'
 import express from 'express'
 import cookieParser from 'cookie-parser'
 import { TelegramClient } from 'teleproto'
-import { StringSession } from 'teleproto/sessions'
+import { StringSession } from 'teleproto/sessions/index.js'
 
 const PORT = Number(process.env.PORT || 8787)
 const API_ID = Number(process.env.TELEGRAM_API_ID || 0)
@@ -238,7 +238,7 @@ function accent(input) {
 }
 
 function initials(title) {
-  return String(title || 'TG').split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]?.toUpperCase()).join('') || 'TG'
+  return String(title || 'TG').split(/\s+/).filter(Boolean).slice(0, 2).map(x => x[0]?.toUpperCase()).join('') || 'TG'
 }
 
 function reactions(message) {
@@ -250,7 +250,7 @@ function reactions(message) {
 
 async function getBroadcastDialogs(client) {
   const dialogs = await client.getDialogs({ limit: 160 })
-  return dialogs.filter(dialog => dialog?.entity?.broadcast === true).slice(0, 40)
+  return dialogs.filter(dialog => dialog?.entity?.broadcast === true).slice(0, 45)
 }
 
 async function getSponsoredFor(client, entity) {
@@ -259,7 +259,6 @@ async function getSponsoredFor(client, entity) {
     cache = new Map()
     sponsorCacheByClient.set(client, cache)
   }
-
   const id = String(entity.id)
   const cached = cache.get(id)
   if (cached && cached.expiresAt > Date.now()) return cached.value
@@ -336,17 +335,16 @@ app.post('/api/auth/begin', async (req, res) => {
 app.get('/api/auth/flow', async (req, res) => {
   const id = req.cookies?.[FLOW_COOKIE]
   const flow = id && pending.get(id)
-  if (!flow) return res.status(404).json({ error: 'No active Telegram login. Start again.' })
+  if (!flow) return res.status(404).json({ error: 'No active Telegram login.' })
   await waitForStepChange(flow, flow.step)
   res.json(publicFlow(flow))
 })
 
 app.post('/api/auth/input', async (req, res) => {
   if (!allowAuthAttempt(req, res)) return
-
   const id = req.cookies?.[FLOW_COOKIE]
   const flow = id && pending.get(id)
-  if (!flow) return res.status(404).json({ error: 'No active Telegram login. Start again.' })
+  if (!flow) return res.status(404).json({ error: 'No active Telegram login.' })
   if (!flow.resolveInput) return res.status(409).json({ error: 'Telegram is not waiting for input.' })
 
   const value = String(req.body?.value || '').trim()
@@ -357,7 +355,7 @@ app.post('/api/auth/input', async (req, res) => {
   flow.rejectInput = null
   flow.step = 'processing'
   resolve(value)
-  await waitForStepChange(flow, 'processing', 5000)
+  await waitForStepChange(flow, 'processing', 4500)
 
   if (flow.step === 'done' && flow.session) {
     res.cookie(SESSION_COOKIE, encrypt(flow.session), cookieOptions(true))
@@ -380,24 +378,16 @@ app.post('/api/auth/logout', async (req, res) => {
 
 app.get('/api/feed', async (req, res) => {
   if (!requireConfig(res)) return
-
   try {
     const client = await getClient(req)
     if (!client) return res.status(401).json({ error: 'Connect Telegram first.' })
 
     const dialogs = await getBroadcastDialogs(client)
     const entityMap = new Map()
-
-    const rows = await mapLimit(dialogs, 5, async dialog => {
+    const rows = await mapLimit(dialogs, 4, async dialog => {
       const entity = dialog.entity
       const channelId = String(entity.id)
       entityMap.set(channelId, entity)
-
-      const [messages, sponsored] = await Promise.all([
-        client.getMessages(entity, { limit: 12 }),
-        getSponsoredFor(client, entity)
-      ])
-
       const channel = {
         id: channelId,
         title: entity.title || 'Untitled channel',
@@ -408,12 +398,16 @@ app.get('/api/feed', async (req, res) => {
         followers: compactNumber(entity.participantsCount)
       }
 
+      const messages = await client.getMessages(entity, { limit: 12 })
       const posts = []
       for (const message of messages) {
         if (!message?.id) continue
         let media
         if (message.photo || message.video || message.document) {
-          media = { kind: message.video ? 'video' : 'photo', src: `/api/media/${encodeURIComponent(channelId)}/${message.id}` }
+          media = {
+            kind: message.video ? 'video' : 'photo',
+            src: `/api/media/${encodeURIComponent(channelId)}/${message.id}`
+          }
         }
         posts.push({
           id: `${channelId}-${message.id}`,
@@ -430,6 +424,7 @@ app.get('/api/feed', async (req, res) => {
         })
       }
 
+      const sponsored = await getSponsoredFor(client, entity)
       for (const sponsoredMessage of sponsored.messages) {
         const randomId = Buffer.from(sponsoredMessage.randomId || []).toString('base64url')
         posts.push({
