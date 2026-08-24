@@ -3,6 +3,7 @@ import type { Channel, FeedItem } from '../types'
 import { BookmarkIcon, EyeIcon, LockIcon, MessageIcon, MoreIcon, SendIcon } from './Icons'
 import { MediaRenderer } from './MediaRenderer'
 import { SuccessConfirm } from './SuccessConfirm'
+import { BottomSheet } from './BottomSheet'
 import { haptics } from '../lib/interaction'
 
 function timeAgo(timestamp: number) {
@@ -41,6 +42,7 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
   const root = useRef<HTMLElement>(null)
   const [expanded, setExpanded] = useState(false)
   const [saveConfirm, setSaveConfirm] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
   const original = originalPostUrl(item, channel)
   const reactions = useMemo(() => Array.isArray(item.reactions) ? item.reactions.filter(Boolean).slice(0, 6) : [], [item.reactions])
   const media = item.media && typeof item.media === 'object' ? item.media : undefined
@@ -89,6 +91,11 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
     if (saving) setSaveConfirm(true)
   }, [item, onSave])
 
+  function openMore() {
+    haptics.light()
+    setMoreOpen(true)
+  }
+
   return <article ref={root} className={`sg-post ${item.unread ? 'is-unread' : ''} ${media ? 'has-media' : 'text-only'} ${saveConfirm ? 'is-confirming' : ''}`} data-feed-index={index}>
     <header className="sg-post-head">
       <SourceAvatar channel={channel} />
@@ -101,7 +108,7 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
         <span>{channel.username ? `@${channel.username}` : channel.type === 'group' ? 'Group' : channel.type === 'person' ? 'Private chat' : 'Telegram'} · {timeAgo(item.timestamp)}{item.edited ? ' · edited' : ''}</span>
       </div>
       {item.unread && <span className="sg-unread-dot" title="Unread" />}
-      <button className="sg-icon-button sg-more pressable" aria-label="More options"><MoreIcon /></button>
+      <button className="sg-icon-button sg-more pressable" onClick={openMore} aria-label="Post options"><MoreIcon /></button>
     </header>
 
     {media && <div className={`sg-media sg-media-${media.kind}`}><MediaRenderer media={media} /></div>}
@@ -130,5 +137,14 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
         {!!Number(item.comments || 0) && <span><MessageIcon />{Number(item.comments || 0)}</span>}
       </span>
     </div>}
+
+    <BottomSheet open={moreOpen} onClose={() => setMoreOpen(false)} title={channel.title || 'Post options'}>
+      <div className="sg-sheet-source"><SourceAvatar channel={channel} /><div><strong>{channel.title}</strong><span>{channel.username ? `@${channel.username}` : channel.type === 'person' ? 'Private chat' : channel.type === 'group' ? 'Group' : 'Telegram source'}</span></div></div>
+      <div className="sg-sheet-actions">
+        <button type="button" className="pressable" onClick={() => { handleSave(); setMoreOpen(false) }}><BookmarkIcon /><span><strong>{item.saved ? 'Remove saved post' : 'Save post'}</strong><small>{item.saved ? 'Keep it only in the feed' : 'Add it to your saved state'}</small></span></button>
+        {!item.noForwards ? <button type="button" className="pressable" onClick={() => { void share(); setMoreOpen(false) }}><SendIcon /><span><strong>Share</strong><small>Use your device share sheet or copy the post</small></span></button> : null}
+        {original ? <a className="pressable" href={original} target="_blank" rel="noreferrer" onClick={() => setMoreOpen(false)}><MessageIcon /><span><strong>Open in Telegram</strong><small>View this message in its original source</small></span></a> : null}
+      </div>
+    </BottomSheet>
   </article>
 }
