@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Channel, FeedItem } from '../types'
 import { BookmarkIcon, EyeIcon, LockIcon, MessageIcon, MoreIcon, SendIcon } from './Icons'
 import { MediaRenderer } from './MediaRenderer'
+import { SuccessConfirm } from './SuccessConfirm'
+import { haptics } from '../lib/interaction'
 
 function timeAgo(timestamp: number) {
   const value = Number(timestamp)
@@ -38,6 +40,7 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
 }) {
   const root = useRef<HTMLElement>(null)
   const [expanded, setExpanded] = useState(false)
+  const [saveConfirm, setSaveConfirm] = useState(false)
   const original = originalPostUrl(item, channel)
   const reactions = useMemo(() => Array.isArray(item.reactions) ? item.reactions.filter(Boolean).slice(0, 6) : [], [item.reactions])
   const media = item.media && typeof item.media === 'object' ? item.media : undefined
@@ -73,12 +76,20 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
 
   const share = async () => {
     if (item.noForwards) return
+    haptics.light()
     const payload = { title: String(channel.title || 'Supergram'), text, url: original || location.href }
     if (navigator.share) await navigator.share(payload).catch(() => {})
     else await navigator.clipboard?.writeText([payload.text, payload.url].filter(Boolean).join('\n\n')).catch(() => {})
   }
 
-  return <article ref={root} className={`sg-post ${item.unread ? 'is-unread' : ''} ${media ? 'has-media' : 'text-only'}`} data-feed-index={index}>
+  const handleSave = useCallback(() => {
+    haptics.light()
+    const saving = !item.saved
+    onSave(item)
+    if (saving) setSaveConfirm(true)
+  }, [item, onSave])
+
+  return <article ref={root} className={`sg-post ${item.unread ? 'is-unread' : ''} ${media ? 'has-media' : 'text-only'} ${saveConfirm ? 'is-confirming' : ''}`} data-feed-index={index}>
     <header className="sg-post-head">
       <SourceAvatar channel={channel} />
       <div className="sg-post-who">
@@ -90,7 +101,7 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
         <span>{channel.username ? `@${channel.username}` : channel.type === 'group' ? 'Group' : channel.type === 'person' ? 'Private chat' : 'Telegram'} · {timeAgo(item.timestamp)}{item.edited ? ' · edited' : ''}</span>
       </div>
       {item.unread && <span className="sg-unread-dot" title="Unread" />}
-      <button className="sg-icon-button sg-more" aria-label="More options"><MoreIcon /></button>
+      <button className="sg-icon-button sg-more pressable" aria-label="More options"><MoreIcon /></button>
     </header>
 
     {media && <div className={`sg-media sg-media-${media.kind}`}><MediaRenderer media={media} /></div>}
@@ -98,15 +109,18 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
     {visibleText && <div className={`sg-caption ${media ? '' : 'sg-text-post'}`}>
       <span className="sg-caption-source">{String(channel.title || 'Telegram')}</span>{' '}
       <span>{visibleText}</span>
-      {isLong && <button className="sg-more-text" onClick={() => setExpanded(value => !value)}>{expanded ? 'less' : 'more'}</button>}
+      {isLong && <button className="sg-more-text pressable" onClick={() => setExpanded(value => !value)}>{expanded ? 'less' : 'more'}</button>}
     </div>}
 
     <div className="sg-post-actions">
       <div className="sg-actions-left">
-        <button className={`sg-action ${item.noForwards ? 'is-disabled' : ''}`} disabled={item.noForwards} onClick={share} aria-label={item.noForwards ? 'Sharing restricted' : 'Share'}><SendIcon /></button>
-        {original ? <a className="sg-action" href={original} target="_blank" rel="noreferrer" aria-label="Open in Telegram"><MessageIcon /></a> : <span className="sg-action is-disabled" title="Private source"><MessageIcon /></span>}
+        <button className={`sg-action pressable ${item.noForwards ? 'is-disabled' : ''}`} disabled={item.noForwards} onClick={share} aria-label={item.noForwards ? 'Sharing restricted' : 'Share'}><SendIcon /></button>
+        {original ? <a className="sg-action pressable" href={original} target="_blank" rel="noreferrer" aria-label="Open in Telegram"><MessageIcon /></a> : <span className="sg-action is-disabled" title="Private source"><MessageIcon /></span>}
       </div>
-      <button className={`sg-action ${item.saved ? 'is-active' : ''}`} onClick={() => onSave(item)} aria-label={item.saved ? 'Remove from saved' : 'Save'}><BookmarkIcon /></button>
+      <span className="sg-save-slot">
+        <button className={`sg-action pressable ${item.saved ? 'is-active' : ''}`} onClick={handleSave} aria-label={item.saved ? 'Remove from saved' : 'Save'}><BookmarkIcon /></button>
+        {saveConfirm ? <SuccessConfirm onComplete={() => setSaveConfirm(false)} /> : null}
+      </span>
     </div>
 
     {(reactions.length > 0 || item.views || item.comments) && <div className="sg-engagement">
