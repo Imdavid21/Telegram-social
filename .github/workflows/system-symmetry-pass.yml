@@ -1,0 +1,88 @@
+name: System symmetry pass
+on:
+  push:
+    branches: [main]
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'Run system symmetry and Telegram connectivity pass'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply theme, source-strip, unread, and labeling fixes
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          # Theme-aware brand mark.
+          p = Path('src/components/BrandMark.tsx')
+          s = p.read_text()
+          s = s.replace('fill="#0A0A0B"', 'fill="var(--brand-mark-bg, #0A0A0B)"')
+          s = s.replace('fill="#FAFAFA" fillRule="evenodd"', 'fill="var(--brand-mark-fg, #FAFAFA)" fillRule="evenodd"')
+          p.write_text(s)
+
+          # Remove the top sources rail from both real and loading shells.
+          p = Path('src/ProductApp.tsx')
+          s = p.read_text()
+          start = s.find('function SourceBubble(')
+          if start != -1:
+              end = s.find('\nfunction resolvedTheme', start)
+              s = s[:start] + s[end+1:]
+          skeleton = '<main className="sg-main"><div className="sg-feed-column"><section className="sg-source-strip sg-skeleton-sources">{Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} variant="circular" width={54} height={54} />)}</section><section className="sg-feed sg-feed-skeleton">'
+          s = s.replace(skeleton, '<main className="sg-main"><div className="sg-feed-column"><section className="sg-feed sg-feed-skeleton">')
+          strip_start = s.find('        <section className="sg-source-strip" aria-label="Telegram sources">')
+          if strip_start != -1:
+              strip_end = s.find('        </section>', strip_start)
+              if strip_end != -1:
+                  s = s[:strip_start] + s[strip_end + len('        </section>\n'):]
+          p.write_text(s)
+
+          # Do not mutate unread state merely because a card is visible.
+          p = Path('src/components/FeedCard.tsx')
+          s = p.read_text()
+          marker = "  useEffect(() => {\n    const el = root.current\n    if (!el || !item.unread || typeof IntersectionObserver === 'undefined') return"
+          start = s.find(marker)
+          if start != -1:
+              end = s.find('\n  async function toggleLike()', start)
+              if end != -1:
+                  s = s[:start] + s[end:]
+          s = s.replace('<strong>Mark as read</strong><small>Remove this post from Unread</small>', '<strong>Mark read in Supergram</strong><small>This does not change Telegram read receipts</small>')
+          s = s.replace("<strong>{item.saved ? 'Remove saved post' : 'Save post'}</strong><small>{item.saved ? 'Remove it from your saved state' : 'Save it in Supergram and Telegram Saved Messages'}</small>", "<strong>{item.saved ? 'Remove from Supergram saved' : 'Save post'}</strong><small>{item.saved ? 'The Telegram Saved Messages copy is kept' : 'Save in Supergram and forward a copy to Telegram Saved Messages'}</small>")
+          p.write_text(s)
+
+          # Theme-aware logo variables and layout cleanup after removing top sources.
+          p = Path('src/app-system.css')
+          s = p.read_text()
+          s = s.replace('  --app-danger:#ff7a8a;\n', '  --app-danger:#ff7a8a;\n  --brand-mark-bg:#FAFAFA;\n  --brand-mark-fg:#0A0A0B;\n', 1)
+          dark = "html[data-theme='dark']{\n"
+          s = s.replace(dark, dark + '  --brand-mark-bg:#FAFAFA;\n  --brand-mark-fg:#0A0A0B;\n', 1)
+          light = "html[data-theme='light']{\n"
+          s = s.replace(light, light + '  --brand-mark-bg:#0A0A0B;\n  --brand-mark-fg:#FAFAFA;\n', 1)
+          s += "\n/* System symmetry pass: sources live in the source browser, never in a duplicate top rail. */\n.sg-source-strip,.sg-skeleton-sources{display:none!important}\n.sg-feed-toolbar{margin-top:0}\n.sg-brand-svg svg{display:block;width:32px;height:32px}\n@media(max-width:720px){.sg-feed-toolbar{position:sticky;top:58px;z-index:55}}\n"
+          p.write_text(s)
+          PY
+      - name: Validate Telegram feature symmetry
+        run: |
+          set -e
+          node --check server/index.mjs
+          for endpoint in "/api/auth/status" "/api/feed" "/api/feed/updates" "/api/media/ticket/" "/api/reaction" "/api/reply" "/api/share-targets" "/api/forward" "/api/save" "/api/auth/logout"; do
+            grep -Fq "$endpoint" server/index.mjs || { echo "Missing backend route: $endpoint"; exit 1; }
+          done
+          for clientcall in "setTelegramReaction" "replyToTelegramPost" "fetchShareTargets" "forwardTelegramPost" "saveTelegramPost" "logoutTelegram" "fetchFeedUpdates"; do
+            grep -Rq "$clientcall" src || { echo "Missing frontend connection: $clientcall"; exit 1; }
+          done
+      - name: Build
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+      - name: Commit
+        run: |
+          git config user.name "Uddalak"
+          git config user.email "84083101+Imdavid21@users.noreply.github.com"
+          git add src/components/BrandMark.tsx src/ProductApp.tsx src/components/FeedCard.tsx src/app-system.css
+          git commit -m "Unify app symmetry and Telegram feature states"
+          git push
