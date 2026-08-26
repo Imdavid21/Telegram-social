@@ -46,7 +46,15 @@
 
 .sg-connection-banner{margin:10px 0;padding:9px 12px;border:1px solid var(--app-border);border-radius:10px;background:var(--app-surface);color:var(--app-secondary);font-size:12px;text-align:center}
 .sg-feed-error>div{display:flex;align-items:center;gap:6px}.sg-error-retry{min-height:32px;padding:0 10px;border:1px solid currentColor;border-radius:8px;background:transparent;color:inherit;font-weight:700}
-.sg-search-all{width:100%;min-height:42px;margin-top:10px;border:1px solid var(--app-border);border-radius:10px;background:transparent;color:var(--app-muted);font-size:12px}
+.sg-search-all{width:100%;min-height:42px;margin-top:10px;border:1px solid var(--app-border);border-radius:10px;background:transparent;color:var(--app-text);font-size:12px;font-weight:700;cursor:pointer}.sg-search-all:hover:not(:disabled){background:var(--app-hover)}.sg-search-all:disabled{color:var(--app-muted);cursor:not-allowed;opacity:.6}
+.sg-remote-search-error{margin-top:10px;padding:10px 12px;border:1px solid color-mix(in srgb,#d92d20 42%,var(--app-border));border-radius:10px;color:#e85d52;font-size:12px;line-height:1.45}
+.sg-remote-search{margin-top:14px;border-top:1px solid var(--app-border-soft)}
+.sg-remote-search-head{min-height:44px;display:flex;align-items:center;justify-content:space-between;gap:12px}.sg-remote-search-head strong{font-size:12px}.sg-remote-search-head span{color:var(--app-muted);font-size:11px}
+.sg-remote-search-row{min-height:90px;padding:11px 0;display:grid;grid-template-columns:40px minmax(0,1fr) auto;align-items:start;gap:10px;border-bottom:1px solid var(--app-border-soft)}
+.sg-remote-search-source{width:40px;height:40px;padding:0;border:0;border-radius:50%;background:transparent;display:grid;place-items:center;cursor:pointer}.sg-remote-search-source:focus-visible{outline:2px solid var(--app-accent);outline-offset:2px}
+.sg-remote-search-copy{min-width:0;display:grid;gap:5px}.sg-remote-search-copy>div{display:flex;align-items:center;gap:7px;min-width:0}.sg-remote-search-copy>div>button{min-width:0;max-width:100%;padding:0;border:0;background:transparent;color:var(--app-text);font-size:12.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}.sg-remote-search-copy>div>span{flex:0 0 auto;color:var(--app-muted);font-size:10.5px}.sg-remote-search-copy>p{margin:0;color:var(--app-secondary);font-size:12px;line-height:1.45}
+.sg-remote-search-row>a{min-height:34px;padding:0 9px;display:flex;align-items:center;border-radius:8px;color:var(--app-accent);font-size:11px;font-weight:700;text-decoration:none}.sg-remote-search-row>a:hover{background:var(--app-hover)}
+.sg-remote-search-empty,.sg-remote-search-note{padding:12px 0;color:var(--app-muted);font-size:11.5px;line-height:1.5}.sg-remote-search-note{border-top:1px solid var(--app-border-soft)}
 .sg-sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
 
 /* Verification is reserved for real Telegram verification data. */
@@ -72,6 +80,7 @@
   .sg-mobile-nav{width:min(360px,calc(100% - 20px))!important;height:62px!important;border-radius:20px!important}
   .sg-mobile-nav button{flex:1!important;border-radius:14px!important}
   .sg-mobile-nav button.is-active{min-width:62px!important}
+  .sg-remote-search-row{grid-template-columns:38px minmax(0,1fr)}.sg-remote-search-row>a{grid-column:2;justify-self:start;margin-top:-3px}
 }
 
 @media(prefers-reduced-motion:reduce){
