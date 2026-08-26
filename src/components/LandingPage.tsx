@@ -1,6 +1,7 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { Box, Button, Container, Stack, Typography } from '@mui/material'
+import ArrowForwardRounded from '@mui/icons-material/ArrowForwardRounded'
+import PlayArrowRounded from '@mui/icons-material/PlayArrowRounded'
 import { BrandMark } from './BrandMark'
-import { BookmarkIcon, ImageIcon, MessageIcon, RefreshIcon } from './Icons'
 
 type LandingPageProps = {
   onConnect: () => void
@@ -11,102 +12,77 @@ type LandingPageProps = {
   error?: string
 }
 
-const sources = ['Product Hunt', 'Tech Signals', 'Design Notes', 'Markets', 'AI Research']
-
-function Reveal({ children, className = '' }: { children: ReactNode; className?: string }) {
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const node = ref.current
-    if (!node || typeof IntersectionObserver === 'undefined') return
-    const observer = new IntersectionObserver(([entry]) => {
-      if (!entry?.isIntersecting) return
-      node.dataset.visible = 'true'
-      observer.disconnect()
-    }, { rootMargin: '0px 0px -12% 0px', threshold: .15 })
-    observer.observe(node)
-    return () => observer.disconnect()
-  }, [])
-  return <div ref={ref} className={`lp-reveal ${className}`}>{children}</div>
-}
-
-function ProductPreview() {
-  return <div className="lp-preview" aria-label="Supergram feed preview">
-    <div className="lp-preview-top">
-      <div className="lp-preview-brand"><BrandMark /><span>Supergram</span></div>
-      <span className="lp-preview-live"><i /> Live</span>
-    </div>
-    <div className="lp-source-marquee"><div>{[...sources, ...sources].map((name, i) => <span key={`${name}-${i}`}><b>{name.slice(0, 2).toUpperCase()}</b>{name}</span>)}</div></div>
-    <div className="lp-feed-window">
-      <div className="lp-feed-track">
-        <article className="lp-demo-post lp-demo-media">
-          <header><span className="lp-demo-avatar">PH</span><div><strong>Product Hunt</strong><small>@producthunt · 4m</small></div></header>
-          <div className="lp-demo-photo"><span>New release</span><strong>A faster way to follow what matters.</strong></div>
-          <p>See the post, save it, and keep moving without jumping between chats.</p>
-          <footer><MessageIcon /><BookmarkIcon /></footer>
-        </article>
-        <article className="lp-demo-post">
-          <header><span className="lp-demo-avatar alt">TS</span><div><strong>Tech Signals</strong><small>@techsignals · 11m</small></div></header>
-          <p>Long channel threads become readable in one continuous timeline, while new posts wait until you are ready to return to the top.</p>
-          <footer><MessageIcon /><BookmarkIcon /></footer>
-        </article>
-        <article className="lp-demo-post lp-demo-media">
-          <header><span className="lp-demo-avatar warm">DN</span><div><strong>Design Notes</strong><small>@designnotes · 18m</small></div></header>
-          <div className="lp-demo-photo second"><span>Motion study</span><strong>Media plays when it earns the screen.</strong></div>
-          <footer><MessageIcon /><BookmarkIcon /></footer>
-        </article>
-      </div>
-    </div>
-    <div className="lp-preview-bottom"><span><RefreshIcon /> New posts stay buffered</span><span><ImageIcon /> Media-first feed</span></div>
-  </div>
-}
+const ink = '#111111'
+const muted = '#6f6f6f'
+const border = '#e9e9e9'
 
 export function LandingPage({ onConnect, onDemo, connecting, backendReady, booting, error }: LandingPageProps) {
-  const connectLabel = connecting ? 'Connecting…' : 'Open Supergram'
-  const heroConnectLabel = connecting ? 'Connecting to Telegram…' : 'Continue with Telegram'
+  return <Box sx={{ minHeight: '100vh', bgcolor: '#fff', color: ink }}>
+    <Container maxWidth="lg" sx={{ px: { xs: 2.5, md: 4 } }}>
+      <Stack component="header" direction="row" alignItems="center" justifyContent="space-between" sx={{ height: 76, borderBottom: `1px solid ${border}` }}>
+        <Stack component="a" href="/" direction="row" alignItems="center" spacing={1.1} sx={{ color: 'inherit', textDecoration: 'none' }}>
+          <Box sx={{ width: 28, height: 28 }}><BrandMark /></Box>
+          <Typography sx={{ fontSize: 15, fontWeight: 700, letterSpacing: '-0.02em' }}>Supergram</Typography>
+        </Stack>
+        <Stack direction="row" alignItems="center" spacing={1}>
+          <Button onClick={onDemo} color="inherit" sx={{ minWidth: 0, px: 1.5, fontSize: 13, fontWeight: 500, textTransform: 'none' }}>Demo</Button>
+          <Button onClick={onConnect} disabled={connecting} variant="contained" disableElevation sx={{ borderRadius: 999, bgcolor: ink, color: '#fff', px: 2.2, py: 1, fontSize: 13, fontWeight: 600, textTransform: 'none', '&:hover': { bgcolor: '#222' } }}>
+            {connecting ? 'Connecting' : 'Open app'}
+          </Button>
+        </Stack>
+      </Stack>
 
-  return <div className="lp-page">
-    <header className="lp-nav">
-      <a className="lp-wordmark" href="/" aria-label="Supergram home"><BrandMark /><strong>Supergram</strong></a>
-      <nav><button type="button" className="lp-nav-link" onClick={onDemo}>Demo</button><a href="#product">Product</a><a href="#privacy">Privacy</a><a href="/terms.html">Terms</a></nav>
-      <button className="lp-nav-cta pressable" type="button" onClick={onConnect} disabled={connecting}>{connectLabel}</button>
-    </header>
+      <Box component="main" sx={{ pt: { xs: 10, md: 16 }, pb: { xs: 10, md: 16 } }}>
+        <Box sx={{ maxWidth: 940 }}>
+          <Typography component="p" sx={{ mb: 3, color: muted, fontSize: 14, lineHeight: 1.5 }}>Telegram, ranked by what matters.</Typography>
+          <Typography component="h1" sx={{ m: 0, maxWidth: 920, fontSize: { xs: '3.4rem', sm: '5rem', md: '7rem' }, lineHeight: { xs: .98, md: .92 }, letterSpacing: { xs: '-0.055em', md: '-0.07em' }, fontWeight: 500 }}>
+            The signal without the noise.
+          </Typography>
+          <Typography sx={{ mt: { xs: 4, md: 5 }, maxWidth: 580, color: muted, fontSize: { xs: 17, md: 19 }, lineHeight: 1.55, letterSpacing: '-0.01em' }}>
+            Supergram turns the channels and conversations you already follow into one clean feed. Media comes first. Important text becomes short news briefs. Repeated stories collapse into one.
+          </Typography>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mt: 5, alignItems: { xs: 'stretch', sm: 'center' } }}>
+            <Button onClick={onConnect} disabled={connecting || !backendReady} endIcon={<ArrowForwardRounded sx={{ fontSize: 17 }} />} variant="contained" disableElevation sx={{ alignSelf: { sm: 'flex-start' }, borderRadius: 999, bgcolor: ink, color: '#fff', px: 2.5, py: 1.25, fontSize: 14, fontWeight: 600, textTransform: 'none', '&:hover': { bgcolor: '#222' } }}>
+              {connecting ? 'Connecting to Telegram' : 'Continue with Telegram'}
+            </Button>
+            <Button onClick={onDemo} startIcon={<PlayArrowRounded sx={{ fontSize: 17 }} />} color="inherit" sx={{ alignSelf: { sm: 'flex-start' }, borderRadius: 999, px: 2.2, py: 1.2, fontSize: 14, fontWeight: 500, textTransform: 'none' }}>
+              Preview feed
+            </Button>
+          </Stack>
+          {error ? <Typography sx={{ mt: 2, color: '#b42318', fontSize: 12 }}>{error}</Typography> : null}
+          <Typography sx={{ mt: 2.5, color: '#9a9a9a', fontSize: 11.5 }}>
+            {backendReady ? 'Telegram API ready' : booting ? 'Checking connection' : 'Backend unavailable'}
+          </Typography>
+        </Box>
 
-    <main>
-      <section className="lp-hero">
-        <div className="lp-hero-copy">
-          <p className="lp-eyebrow">A feed for the Telegram you already use</p>
-          <h1>Follow Telegram like a feed, not an inbox.</h1>
-          <p className="lp-hero-body">Supergram turns the channels, groups, and conversations you already follow into one continuous timeline, with media that loads when it matters and new posts that never knock you out of place.</p>
-          <div className="lp-hero-actions">
-            <button className="lp-primary pressable" type="button" onClick={onConnect} disabled={connecting}>{heroConnectLabel}</button>
-            <button className="lp-secondary pressable" type="button" onClick={onDemo}>Open live demo</button>
-          </div>
-          <p className="lp-demo-note">The demo uses sample content and works without a Telegram login.</p>
-          {error ? <p className="lp-error">{error}</p> : null}
-          <div className="lp-trust"><span className={backendReady ? 'is-ready' : ''}><i />{backendReady ? 'Telegram API ready' : booting ? 'Checking backend' : 'Backend unavailable'}</span><span>Unofficial Telegram client</span></div>
-        </div>
-        <ProductPreview />
-      </section>
+        <Box sx={{ mt: { xs: 10, md: 16 }, borderTop: `1px solid ${border}` }}>
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={{ xs: 5, md: 10 }} sx={{ py: { xs: 6, md: 8 } }}>
+            <Box sx={{ flex: 1 }}>
+              <Typography sx={{ color: muted, fontSize: 12, mb: 1.5 }}>01</Typography>
+              <Typography sx={{ fontSize: 19, fontWeight: 600, letterSpacing: '-0.02em' }}>Ranked, not chronological</Typography>
+              <Typography sx={{ mt: 1, color: muted, fontSize: 14, lineHeight: 1.6, maxWidth: 300 }}>Media, urgency, source velocity, freshness, and engagement decide what deserves the top of the feed.</Typography>
+            </Box>
+            <Box sx={{ flex: 1 }}>
+              <Typography sx={{ color: muted, fontSize: 12, mb: 1.5 }}>02</Typography>
+              <Typography sx={{ fontSize: 19, fontWeight: 600, letterSpacing: '-0.02em' }}>Summarized by ML</Typography>
+              <Typography sx={{ mt: 1, color: muted, fontSize: 14, lineHeight: 1.6, maxWidth: 300 }}>Long text updates are condensed into short, news-like briefs while the original message remains one tap away.</Typography>
+            </Box>
+            <Box sx={{ flex: 1 }}>
+              <Typography sx={{ color: muted, fontSize: 12, mb: 1.5 }}>03</Typography>
+              <Typography sx={{ fontSize: 19, fontWeight: 600, letterSpacing: '-0.02em' }}>One story, many sources</Typography>
+              <Typography sx={{ mt: 1, color: muted, fontSize: 14, lineHeight: 1.6, maxWidth: 300 }}>Similar posts across channels are grouped so the same event does not occupy half your screen.</Typography>
+            </Box>
+          </Stack>
+        </Box>
+      </Box>
 
-      <Reveal className="lp-proof"><p>Supergram keeps the interaction model simple. Scroll back in time, let fresh posts wait above you, and open media only when it enters your attention.</p></Reveal>
-
-      <section id="product" className="lp-product-section">
-        <Reveal className="lp-section-intro"><p className="lp-eyebrow">The product</p><h2>Telegram history behaves better when it respects your position.</h2><p>Infinite history is cursor-paginated instead of repeatedly refetched. The feed keeps a bounded render window, and media stays lazy until it approaches the viewport.</p><button type="button" className="lp-text-link lp-demo-link" onClick={onDemo}>Try the public demo</button></Reveal>
-        <div className="lp-behaviors">
-          <Reveal><span className="lp-step">01</span><h3>Scroll into older history</h3><p>Reaching the end requests the next Telegram history cursor and merges it into the same timeline without resetting what is already on screen.</p></Reveal>
-          <Reveal><span className="lp-step">02</span><h3>Keep fresh posts out of the way</h3><p>New arrivals sit in a small queue when you are reading further down. A single control returns you to the top before those posts enter the feed.</p></Reveal>
-          <Reveal><span className="lp-step">03</span><h3>Give media the screen only when needed</h3><p>Photos, video, audio, voice notes, documents, stickers, and albums use the right renderer instead of being forced into one generic image box.</p></Reveal>
-        </div>
-      </section>
-
-      <section id="privacy" className="lp-privacy-section">
-        <Reveal className="lp-privacy-copy"><p className="lp-eyebrow">Your account stays yours</p><h2>Supergram reads through your authorized Telegram session instead of copying your inbox into a new message database.</h2><p>Your session is encrypted before it reaches the browser cookie, login codes and two-step passwords are not kept, and private chats are not published as discovery content.</p><a className="lp-text-link" href="/privacy.html">Read the privacy policy</a></Reveal>
-        <Reveal className="lp-privacy-panel"><div><strong>Session</strong><span>Encrypted HttpOnly cookie</span></div><div><strong>Messages</strong><span>Fetched from Telegram on demand</span></div><div><strong>Media</strong><span>Short-lived authenticated delivery</span></div><div><strong>Local state</strong><span>Read, saved, theme, and feed preferences</span></div></Reveal>
-      </section>
-
-      <section className="lp-final"><Reveal><BrandMark className="lp-final-mark" /><h2>Your Telegram is already full of things worth following. Supergram gives them a better place to land.</h2><div className="lp-hero-actions lp-final-actions"><button className="lp-primary pressable" type="button" onClick={onConnect} disabled={connecting}>Open Supergram</button><button className="lp-secondary pressable" type="button" onClick={onDemo}>View demo</button></div></Reveal></section>
-    </main>
-
-    <footer className="lp-footer"><a className="lp-wordmark" href="/"><BrandMark /><strong>Supergram</strong></a><p>Independent software using the Telegram API. Supergram is not affiliated with Telegram.</p><div><button type="button" className="lp-footer-button" onClick={onDemo}>Demo</button><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a><a href="https://github.com/Imdavid21/Telegram-social" target="_blank" rel="noreferrer">GitHub</a></div></footer>
-  </div>
+      <Stack component="footer" direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={2} sx={{ py: 4, borderTop: `1px solid ${border}`, color: '#8a8a8a' }}>
+        <Typography sx={{ fontSize: 11.5 }}>Independent client using the Telegram API.</Typography>
+        <Stack direction="row" spacing={2.5}>
+          <Typography component="a" href="/privacy.html" sx={{ color: 'inherit', fontSize: 11.5, textDecoration: 'none' }}>Privacy</Typography>
+          <Typography component="a" href="/terms.html" sx={{ color: 'inherit', fontSize: 11.5, textDecoration: 'none' }}>Terms</Typography>
+        </Stack>
+      </Stack>
+    </Container>
+  </Box>
 }
