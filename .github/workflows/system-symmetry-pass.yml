@@ -1,31 +1,29 @@
-name: Shadcn Redux migration
+name: Backend v3 validation
 on:
   push:
-    branches: [main]
+    branches: [supergram-backend-final-v3]
 jobs:
-  migrate:
-    if: github.event.head_commit.message == 'Run shadcn Redux migration'
+  validate:
+    if: github.event.head_commit.message == 'Run backend v3 validation'
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Apply migration
-        run: python3 scripts/shadcn-redux-migration.py
-      - name: Install and validate
+      - name: Apply search and trust UI patch
+        run: python3 scripts/apply-backend-search-ui.py
+      - name: Validate exact product tree
         run: |
-          npm install
-          grep -R "@mui" src && exit 1 || true
-          npm run build
+          npm install --no-audit --no-fund
           node --check server/index.mjs
-      - name: Commit migration
-        run: |
-          rm -f scripts/shadcn-redux-migration.py
-          git config user.name "Uddalak"
-          git config user.email "84083101+Imdavid21@users.noreply.github.com"
-          git add -A
-          git commit -m "Migrate Supergram to shadcn and Redux"
-          git push
+          node --check api/proxy.mjs
+          npm run build
+      - name: Export patched UI files
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-v3-patched-ui
+          path: |
+            src/ProductApp.tsx
+            src/components/FeedCard.tsx
+          if-no-files-found: error
