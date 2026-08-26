@@ -29,8 +29,14 @@ function proxy(req, res) {
   }
 
   const target = new URL(req.url || '/', BACKEND_ORIGIN)
-  const headers = { ...req.headers, host: target.host }
-  if (BACKEND_PROXY_SECRET) headers['x-backend-proxy-secret'] = BACKEND_PROXY_SECRET
+  const originalHost = String(req.headers.host || '')
+  const headers = {
+    ...req.headers,
+    host: target.host,
+    'x-forwarded-host': originalHost,
+    'x-forwarded-proto': String(req.headers['x-forwarded-proto'] || 'https')
+  }
+  if (BACKEND_PROXY_SECRET) headers['x-tgs-proxy-secret'] = BACKEND_PROXY_SECRET
   delete headers['content-length']
 
   const upstream = http.request({
