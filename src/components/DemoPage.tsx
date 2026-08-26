@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { BrandMark } from './BrandMark'
 import { demoChannels, demoFeed } from '../data/demo'
-import { BookmarkIcon, HomeIcon, ImageIcon, SearchIcon, SendIcon } from './Icons'
+import { BookmarkIcon, HeartIcon, HomeIcon, ImageIcon, MessageIcon, SearchIcon, SendIcon } from './Icons'
 
 function timeAgo(timestamp: number) {
   const mins = Math.max(1, Math.floor((Date.now() - timestamp) / 60_000))
@@ -60,7 +60,7 @@ export function DemoPage({ onConnect }: { onConnect: () => void }) {
           return <article className="demo-post" key={item.id}>
             <header><span className="demo-post-avatar" style={{ background: channel.accent }}>{channel.initials}</span><div><strong>{channel.title}</strong><span>{channel.username ? `@${channel.username}` : 'Telegram source'} · {timeAgo(item.timestamp)}</span></div></header>
             {item.media ? <div className="demo-media" style={{ background: item.media.gradient }}><span>{item.media.label}</span></div> : null}
-            <div className="demo-actions"><button className="pressable"><SendIcon /></button><button className={`pressable ${saved.has(item.id) ? 'is-saved' : ''}`} onClick={() => toggleSaved(item.id)}><BookmarkIcon /></button></div>
+            <div className="demo-actions"><span><button className="pressable" aria-label="Like"><HeartIcon /></button><button className="pressable" aria-label="Comment"><MessageIcon /></button><button className="pressable" aria-label="Share"><SendIcon /></button></span><button className={`pressable ${saved.has(item.id) ? 'is-saved' : ''}`} onClick={() => toggleSaved(item.id)} aria-label="Save"><BookmarkIcon /></button></div>
             <p><strong>{channel.title}</strong> {item.text}</p>
             <div className="demo-meta"><span>{item.reactions.map(reaction => `${reaction.emoji} ${reaction.count}`).join('  ')}</span><span>{item.views ? `${item.views} views` : ''}</span></div>
           </article>
