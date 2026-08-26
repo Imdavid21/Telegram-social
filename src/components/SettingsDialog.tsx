@@ -41,7 +41,7 @@ export function SettingsDialog({
 }) {
   const theme = useTheme()
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'))
-  const update = <K extends keyof UserSettings>(key: K, value: UserSettings[K]) => onChange({ ...settings, [key]: value })
+  const update = <K extends keyof UserSettings,>(key: K, value: UserSettings[K]) => onChange({ ...settings, [key]: value })
 
   return <Dialog open={open} onClose={onClose} fullScreen={fullScreen} fullWidth maxWidth="sm" aria-labelledby="supergram-settings-title">
     <DialogTitle id="supergram-settings-title">Settings</DialogTitle>
