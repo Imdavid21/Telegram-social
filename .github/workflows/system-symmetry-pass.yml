@@ -1,33 +1,31 @@
-name: Shadcn Redux migration
+name: Backend v4 shadcn validation
 on:
   push:
-    branches: [main]
+    branches: [supergram-backend-final-v4]
+permissions:
+  contents: write
 jobs:
-  migrate:
-    if: github.event.head_commit.message == 'Run shadcn Redux migration v2'
+  validate:
+    if: github.event.head_commit.message == 'Commit backend v4 validated UI'
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Apply migration
+      - name: Apply search and trust UI patch
+        run: python3 scripts/apply-backend-v4-ui.py
+      - name: Validate migrated product
         run: |
-          python3 scripts/shadcn-redux-migration.py
-          python3 scripts/shadcn-redux-repair.py
-      - name: Install and validate
-        run: |
-          npm install
+          npm install --no-audit --no-fund
           if grep -R "@mui" src; then exit 1; fi
-          npm run build
           node --check server/index.mjs
-      - name: Commit migration
+          node --check api/proxy.mjs
+          npm run build
+      - name: Commit only validated UI files
         run: |
-          rm -f scripts/shadcn-redux-migration.py scripts/shadcn-redux-repair.py
           git config user.name "Uddalak"
           git config user.email "84083101+Imdavid21@users.noreply.github.com"
-          git add -A
-          git commit -m "Migrate Supergram to shadcn and Redux"
+          git add src/ProductApp.tsx src/components/FeedCard.tsx
+          git commit -m "Apply validated shadcn Telegram search UI"
           git push
