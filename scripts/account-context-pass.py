@@ -106,7 +106,6 @@ if route_anchor not in s:
 s = s.replace(route_anchor, profile_routes + route_anchor, 1)
 p.write_text(s)
 
-# Types: richer account object.
 p = Path('src/types.ts')
 s = p.read_text()
 insert_anchor = "export interface UserSettings {\n"
@@ -141,7 +140,6 @@ if account_type not in s:
     s = s.replace(insert_anchor, account_type + insert_anchor, 1)
 p.write_text(s)
 
-# API client: richer auth/account types.
 p = Path('src/lib/api.ts')
 s = p.read_text()
 s = s.replace("import type { Channel, FeedDiagnostics, FeedItem, FeedPage, FeedUpdate } from '../types'", "import type { Channel, FeedDiagnostics, FeedItem, FeedPage, FeedUpdate, TelegramAccount } from '../types'", 1)
@@ -151,20 +149,17 @@ if "export function fetchTelegramAccount()" not in s:
     s = s.replace(a, "export function fetchTelegramAccount() { return request<{ user: TelegramAccount }>('/api/account') }\n" + a, 1)
 p.write_text(s)
 
-# Product app: keep outgoing chat messages in context, not visible feed cards.
 p = Path('src/ProductApp.tsx')
 s = p.read_text()
 s = s.replace("import type { AlbumMedia, Channel, FeedDiagnostics, FeedFilter, FeedItem, FeedPage, FeedUpdate, MediaAsset, UserSettings } from './types'", "import type { AlbumMedia, Channel, FeedDiagnostics, FeedFilter, FeedItem, FeedPage, FeedUpdate, MediaAsset, TelegramAccount, UserSettings } from './types'", 1)
 s = s.replace("type Me = { id: string; firstName: string; username?: string }\n", "type Me = TelegramAccount\n", 1)
-# Filter visible feed after collapse and before all other filters; summary context map still uses full collapsedFeed.
-visible_anchor = "  const visibleFeed = useMemo(() => {\n    let rows = collapsedFeed"
-if visible_anchor in s:
-    s = s.replace(visible_anchor, "  const visibleFeed = useMemo(() => {\n    let rows = collapsedFeed.filter(item => !(item.outgoing && (item.sourceType === 'person' || item.sourceType === 'group'))) ", 1)
-else:
-    raise SystemExit('visibleFeed anchor missing')
+filter_anchor = "      const channel = channelMap.get(item.channelId)\n      if (!channel || hiddenPosts.has(item.id)) return false\n"
+filter_insert = "      const channel = channelMap.get(item.channelId)\n      if (!channel || hiddenPosts.has(item.id)) return false\n      if (item.outgoing && (item.sourceType === 'person' || item.sourceType === 'group')) return false\n"
+if filter_anchor not in s:
+    raise SystemExit('visible feed filter anchor missing')
+s = s.replace(filter_anchor, filter_insert, 1)
 p.write_text(s)
 
-# Settings dialog: profile header + Telegram settings/capability inventory.
 p = Path('src/components/SettingsDialog.tsx')
 s = p.read_text()
 s = s.replace("  Typography,\n", "  Typography,\n  Avatar,\n  Chip,\n", 1)
