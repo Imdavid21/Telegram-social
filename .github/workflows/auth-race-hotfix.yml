@@ -1,0 +1,35 @@
+name: Apply auth completion hotfix
+on:
+  push:
+    paths:
+      - '.github/workflows/auth-race-hotfix.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch delayed auth finalization
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('server/index.mjs')
+          s = p.read_text()
+          old = """app.get('/api/auth/flow', async (req, res) => {\n  const id = req.cookies?.[FLOW_COOKIE]\n  const flow = id && pending.get(id)\n  if (!flow) return res.status(404).json({ error: 'No active Telegram login.' })\n  await waitForStepChange(flow, flow.step)\n  res.json(publicFlow(flow))\n})\n"""
+          new = """function finalizeAuthFlow(id, flow, res) {\n  if (flow?.step !== 'done' || !flow.session) return false\n  res.cookie(SESSION_COOKIE, encrypt(flow.session), cookieOptions(true))\n  res.clearCookie(FLOW_COOKIE, { path: '/' })\n  pending.delete(id)\n  return true\n}\n\napp.get('/api/auth/flow', async (req, res) => {\n  const id = req.cookies?.[FLOW_COOKIE]\n  const flow = id && pending.get(id)\n  if (!flow) return res.status(404).json({ error: 'No active Telegram login.' })\n  await waitForStepChange(flow, flow.step)\n  const payload = publicFlow(flow)\n  finalizeAuthFlow(id, flow, res)\n  res.json(payload)\n})\n"""
+          if old not in s:
+              raise SystemExit('auth flow block not found')
+          s = s.replace(old, new, 1)
+          old2 = """  if (flow.step === 'done' && flow.session) {\n    res.cookie(SESSION_COOKIE, encrypt(flow.session), cookieOptions(true))\n    res.clearCookie(FLOW_COOKIE, { path: '/' })\n    pending.delete(id)\n  }\n  res.json(publicFlow(flow))\n"""
+          new2 = """  const payload = publicFlow(flow)\n  finalizeAuthFlow(id, flow, res)\n  res.json(payload)\n"""
+          if old2 not in s:
+              raise SystemExit('auth input finalize block not found')
+          p.write_text(s.replace(old2, new2, 1))
+      - name: Commit fix
+        run: |
+          git config user.name "Supergram Auth Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add server/index.mjs
+          git commit -m "Fix delayed Telegram auth finalization"
+          git push
