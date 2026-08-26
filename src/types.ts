@@ -60,6 +60,14 @@ export interface AlbumMedia {
   items: MediaAsset[]
 }
 
+export interface StoryMember {
+  id: string
+  messageId: number
+  channelId: string
+  timestamp: number
+  text: string
+}
+
 export interface FeedItem {
   id: string
   messageId: number
@@ -82,6 +90,7 @@ export interface FeedItem {
   storyVelocity?: number
   storyClustered?: boolean
   storyKey?: string
+  storyMembers?: StoryMember[]
   sponsored?: {
     label: 'Sponsored' | 'Recommended'
     title: string
