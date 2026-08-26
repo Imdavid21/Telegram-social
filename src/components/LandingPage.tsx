@@ -42,9 +42,10 @@ function LandingProductDemo({ onConnect }: { onConnect: () => void }) {
       <div className="sg-marketing-demo-feed">
         {posts.map(item => {
           const channel = demoChannels.find(source => source.id === item.channelId)!
+          const demoMedia = item.media && item.media.kind !== 'album' ? item.media : null
           return <article className="sg-marketing-demo-post" key={item.id}>
             <header><span style={{background: channel.accent}}>{channel.initials}</span><div><strong>{channel.title}</strong><small>{channel.username ? `@${channel.username}` : 'Telegram source'} · now</small></div></header>
-            {item.media ? <div className="sg-marketing-demo-media" style={{background:item.media.gradient}}><span>{item.media.label}</span></div> : null}
+            {demoMedia ? <div className="sg-marketing-demo-media" style={{background:demoMedia.gradient}}><span>{demoMedia.label}</span></div> : null}
             <p>{item.text}</p>
             <div className="sg-marketing-demo-actions"><span><button className={liked.has(item.id)?'is-active':''} onClick={() => toggle(setLiked, liked, item.id)} aria-label="Like"><Heart/></button><button aria-label="Discuss"><MessageCircle/></button><button aria-label="Forward"><Send/></button></span><button className={saved.has(item.id)?'is-active':''} onClick={() => toggle(setSaved, saved, item.id)} aria-label="Save"><Bookmark/></button></div>
           </article>
