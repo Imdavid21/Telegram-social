@@ -20,6 +20,9 @@
 .sg-source-open{width:44px;height:44px;display:grid;place-items:center;margin-left:-3px;border-radius:50%}
 .sg-source-open:focus-visible,.sg-source-line button:focus-visible{outline:2px solid var(--app-accent);outline-offset:2px}
 .sg-source-line button{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:700;letter-spacing:-.01em}
+.sg-verified{display:inline-grid;place-items:center;width:15px;height:15px;border-radius:50%;background:var(--app-accent);color:#fff;font-size:9px;font-weight:900}
+.sg-trust-warning,.sg-source-kind{display:inline-flex;align-items:center;min-height:18px;padding:0 5px;border-radius:5px;font-size:9px;font-weight:800;line-height:1;letter-spacing:.01em}.sg-trust-warning{background:color-mix(in srgb,#d92d20 13%,transparent);color:#e85d52}.sg-source-kind{background:var(--app-raised);color:var(--app-muted)}
+.sg-sheet-trust-warning{display:block!important;margin-top:3px!important;color:#e85d52!important;font-size:10px!important;font-weight:700!important}
 
 /* Effective touch targets. Icons stay visually compact. */
 .sg-post-actions-ref .sg-action,.sg-icon-button{min-width:44px!important;width:44px!important;min-height:44px!important;height:44px!important;border-radius:12px!important}
@@ -55,10 +58,8 @@
 .sg-remote-search-copy{min-width:0;display:grid;gap:5px}.sg-remote-search-copy>div{display:flex;align-items:center;gap:7px;min-width:0}.sg-remote-search-copy>div>button{min-width:0;max-width:100%;padding:0;border:0;background:transparent;color:var(--app-text);font-size:12.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}.sg-remote-search-copy>div>span{flex:0 0 auto;color:var(--app-muted);font-size:10.5px}.sg-remote-search-copy>p{margin:0;color:var(--app-secondary);font-size:12px;line-height:1.45}
 .sg-remote-search-row>a{min-height:34px;padding:0 9px;display:flex;align-items:center;border-radius:8px;color:var(--app-accent);font-size:11px;font-weight:700;text-decoration:none}.sg-remote-search-row>a:hover{background:var(--app-hover)}
 .sg-remote-search-empty,.sg-remote-search-note{padding:12px 0;color:var(--app-muted);font-size:11.5px;line-height:1.5}.sg-remote-search-note{border-top:1px solid var(--app-border-soft)}
+.sg-reaction-summary .is-chosen{padding:2px 5px;border-radius:6px;background:color-mix(in srgb,var(--app-accent) 13%,transparent);color:var(--app-text)}
 .sg-sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
-
-/* Verification is reserved for real Telegram verification data. */
-.sg-verified{font-size:9px}
 
 /* Keep small metadata readable. */
 .sg-post-who>span,.sg-engagement,.sg-source-bubble>span:last-child{font-size:11.5px!important}
