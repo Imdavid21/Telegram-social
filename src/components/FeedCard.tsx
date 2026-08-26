@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Skeleton } from '@mui/material'
 import type { Channel, FeedItem } from '../types'
 import { BookmarkIcon, EyeIcon, LockIcon, MessageIcon, MoreIcon, SendIcon } from './Icons'
 import { MediaRenderer } from './MediaRenderer'
 import { SuccessConfirm } from './SuccessConfirm'
 import { BottomSheet } from './BottomSheet'
 import { haptics } from '../lib/interaction'
+import { summarizeMessage } from '../lib/api'
 
 const HOUR = 60 * 60 * 1000
 const URGENT_TERMS = /\b(breaking|urgent|alert|deadline|today|now|live|incident|outage|exploit|hack|hacked|breach|warning|critical|launch|listing|delist|airdrop|snapshot|vote|proposal|claim|ends? in|last chance|action required|security)\b/i
+
+type Brief = { headline: string; summary: string; ml: boolean }
 
 function timeAgo(timestamp: number) {
   const value = Number(timestamp)
@@ -43,24 +47,14 @@ function clipAtWord(value: string, limit: number) {
   return `${(cut > limit * .65 ? clipped.slice(0, cut) : clipped.slice(0, limit)).trim()}…`
 }
 
-function makeNewsBrief(text: string) {
+function localBrief(text: string): Brief {
   const cleaned = cleanText(text)
-  if (!cleaned) return { headline: 'Telegram update', brief: '' }
-
+  if (!cleaned) return { headline: 'Telegram update', summary: '', ml: false }
   const sentences = cleaned.split(/(?<=[.!?])\s+/).filter(Boolean)
   const first = sentences[0] || cleaned
-  let headline = first.replace(/[.!?]+$/, '').trim()
-
-  if (headline.length > 94) {
-    const lead = headline.split(/[:;–-]/)[0]?.trim()
-    headline = lead && lead.length >= 24 && lead.length <= 94 ? lead : clipAtWord(headline, 88)
-  }
-
-  const remaining = sentences.slice(1).join(' ').trim()
-  const fallback = cleaned.slice(first.length).trim().replace(/^[.!?\s-]+/, '')
-  const brief = clipAtWord(remaining || fallback || cleaned, 230)
-
-  return { headline: clipAtWord(headline, 94), brief: brief === headline ? '' : brief }
+  const headline = clipAtWord(first.replace(/[.!?]+$/, '').trim(), 94)
+  const summary = clipAtWord(sentences.slice(1, 3).join(' ').trim() || cleaned, 230)
+  return { headline, summary: summary === headline ? '' : summary, ml: false }
 }
 
 function SourceAvatar({ channel }: { channel: Channel }) {
@@ -83,13 +77,14 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
   const [expanded, setExpanded] = useState(false)
   const [saveConfirm, setSaveConfirm] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
+  const [brief, setBrief] = useState<Brief | null>(null)
+  const [briefLoading, setBriefLoading] = useState(false)
   const original = originalPostUrl(item, channel)
   const reactions = useMemo(() => Array.isArray(item.reactions) ? item.reactions.filter(Boolean).slice(0, 6) : [], [item.reactions])
   const media = item.media && typeof item.media === 'object' ? item.media : undefined
   const text = String(item.text || '')
   const ageHours = Math.max(0, (Date.now() - Number(item.timestamp || 0)) / HOUR)
   const isNewsBrief = !media && ageHours >= 24 && ageHours <= 168 && text.trim().length > 80
-  const newsBrief = useMemo(() => makeNewsBrief(text), [text])
   const isUrgent = URGENT_TERMS.test(text)
   const storySources = Math.max(0, Number(item.storySources || 0))
   const storyVelocity = Math.max(0, Number(item.storyVelocity || 0))
@@ -97,6 +92,25 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
   const isLong = text.length > 650
   const visibleText = !expanded && isLong ? `${text.slice(0, 650).trimEnd()}…` : text
   const privateSource = Boolean(channel.private || (!channel.username && (channel.type === 'person' || item.sourceType === 'person')))
+
+  useEffect(() => {
+    if (!isNewsBrief) {
+      setBrief(null)
+      setBriefLoading(false)
+      return
+    }
+    const controller = new AbortController()
+    setBrief(localBrief(text))
+    setBriefLoading(true)
+    void summarizeMessage(text, controller.signal)
+      .then(result => {
+        if (!result?.headline) return
+        setBrief({ headline: result.headline, summary: result.summary || '', ml: Boolean(result.ml) })
+      })
+      .catch(() => {})
+      .finally(() => setBriefLoading(false))
+    return () => controller.abort()
+  }, [isNewsBrief, item.id, text])
 
   useEffect(() => {
     const el = root.current
@@ -162,9 +176,11 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
     {media && <div className={`sg-media sg-media-${media.kind}`}><MediaRenderer media={media} /></div>}
 
     {isNewsBrief ? <div className="sg-news-brief">
-      <span className="sg-news-kicker">{storySources > 1 ? `${storySources} sources · ` : ''}Brief · {timeAgo(item.timestamp)}</span>
-      <strong>{newsBrief.headline}</strong>
-      {newsBrief.brief && <p>{newsBrief.brief}</p>}
+      <span className="sg-news-kicker">{storySources > 1 ? `${storySources} sources · ` : ''}{brief?.ml ? 'AI brief' : 'Brief'} · {timeAgo(item.timestamp)}</span>
+      {briefLoading && !brief ? <><Skeleton width="78%" height={34} /><Skeleton width="92%" /><Skeleton width="66%" /></> : <>
+        <strong>{brief?.headline || localBrief(text).headline}</strong>
+        {(brief?.summary || localBrief(text).summary) && <p>{brief?.summary || localBrief(text).summary}</p>}
+      </>}
       <button type="button" className="sg-news-expand pressable" onClick={() => setExpanded(value => !value)}>{expanded ? 'Hide original' : 'Read original'}</button>
       {expanded && <div className="sg-news-original">{text}</div>}
     </div> : visibleText && <div className={`sg-caption ${media ? '' : 'sg-text-post'}`}>
