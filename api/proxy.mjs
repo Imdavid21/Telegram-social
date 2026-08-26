@@ -19,6 +19,8 @@ const RESPONSE_STRIP = new Set([
   'last-modified'
 ])
 
+const summaryCache = new Map()
+
 function normalizeBaseUrl(value) {
   return String(value || '').trim().replace(/\/$/, '')
 }
@@ -30,18 +32,11 @@ function copyRequestHeaders(req) {
     if (Array.isArray(value)) headers.set(key, value.join(', '))
     else headers.set(key, String(value))
   }
-
-  // The Vercel function buffers the upstream response. Ask Railway for identity
-  // encoding so we never forward a stale gzip/br header with decompressed bytes.
   headers.set('accept-encoding', 'identity')
-
-  // API responses are session-specific and must always have a body. Prevent a
-  // browser validator from turning a feed request into an empty 304 response.
   headers.delete('if-none-match')
   headers.delete('if-modified-since')
   headers.delete('if-match')
   headers.delete('if-unmodified-since')
-
   return headers
 }
 
@@ -77,17 +72,96 @@ function jsonError(res, status, message) {
   return res.end(JSON.stringify({ error: message }))
 }
 
+function fallbackSummary(text) {
+  const clean = String(text || '').replace(/https?:\/\/\S+/g, '').replace(/\s+/g, ' ').trim()
+  const sentences = clean.split(/(?<=[.!?])\s+/).filter(Boolean)
+  const headline = String(sentences[0] || clean).replace(/[.!?]+$/, '').slice(0, 110)
+  const body = String(sentences.slice(1, 3).join(' ') || clean).slice(0, 280)
+  return { headline, summary: body, model: 'fallback', ml: false }
+}
+
+async function summarizeWithModel(text) {
+  const key = String(process.env.OPENAI_API_KEY || '')
+  if (!key) return fallbackSummary(text)
+
+  const model = String(process.env.OPENAI_SUMMARY_MODEL || 'gpt-4o-mini')
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${key}`
+    },
+    body: JSON.stringify({
+      model,
+      temperature: 0.2,
+      max_tokens: 160,
+      response_format: { type: 'json_object' },
+      messages: [
+        {
+          role: 'system',
+          content: 'Summarize a Telegram message as a compact news brief. Return JSON with headline and summary. Headline: maximum 12 words. Summary: 1 to 2 sentences, factual, no hype, no invented information. Preserve concrete names, dates, numbers, deadlines, risks, and calls to action when present.'
+        },
+        { role: 'user', content: String(text || '').slice(0, 7000) }
+      ]
+    }),
+    signal: AbortSignal.timeout(20_000)
+  })
+
+  if (!response.ok) throw new Error(`ML summary failed (${response.status})`)
+  const payload = await response.json()
+  const raw = payload?.choices?.[0]?.message?.content || '{}'
+  const parsed = JSON.parse(raw)
+  return {
+    headline: String(parsed?.headline || '').trim().slice(0, 140),
+    summary: String(parsed?.summary || '').trim().slice(0, 420),
+    model,
+    ml: true
+  }
+}
+
+async function handleSummary(req, res) {
+  if (String(req.method || '').toUpperCase() !== 'POST') return jsonError(res, 405, 'Method not allowed.')
+  const text = String(req.body?.text || '').trim()
+  if (text.length < 40) return jsonError(res, 400, 'Message is too short to summarize.')
+  if (text.length > 12_000) return jsonError(res, 413, 'Message is too long to summarize.')
+
+  const key = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)).then(buffer => Buffer.from(buffer).toString('hex'))
+  const cached = summaryCache.get(key)
+  if (cached && cached.expiresAt > Date.now()) {
+    res.statusCode = 200
+    res.setHeader('content-type', 'application/json; charset=utf-8')
+    res.setHeader('cache-control', 'private, max-age=3600')
+    return res.end(JSON.stringify(cached.value))
+  }
+
+  let result
+  try {
+    result = await summarizeWithModel(text)
+  } catch (error) {
+    console.error('ML summary inference failed', String(error?.message || error))
+    result = fallbackSummary(text)
+  }
+
+  summaryCache.set(key, { value: result, expiresAt: Date.now() + 6 * 60 * 60 * 1000 })
+  if (summaryCache.size > 500) summaryCache.delete(summaryCache.keys().next().value)
+
+  res.statusCode = 200
+  res.setHeader('content-type', 'application/json; charset=utf-8')
+  res.setHeader('cache-control', 'private, max-age=3600')
+  return res.end(JSON.stringify(result))
+}
+
 export default async function handler(req, res) {
   const rawPath = Array.isArray(req.query?.path) ? req.query.path.join('/') : String(req.query?.path || '')
 
-  // Keep crash reporting local to Vercel so a frontend failure can be diagnosed
-  // even when the Telegram backend is unreachable.
   if (rawPath === 'client-error' && String(req.method || '').toUpperCase() === 'POST') {
     console.error('Supergram client error', clientErrorPayload(req.body))
     res.statusCode = 204
     res.setHeader('cache-control', 'no-store')
     return res.end()
   }
+
+  if (rawPath === 'summarize') return handleSummary(req, res)
 
   const backend = normalizeBaseUrl(process.env.TELEGRAM_BACKEND_URL)
   const proxySecret = String(process.env.BACKEND_PROXY_SECRET || '')
@@ -167,8 +241,6 @@ export default async function handler(req, res) {
       return res.end(JSON.stringify(parsed))
     }
 
-    // Media and other binary responses keep their MIME type, but never inherit
-    // the upstream content-encoding because Node fetch may already decompress it.
     return res.end(buffer)
   } catch (error) {
     console.error('Telegram backend proxy failed', { path: rawPath, error: String(error?.message || error) })
