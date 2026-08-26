@@ -45,6 +45,7 @@ function TicketAsset({ asset, compact = false }: { asset: MediaAsset; compact?: 
   const [autoplay, setAutoplay] = useState(() => shouldAutoplay())
   const [lightboxRect, setLightboxRect] = useState<FlipRect | null>(null)
   const needsTicket = Boolean(asset.ticketEndpoint && !asset.src)
+  const imageAlt = asset.label || 'Image from Telegram'
 
   useEffect(() => { setLoaded(false) }, [url])
 
@@ -111,7 +112,7 @@ function TicketAsset({ asset, compact = false }: { asset: MediaAsset; compact?: 
     setAttempt(value => value + 1)
   }
 
-  function openLightbox(event: ReactMouseEvent<HTMLImageElement>) {
+  function openLightbox(event: ReactMouseEvent<HTMLButtonElement>) {
     const rect = event.currentTarget.getBoundingClientRect()
     setLightboxRect({ top: rect.top, left: rect.left, width: rect.width, height: rect.height })
   }
@@ -179,9 +180,11 @@ function TicketAsset({ asset, compact = false }: { asset: MediaAsset; compact?: 
 
   return <>
     <div ref={root} className={`sg-media-asset ${asset.kind === 'sticker' ? 'is-sticker' : ''} ${compact ? 'is-compact' : ''}`} style={style}>
-      <img className={`media-reveal sg-lightbox-trigger ${loaded ? 'loaded' : ''}`} src={url} alt={asset.label || 'Image from Telegram'} loading="lazy" decoding="async" onLoad={() => setLoaded(true)} onError={retry} onClick={openLightbox} />
+      <button type="button" className="sg-lightbox-button" onClick={openLightbox} aria-label={`Open ${imageAlt.toLowerCase()}`}>
+        <img className={`media-reveal sg-lightbox-trigger ${loaded ? 'loaded' : ''}`} src={url} alt={imageAlt} loading="lazy" decoding="async" onLoad={() => setLoaded(true)} onError={retry} />
+      </button>
     </div>
-    {lightboxRect ? <MediaLightbox src={url} sourceRect={lightboxRect} onClose={() => setLightboxRect(null)} /> : null}
+    {lightboxRect ? <MediaLightbox src={url} sourceRect={lightboxRect} alt={imageAlt} onClose={() => setLightboxRect(null)} /> : null}
   </>
 }
 
