@@ -16,11 +16,11 @@ import './session-boot.css'
 const muiTheme = createTheme({
   palette: {
     mode: 'dark',
-    background: { default: '#0e1114', paper: '#11161b' },
-    primary: { main: '#2aabee' },
-    text: { primary: '#f4f7f9', secondary: '#8e9caa' },
-    divider: '#25313b',
-    action: { hover: 'rgba(255,255,255,.045)', selected: 'rgba(42,171,238,.10)' }
+    background: { default: '#0A0A0B', paper: '#141416' },
+    primary: { main: '#F5F5F5', contrastText: '#0A0A0B' },
+    text: { primary: '#FAFAFA', secondary: '#B6B6BA' },
+    divider: '#2B2B2F',
+    action: { hover: 'rgba(255,255,255,.055)', selected: 'rgba(255,255,255,.10)' }
   },
   typography: {
     fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
@@ -37,81 +37,36 @@ const muiTheme = createTheme({
       styleOverrides: { root: { borderRadius: 10 } }
     },
     MuiPaper: { styleOverrides: { root: { backgroundImage: 'none' } } },
-    MuiDialog: { styleOverrides: { paper: { border: '1px solid #25313b', borderRadius: 24 } } },
-    MuiInputBase: { styleOverrides: { root: { borderRadius: 12 } } },
-    MuiTooltip: { styleOverrides: { tooltip: { background: '#17212b', color: '#f4f7f9', border: '1px solid #25313b', fontSize: 11 } } }
+    MuiDialog: { styleOverrides: { paper: { border: '1px solid #2B2B2F', borderRadius: 24 } } },
+    MuiSkeleton: { styleOverrides: { root: { backgroundColor: 'rgba(255,255,255,.075)' } } }
   }
 })
 
-async function clearLegacyPwa() {
-  if ('serviceWorker' in navigator) {
-    try {
-      const registrations = await navigator.serviceWorker.getRegistrations()
-      await Promise.all(registrations.map(async registration => {
-        try { await registration.update() } catch {}
-        try { await registration.unregister() } catch {}
-      }))
-    } catch {}
-  }
-
-  if ('caches' in window) {
-    try {
-      const keys = await caches.keys()
-      await Promise.all(keys.map(key => caches.delete(key)))
-    } catch {}
-  }
-}
-
-function reportClientError(kind: string, error: unknown, componentStack = '') {
-  const message = error instanceof Error ? error.message : String(error || 'Unknown client error')
-  const stack = error instanceof Error ? error.stack || '' : ''
-  void fetch('/api/client-error', {
-    method: 'POST',
-    credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ kind, message: message.slice(0, 800), stack: `${stack}\n${componentStack}`.slice(0, 5000), path: location.pathname })
-  }).catch(() => {})
-}
-
-window.addEventListener('error', event => reportClientError('window', event.error || event.message))
-window.addEventListener('unhandledrejection', event => reportClientError('promise', event.reason))
-
-class RenderBoundary extends Component<{ children: ReactNode }, { error: string }> {
-  state = { error: '' }
-
-  static getDerivedStateFromError(error: unknown) {
-    return { error: error instanceof Error ? error.message : String(error || 'Render failed') }
-  }
-
-  componentDidCatch(error: Error, info: ErrorInfo) {
-    reportClientError('react', error, info.componentStack || '')
-  }
-
+class RootErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state = { error: null as Error | null }
+  static getDerivedStateFromError(error: Error) { return { error } }
+  componentDidCatch(error: Error, info: ErrorInfo) { console.error('Supergram render failure', error, info) }
   render() {
-    if (this.state.error) {
-      return <main style={{ minHeight: 'var(--tg-viewport-height, 100vh)', display: 'grid', placeItems: 'center', padding: 24, background: '#0e1114', color: '#f4f7f9', fontFamily: 'Inter, system-ui, sans-serif' }}>
-        <section style={{ width: 'min(520px, 100%)', padding: 28, border: '1px solid #25313b', borderRadius: 24, background: '#11161b' }}>
-          <strong style={{ display: 'block', marginBottom: 8, fontSize: 22, letterSpacing: '-.035em' }}>Supergram could not render this view.</strong>
-          <p style={{ margin: '0 0 18px', color: '#8e9caa', lineHeight: 1.55 }}>{this.state.error}</p>
-          <button className="pressable" onClick={() => location.reload()} style={{ border: 0, borderRadius: 12, padding: '11px 16px', background: '#2aabee', color: '#fff', fontWeight: 700 }}>Reload</button>
-        </section>
-      </main>
-    }
-    return this.props.children
+    if (!this.state.error) return this.props.children
+    return <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, background: '#0A0A0B', color: '#FAFAFA', fontFamily: 'Inter, sans-serif' }}>
+      <section style={{ width: 'min(520px,100%)', border: '1px solid #2B2B2F', borderRadius: 20, padding: 24, background: '#141416' }}>
+        <h1 style={{ margin: '0 0 8px', fontSize: 22 }}>Supergram hit a rendering error</h1>
+        <p style={{ margin: 0, color: '#B6B6BA', lineHeight: 1.6 }}>Reload the app. If this keeps happening, the latest client build needs attention.</p>
+        <button onClick={() => location.reload()} style={{ marginTop: 18, border: 0, borderRadius: 10, padding: '10px 16px', background: '#FAFAFA', color: '#0A0A0B', fontWeight: 800 }}>Reload</button>
+      </section>
+    </main>
   }
 }
 
-void clearLegacyPwa()
 initInteractionEnvironment()
 
-const root = document.getElementById('root')
-if (!root) throw new Error('App root not found')
-root.innerHTML = '<div style="min-height:var(--tg-viewport-height,100vh);display:grid;place-items:center;background:#0e1114;color:#8e9caa;font:13px Inter,system-ui,sans-serif">Loading Supergram…</div>'
-createRoot(root).render(
+createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ThemeProvider theme={muiTheme}>
-      <CssBaseline />
-      <RenderBoundary><App /></RenderBoundary>
-    </ThemeProvider>
-  </StrictMode>
+    <RootErrorBoundary>
+      <ThemeProvider theme={muiTheme}>
+        <CssBaseline />
+        <App />
+      </ThemeProvider>
+    </RootErrorBoundary>
+  </StrictMode>,
 )
