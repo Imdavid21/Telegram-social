@@ -13,8 +13,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Apply search and trust UI patch
-        run: python3 scripts/apply-backend-v4-ui.py
+      - name: Apply search, trust, and migration fixes
+        run: |
+          python3 scripts/apply-backend-v4-ui.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('src/components/FeedCard.tsx')
+          s=p.read_text().replace('<Skeleton height={52} />','<Skeleton className="h-[52px]" />')
+          p.write_text(s)
+          PY
       - name: Validate migrated product
         run: |
           npm install --no-audit --no-fund
