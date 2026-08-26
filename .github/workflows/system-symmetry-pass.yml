@@ -1,10 +1,10 @@
-name: Shadcn Redux migration
+name: Responsive product and marketing pass
 on:
   push:
     branches: [main]
 jobs:
-  migrate:
-    if: github.event.head_commit.message == 'Run shadcn Redux migration v2'
+  redesign:
+    if: github.event.head_commit.message == 'Run responsive marketing pass'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -13,21 +13,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Apply migration
-        run: |
-          python3 scripts/shadcn-redux-migration.py
-          python3 scripts/shadcn-redux-repair.py
-      - name: Install and validate
+      - name: Apply responsive redesign
+        run: python3 scripts/responsive-marketing-pass.py
+      - name: Validate
         run: |
           npm install
           if grep -R "@mui" src; then exit 1; fi
           npm run build
           node --check server/index.mjs
-      - name: Commit migration
+      - name: Commit
         run: |
-          rm -f scripts/shadcn-redux-migration.py scripts/shadcn-redux-repair.py
+          rm -f scripts/responsive-marketing-pass.py
           git config user.name "Uddalak"
           git config user.email "84083101+Imdavid21@users.noreply.github.com"
           git add -A
-          git commit -m "Migrate Supergram to shadcn and Redux"
+          git commit -m "Redesign every surface for responsive product marketing"
           git push
