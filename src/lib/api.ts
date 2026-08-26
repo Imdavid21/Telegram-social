@@ -1,4 +1,4 @@
-import type { Channel, FeedDiagnostics, FeedItem, FeedPage, FeedUpdate } from '../types'
+import type { Channel, FeedDiagnostics, FeedItem, FeedPage, FeedUpdate, TelegramSearchResponse } from '../types'
 
 type FlowState = { step: 'starting'|'processing'|'phone'|'code'|'password'|'done'|'error'; error?: string | null; meta?: Record<string, unknown> }
 type HealthState = { ok: boolean; configured: boolean; runtime?: string; version?: string }
@@ -92,6 +92,12 @@ export function fetchFeedUpdates(after: number, signal?: AbortSignal) {
 
 export function fetchFeedDiagnostics() {
   return request<FeedDiagnostics>('/api/feed/diagnostics')
+}
+
+export function searchTelegram(query: string, options: { sourceId?: string; limit?: number } = {}, signal?: AbortSignal) {
+  const params = new URLSearchParams({ q: query.trim(), limit: String(Math.min(80, Math.max(1, options.limit || 50))) })
+  if (options.sourceId) params.set('sourceId', options.sourceId)
+  return request<TelegramSearchResponse>(`/api/search?${params}`, { signal })
 }
 
 export function fetchMediaTicket(endpoint: string, signal?: AbortSignal) {
