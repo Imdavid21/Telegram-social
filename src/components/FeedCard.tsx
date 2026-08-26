@@ -169,30 +169,6 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
     }
   }, [item.id, item.channelId, media])
 
-  useEffect(() => {
-    const el = root.current
-    if (!el || !item.unread || typeof IntersectionObserver === 'undefined') return
-    let timer: number | undefined
-    let done = false
-    const observer = new IntersectionObserver(entries => {
-      const visible = entries.some(entry => entry.isIntersecting && entry.intersectionRatio >= .6)
-      if (visible && !done && timer === undefined) {
-        timer = window.setTimeout(() => {
-          done = true
-          onRead(item)
-          observer.disconnect()
-        }, 700)
-      } else if (!visible && timer !== undefined) {
-        window.clearTimeout(timer)
-        timer = undefined
-      }
-    }, { threshold: [.25, .6, .85] })
-    observer.observe(el)
-    return () => {
-      if (timer !== undefined) window.clearTimeout(timer)
-      observer.disconnect()
-    }
-  }, [item.id, item.unread, onRead])
 
   async function toggleLike() {
     if (likeBusy) return
@@ -230,8 +206,14 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
     setMoreOpen(true)
   }
 
+  const handleRead = useCallback(() => {
+    if (!item.unread) return
+    onRead(item)
+  }, [item, onRead])
+
   function handleOriginalOpen() {
     recordViewerAction({ type: 'open', itemId: item.id, channelId: item.channelId, timestamp: Date.now(), media: Boolean(media) })
+    handleRead()
   }
 
   const briefLabel = briefState === 'ai' ? 'AI brief' : 'Smart brief'
@@ -260,7 +242,7 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
         <strong>{brief?.headline || localBrief(text).headline}</strong>
         {(brief?.summary || localBrief(text).summary) && <p>{brief?.summary || localBrief(text).summary}</p>}
       </>}
-      <button type="button" className="sg-news-expand pressable" onClick={() => setExpanded(value => !value)}>{expanded ? 'Hide original' : 'Read original'}</button>
+      <button type="button" className="sg-news-expand pressable" onClick={() => { if (!expanded) handleRead(); setExpanded(value => !value) }}>{expanded ? 'Hide original' : 'Read original'}</button>
       {expanded && <div className="sg-news-original">{text}</div>}
     </div> : visibleText && <div className={`sg-caption ${media ? '' : 'sg-text-post'}`}>
       <span className="sg-caption-source">{String(channel.title || 'Telegram')}</span>{' '}
@@ -293,6 +275,7 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
     <BottomSheet open={moreOpen} onClose={() => setMoreOpen(false)} title={channel.title || 'Post options'}>
       <div className="sg-sheet-source"><SourceAvatar channel={channel} /><div><strong>{channel.title}</strong><span>{channel.username ? `@${channel.username}` : channel.type === 'person' ? 'Private chat' : channel.type === 'group' ? 'Group' : 'Telegram source'}</span></div></div>
       <div className="sg-sheet-actions">
+        {item.unread ? <button type="button" className="pressable" onClick={() => { handleRead(); setMoreOpen(false) }}><EyeIcon /><span><strong>Mark as read</strong><small>Remove this post from Unread</small></span></button> : null}
         <button type="button" className="pressable" onClick={() => { handleSave(); setMoreOpen(false) }}><BookmarkIcon /><span><strong>{item.saved ? 'Remove saved post' : 'Save post'}</strong><small>{item.saved ? 'Keep it only in the feed' : 'Add it to your saved state'}</small></span></button>
         {!item.noForwards ? <button type="button" className="pressable" onClick={() => { void share(); setMoreOpen(false) }}><SendIcon /><span><strong>Share</strong><small>Use your device share sheet or copy the post</small></span></button> : null}
         {original ? <a className="pressable" href={original} target="_blank" rel="noreferrer" onClick={() => { handleOriginalOpen(); setMoreOpen(false) }}><MessageIcon /><span><strong>Open in Telegram</strong><small>View this message in its original source</small></span></a> : null}
