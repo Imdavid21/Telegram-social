@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Skeleton } from '@mui/material'
-import type { AlbumMedia, Channel, FeedDiagnostics, FeedFilter, FeedItem, FeedPage, FeedUpdate, MediaAsset, UserSettings } from './types'
+import type { AlbumMedia, Channel, FeedDiagnostics, FeedFilter, FeedItem, FeedPage, FeedUpdate, MediaAsset, TelegramSearchResponse, UserSettings } from './types'
 import {
   loadFavorites,
   loadHiddenPosts,
@@ -15,7 +15,7 @@ import {
   saveSet,
   saveSettings
 } from './lib/storage'
-import { ApiError, authStatus, fetchFeed, fetchFeedUpdates, healthStatus, logoutTelegram, saveTelegramPost } from './lib/api'
+import { ApiError, authStatus, fetchFeed, fetchFeedUpdates, healthStatus, logoutTelegram, saveTelegramPost, searchTelegram } from './lib/api'
 import { FeedCard } from './components/FeedCard'
 import { SponsoredCard } from './components/SponsoredCard'
 import { VirtualFeed } from './components/VirtualFeed'
@@ -131,6 +131,23 @@ function resolvedTheme(settings: UserSettings) {
   return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
 }
 
+function searchExcerpt(value: string) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim()
+  if (text.length <= 170) return text
+  return `${text.slice(0, 167).trimEnd()}…`
+}
+
+function searchDate(timestamp: number) {
+  const date = new Date(Number(timestamp || 0))
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: date.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' })
+}
+
+function telegramPostUrl(item: FeedItem, channel?: Channel) {
+  if (!channel?.username || !item.messageId) return null
+  return `https://t.me/${encodeURIComponent(channel.username)}/${Number(item.messageId)}`
+}
+
 export default function ProductApp() {
   const [filter, setFilter] = useState<FeedFilter>('all')
   const [query, setQuery] = useState('')
@@ -147,6 +164,9 @@ export default function ProductApp() {
   const [hiddenPosts, setHiddenPosts] = useState<Set<string>>(() => loadHiddenPosts())
   const [rankingRevision, setRankingRevision] = useState(0)
   const [searchOpen, setSearchOpen] = useState(false)
+  const [remoteSearch, setRemoteSearch] = useState<TelegramSearchResponse | null>(null)
+  const [remoteSearchLoading, setRemoteSearchLoading] = useState(false)
+  const [remoteSearchError, setRemoteSearchError] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [sourceBrowserOpen, setSourceBrowserOpen] = useState(false)
   const [nextCursor, setNextCursor] = useState<string | null>(null)
@@ -156,6 +176,7 @@ export default function ProductApp() {
   const [diagnostics, setDiagnostics] = useState<FeedDiagnostics | null>(null)
   const endRef = useRef<HTMLDivElement>(null)
   const searchInput = useRef<HTMLInputElement>(null)
+  const searchController = useRef<AbortController | null>(null)
   const scrollPositions = useRef<Record<string, number>>({})
   const keyboardIndex = useRef(0)
   const syncTokenRef = useRef(0)
@@ -167,6 +188,7 @@ export default function ProductApp() {
   const newCount = queuedPosts.length
   const savedMessagesSourceId = me?.id ? `user:${me.id}` : null
   const channelMap = useMemo(() => new Map(safeChannels.map(channel => [channel.id, channel])), [safeChannels])
+  const remoteChannelMap = useMemo(() => new Map((remoteSearch?.channels || []).map(channel => [channel.id, channel])), [remoteSearch])
 
   useEffect(() => { feedRef.current = safeFeed }, [safeFeed])
   useEffect(() => { void bootstrap() }, [])
@@ -185,7 +207,12 @@ export default function ProductApp() {
   }, [settings])
 
   useEffect(() => {
-    if (!searchOpen) return
+    if (!searchOpen) {
+      searchController.current?.abort()
+      searchController.current = null
+      setRemoteSearchLoading(false)
+      return
+    }
     const timer = window.setTimeout(() => searchInput.current?.focus(), 50)
     return () => window.clearTimeout(timer)
   }, [searchOpen])
@@ -333,6 +360,46 @@ export default function ProductApp() {
   async function logout() {
     await logoutTelegram().catch(() => {})
     window.location.href = '/'
+  }
+
+  async function runTelegramSearch() {
+    const value = query.trim()
+    if (value.length < 2) {
+      setRemoteSearch(null)
+      setRemoteSearchError('Enter at least 2 characters to search Telegram history.')
+      return
+    }
+    searchController.current?.abort()
+    const controller = new AbortController()
+    searchController.current = controller
+    setRemoteSearchLoading(true)
+    setRemoteSearchError('')
+    try {
+      const result = await searchTelegram(value, { sourceId: sourceFilter || undefined, limit: 50 }, controller.signal)
+      if (controller.signal.aborted) return
+      setRemoteSearch(result)
+      setChannels(current => mergeChannels(current, result.channels))
+    } catch (searchError) {
+      if (controller.signal.aborted) return
+      setRemoteSearch(null)
+      setRemoteSearchError(String((searchError as Error)?.message || 'Could not search Telegram history.'))
+    } finally {
+      if (searchController.current === controller) {
+        searchController.current = null
+        setRemoteSearchLoading(false)
+      }
+    }
+  }
+
+  function openSearchSource(sourceId: string) {
+    setQuery('')
+    setRemoteSearch(null)
+    setRemoteSearchError('')
+    setSourceFilter(sourceId)
+    setFilter('all')
+    setSearchOpen(false)
+    keyboardIndex.current = 0
+    requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'smooth' }))
   }
 
   function groupMembers(item: FeedItem, rows: FeedItem[]) {
@@ -586,8 +653,8 @@ export default function ProductApp() {
           }} /> : <div className="sg-empty">
             <div className="sg-empty-icon">∞</div>
             <strong>{query ? 'No results in the loaded feed' : filter === 'unread' ? 'You’re caught up' : filter === 'saved' ? 'No saved posts yet' : filter === 'media' ? 'No media found' : 'No posts here yet'}</strong>
-            <span>{query ? 'Search currently loaded posts and sources, or clear the query.' : sourceFilter || filter !== 'all' ? 'Clear the active filter or choose another source.' : 'Refresh the feed to try again.'}</span>
-            {(query || sourceFilter || filter !== 'all') ? <button type="button" onClick={() => { setQuery(''); setSourceFilter(null); setFilter('all') }}>Clear filters</button> : <button type="button" onClick={() => void refresh()}>Refresh</button>}
+            <span>{query ? 'Search Telegram history for older matches, or clear the query.' : sourceFilter || filter !== 'all' ? 'Clear the active filter or choose another source.' : 'Refresh the feed to try again.'}</span>
+            {(query || sourceFilter || filter !== 'all') ? <button type="button" onClick={() => { setQuery(''); setRemoteSearch(null); setSourceFilter(null); setFilter('all') }}>Clear filters</button> : <button type="button" onClick={() => void refresh()}>Refresh</button>}
           </div>}
           <div ref={endRef} className="sg-feed-sentinel" aria-hidden="true" />
           {loadingMore && <div className="sg-feed-loading" role="status"><span />Loading older posts…</div>}
@@ -596,12 +663,31 @@ export default function ProductApp() {
       </div>
     </main>
 
-    {searchOpen && <div className="sg-search-layer" role="dialog" aria-modal="true" aria-label="Search Supergram">
+    {searchOpen && <div className="sg-search-layer" role="dialog" aria-modal="true" aria-label="Search Telegram">
       <button type="button" className="sg-search-scrim" aria-label="Close search" onClick={() => setSearchOpen(false)} />
       <section className="sg-search-panel">
-        <div className="sg-search-head"><strong>Search loaded Telegram</strong><button type="button" className="sg-icon-button" onClick={() => setSearchOpen(false)} aria-label="Close search"><CloseIcon /></button></div>
-        <label className="sg-search-field"><SearchIcon /><input ref={searchInput} value={query} onChange={event => setQuery(event.target.value)} placeholder="Search loaded sources and messages" /><kbd>Esc</kbd></label>
-        <div className="sg-search-results"><span>{query ? 'Sources' : 'Recent sources'}</span>{searchSources.map(channel => <button type="button" key={channel.id} onClick={() => { selectSource(channel.id); setSearchOpen(false) }}><span className="sg-mini-avatar" style={{ background: channel.accent || '#242426' }}>{channel.initials || initials(channel.title)}</span><span><strong>{channel.title}</strong><small>{channel.username ? `@${channel.username}` : channel.type || 'Telegram'}</small></span></button>)}{query && visibleFeed.length > 0 && <div className="sg-search-count">{visibleFeed.length} matching {visibleFeed.length === 1 ? 'post' : 'posts'} currently loaded</div>}<button type="button" className="sg-search-all" disabled title="Full Telegram search is the next backend-backed search pass">Full-history Telegram search coming next</button></div>
+        <div className="sg-search-head"><strong>Search Telegram</strong><button type="button" className="sg-icon-button" onClick={() => setSearchOpen(false)} aria-label="Close search"><CloseIcon /></button></div>
+        <label className="sg-search-field"><SearchIcon /><input ref={searchInput} value={query} onChange={event => { setQuery(event.target.value); setRemoteSearch(null); setRemoteSearchError('') }} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void runTelegramSearch() } }} placeholder={sourceFilter ? `Search ${channelMap.get(sourceFilter)?.title || 'this source'}` : 'Search sources and messages'} /><kbd>Esc</kbd></label>
+        <div className="sg-search-results">
+          <span>{query ? 'Loaded results' : 'Recent sources'}</span>
+          {searchSources.map(channel => <button type="button" key={channel.id} onClick={() => { setQuery(''); setRemoteSearch(null); selectSource(channel.id); setSearchOpen(false) }}><span className="sg-mini-avatar" style={{ background: channel.accent || '#242426' }}>{channel.initials || initials(channel.title)}</span><span><strong>{channel.title}{channel.verified ? ' ✓' : ''}</strong><small>{channel.username ? `@${channel.username}` : channel.type || 'Telegram'}</small></span></button>)}
+          {query && visibleFeed.length > 0 && <div className="sg-search-count">{visibleFeed.length} matching {visibleFeed.length === 1 ? 'post' : 'posts'} currently loaded</div>}
+          <button type="button" className="sg-search-all" disabled={remoteSearchLoading || query.trim().length < 2} onClick={() => void runTelegramSearch()}>{remoteSearchLoading ? 'Searching Telegram…' : sourceFilter ? `Search full history in ${channelMap.get(sourceFilter)?.title || 'this source'}` : 'Search all Telegram history'}</button>
+          {remoteSearchError ? <div className="sg-remote-search-error" role="status">{remoteSearchError}</div> : null}
+          {remoteSearch ? <div className="sg-remote-search" aria-live="polite">
+            <div className="sg-remote-search-head"><strong>{remoteSearch.scope === 'source' ? 'Source history' : 'Telegram history'}</strong><span>{remoteSearch.total > remoteSearch.results.length ? `Showing ${remoteSearch.results.length} of ${remoteSearch.total}` : `${remoteSearch.results.length} ${remoteSearch.results.length === 1 ? 'result' : 'results'}`}</span></div>
+            {remoteSearch.results.length ? remoteSearch.results.map(item => {
+              const channel = remoteChannelMap.get(item.channelId) || channelMap.get(item.channelId)
+              const original = telegramPostUrl(item, channel)
+              return <article className="sg-remote-search-row" key={item.id}>
+                <button type="button" className="sg-remote-search-source" onClick={() => openSearchSource(item.channelId)} aria-label={`Open ${channel?.title || 'Telegram source'}`}><span className="sg-mini-avatar" style={{ background: channel?.accent || '#242426' }}>{channel?.initials || initials(channel?.title)}</span></button>
+                <div className="sg-remote-search-copy"><div><button type="button" onClick={() => openSearchSource(item.channelId)}>{channel?.title || 'Telegram'}{channel?.verified ? ' ✓' : ''}</button><span>{searchDate(item.timestamp)}</span></div><p>{searchExcerpt(item.text) || (item.media ? `${item.media.kind} attachment` : 'Telegram message')}</p></div>
+                {original ? <a href={original} target="_blank" rel="noreferrer">Open</a> : null}
+              </article>
+            }) : <div className="sg-remote-search-empty">No historical matches found.</div>}
+            {remoteSearch.hasMore ? <div className="sg-remote-search-note">Telegram found more matches. Refine the search to narrow them down.</div> : null}
+          </div> : null}
+        </div>
       </section>
     </div>}
 
