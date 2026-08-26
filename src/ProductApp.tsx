@@ -121,7 +121,7 @@ function SourceBubble({ channel, active, onClick }: { channel: Channel; active: 
   const [failed, setFailed] = useState(false)
   return <button type="button" className={`sg-source-bubble ${active ? 'is-active' : ''}`} onClick={onClick} title={channel.title}>
     <span className="sg-source-ring">
-      <span className="sg-source-avatar" style={{ background: channel.accent || '#2AABEE' }}>
+      <span className="sg-source-avatar" style={{ background: channel.accent || '#242426' }}>
         {channel.avatar && !failed ? <img src={channel.avatar} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)} /> : channel.initials || initials(channel.title)}
       </span>
     </span>
@@ -631,7 +631,7 @@ if (mode !== 'live') {
           <div className="sg-side-title"><strong>Sources for you</strong><span>{diagnostics?.telegramTotal ?? safeChannels.length}</span></div>
           <div className="sg-suggestions">
             {topSources.slice(0, 5).map(channel => <button type="button" key={channel.id} onClick={() => selectSource(channel.id)}>
-              <span className="sg-mini-avatar" style={{ background: channel.accent || '#2AABEE' }}>{channel.initials || initials(channel.title)}</span>
+              <span className="sg-mini-avatar" style={{ background: channel.accent || '#242426' }}>{channel.initials || initials(channel.title)}</span>
               <span><strong>{channel.title}</strong><small>{channel.username ? `@${channel.username}` : channel.type === 'person' ? 'Private chat' : channel.type === 'group' ? 'Group' : 'Telegram'}</small></span>
               {channel.unread > 0 && <b>{channel.unread}</b>}
             </button>)}
@@ -657,7 +657,7 @@ if (mode !== 'live') {
         <div className="sg-search-results">
           <span>{query ? 'Sources' : 'Recent sources'}</span>
           {searchSources.map(channel => <button type="button" key={channel.id} onClick={() => { selectSource(channel.id); setSearchOpen(false) }}>
-            <span className="sg-mini-avatar" style={{ background: channel.accent || '#2AABEE' }}>{channel.initials || initials(channel.title)}</span>
+            <span className="sg-mini-avatar" style={{ background: channel.accent || '#242426' }}>{channel.initials || initials(channel.title)}</span>
             <span><strong>{channel.title}</strong><small>{channel.username ? `@${channel.username}` : channel.type || 'Telegram'}</small></span>
           </button>)}
           {query && visibleFeed.length > 0 && <div className="sg-search-count">{visibleFeed.length} matching {visibleFeed.length === 1 ? 'post' : 'posts'} currently loaded</div>}
