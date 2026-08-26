@@ -66,7 +66,7 @@ function serveFile(path, res) {
   const type = mime[extname(path).toLowerCase()] || 'application/octet-stream'
   res.writeHead(200, {
     'content-type': type,
-    'cache-control': path.endsWith('.html') ? 'no-cache' : 'public, max-age=31536000, immutable'
+    'cache-control': path.endsWith('.html') ? 'no-store, no-cache, must-revalidate, max-age=0' : 'public, max-age=31536000, immutable'
   })
   createReadStream(path).pipe(res)
 }
