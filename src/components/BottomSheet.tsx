@@ -1,6 +1,7 @@
-import { createPortal } from 'react-dom'
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { IconButton, Modal } from '@mui/material'
+import { useEffect, useId, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { haptics } from '../lib/interaction'
+import { CloseIcon } from './Icons'
 
 const SNAP_RATIOS = [.2, .55, .9]
 const VELOCITY_THRESHOLD = .5
@@ -28,21 +29,15 @@ export function BottomSheet({ open, onClose, title, children }: {
   const startRef = useRef({ y: 0, height: 0, time: 0 })
   const samples = useRef<Array<{ y: number; time: number }>>([])
   const crossedRef = useRef(false)
+  const titleId = useId()
   const snaps = useMemo(() => SNAP_RATIOS.map(ratio => Math.round(viewportHeight() * ratio)), [open])
 
   useEffect(() => {
     if (!open) return
     setHeight(snaps[1] || Math.round(viewportHeight() * .55))
     document.body.classList.add('sg-sheet-open')
-    const key = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
-    window.addEventListener('keydown', key)
-    return () => {
-      document.body.classList.remove('sg-sheet-open')
-      window.removeEventListener('keydown', key)
-    }
-  }, [open, onClose, snaps])
-
-  if (!open) return null
+    return () => document.body.classList.remove('sg-sheet-open')
+  }, [open, snaps])
 
   function pointerDown(event: ReactPointerEvent<HTMLDivElement>) {
     event.currentTarget.setPointerCapture(event.pointerId)
@@ -100,14 +95,28 @@ export function BottomSheet({ open, onClose, title, children }: {
     haptics.selection()
   }
 
-  return createPortal(<div className="sg-sheet-layer" role="presentation">
-    <button className="sg-sheet-scrim" type="button" aria-label="Close" onClick={onClose} />
-    <section className={`sg-bottom-sheet ${dragging ? 'is-dragging' : ''}`} role="dialog" aria-modal="true" aria-label={title} style={{ height }}>
-      <div className="sg-sheet-drag" onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp}>
-        <span className="sg-sheet-handle" />
-        <strong>{title}</strong>
-      </div>
-      <div className="sg-sheet-content">{children}</div>
-    </section>
-  </div>, document.body)
+  return <Modal
+    open={open}
+    onClose={(_, reason) => { if (reason === 'escapeKeyDown' || reason === 'backdropClick') onClose() }}
+    aria-labelledby={titleId}
+    closeAfterTransition={false}
+  >
+    <div className="sg-sheet-layer" role="presentation">
+      <button className="sg-sheet-scrim" type="button" aria-label="Close" onClick={onClose} />
+      <section className={`sg-bottom-sheet ${dragging ? 'is-dragging' : ''}`} role="dialog" aria-modal="true" aria-labelledby={titleId} style={{ height }}>
+        <div className="sg-sheet-drag" onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp}>
+          <span className="sg-sheet-handle" aria-hidden="true" />
+          <strong id={titleId}>{title}</strong>
+          <IconButton
+            type="button"
+            className="sg-sheet-close"
+            aria-label={`Close ${title}`}
+            onPointerDown={event => event.stopPropagation()}
+            onClick={event => { event.stopPropagation(); onClose() }}
+          ><CloseIcon /></IconButton>
+        </div>
+        <div className="sg-sheet-content">{children}</div>
+      </section>
+    </div>
+  </Modal>
 }
