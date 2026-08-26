@@ -114,18 +114,6 @@ function collapseAlbums(feed: FeedItem[]) {
   return output
 }
 
-function SourceBubble({ channel, active, favorite, onClick }: { channel: Channel; active: boolean; favorite: boolean; onClick: () => void }) {
-  const [failed, setFailed] = useState(false)
-  return <button type="button" className={`sg-source-bubble ${active ? 'is-active' : ''} ${favorite ? 'is-favorite' : ''}`} onClick={onClick} title={channel.title}>
-    <span className="sg-source-ring">
-      <span className="sg-source-avatar" style={{ background: channel.accent || '#242426' }}>
-        {channel.avatar && !failed ? <img src={channel.avatar} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)} /> : channel.initials || initials(channel.title)}
-      </span>
-    </span>
-    <span>{channel.title}</span>
-  </button>
-}
-
 function resolvedTheme(settings: UserSettings) {
   if (settings.themeMode === 'light' || settings.themeMode === 'dark') return settings.themeMode
   return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
@@ -510,7 +498,7 @@ export default function ProductApp() {
 
   if (booting) return <div className="sg-app sg-app-loading" aria-busy="true" aria-label="Loading your Telegram feed">
     <aside className="sg-left-rail sg-skeleton-rail"><Skeleton variant="rounded" width={132} height={34} /><div className="sg-skeleton-nav">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} variant="rounded" height={46} />)}</div></aside>
-    <main className="sg-main"><div className="sg-feed-column"><section className="sg-source-strip sg-skeleton-sources">{Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} variant="circular" width={54} height={54} />)}</section><section className="sg-feed sg-feed-skeleton">{Array.from({ length: 3 }).map((_, i) => <article className="sg-post sg-skeleton-post" key={i}><div className="sg-skeleton-head"><Skeleton variant="circular" width={38} height={38} /><div><Skeleton width={120} /><Skeleton width={76} height={16} /></div></div><Skeleton variant="rounded" width="100%" height={i === 0 ? 320 : 180} /><Skeleton width="88%" /><Skeleton width="62%" /></article>)}</section></div></main>
+    <main className="sg-main"><div className="sg-feed-column"><section className="sg-feed sg-feed-skeleton">{Array.from({ length: 3 }).map((_, i) => <article className="sg-post sg-skeleton-post" key={i}><div className="sg-skeleton-head"><Skeleton variant="circular" width={38} height={38} /><div><Skeleton width={120} /><Skeleton width={76} height={16} /></div></div><Skeleton variant="rounded" width="100%" height={i === 0 ? 320 : 180} /><Skeleton width="88%" /><Skeleton width="62%" /></article>)}</section></div></main>
   </div>
 
   return <div className="sg-app">
@@ -546,11 +534,6 @@ export default function ProductApp() {
           <button type="button" className="sg-all-sources-button" onClick={() => setSourceBrowserOpen(true)}>{sourceFilter ? channelMap.get(sourceFilter)?.title || 'Source' : 'All sources'}</button>
         </section>
 
-        <section className="sg-source-strip" aria-label="Telegram sources">
-          <button type="button" className={`sg-source-bubble sg-all-source ${sourceFilter === null ? 'is-active' : ''}`} onClick={() => selectSource(null)}><span className="sg-source-ring"><span className="sg-source-avatar sg-all-avatar">∞</span></span><span>All</span></button>
-          {topSources.map(channel => <SourceBubble key={channel.id} channel={channel} favorite={favorites.has(channel.id)} active={sourceFilter === channel.id} onClick={() => selectSource(channel.id)} />)}
-          {safeChannels.length > topSources.length && <button type="button" className="sg-source-bubble sg-more-sources" onClick={() => setSourceBrowserOpen(true)}><span className="sg-source-ring"><span className="sg-source-avatar sg-all-avatar">+</span></span><span>See all</span></button>}
-        </section>
 
         {connection === 'error' && !error && <div className="sg-connection-banner" role="status">Reconnecting…</div>}
         {newCount > 0 && <button type="button" className="sg-new-posts" onClick={applyQueuedFeed}>↑ {newCount} new {newCount === 1 ? 'post' : 'posts'}</button>}

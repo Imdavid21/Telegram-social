@@ -215,30 +215,6 @@ export function FeedCard({
     return () => observer.disconnect()
   }, [item.id, item.channelId, media])
 
-  useEffect(() => {
-    const el = root.current
-    if (!el || !item.unread || typeof IntersectionObserver === 'undefined') return
-    let timer: number | undefined
-    let done = false
-    const observer = new IntersectionObserver(entries => {
-      const visible = entries.some(entry => entry.isIntersecting && entry.intersectionRatio >= .6)
-      if (visible && !done && timer === undefined) {
-        timer = window.setTimeout(() => {
-          done = true
-          onRead(item)
-          observer.disconnect()
-        }, 1600)
-      } else if (!visible && timer !== undefined) {
-        window.clearTimeout(timer)
-        timer = undefined
-      }
-    }, { threshold: [.25, .6, .85] })
-    observer.observe(el)
-    return () => {
-      if (timer !== undefined) window.clearTimeout(timer)
-      observer.disconnect()
-    }
-  }, [item, onRead])
 
   async function toggleLike() {
     if (likeBusy) return
@@ -426,8 +402,8 @@ export function FeedCard({
           <button type="button" className="pressable" onClick={() => applyFeedback('less_like_this')}><EyeIcon /><span><strong>Less like this</strong><small>Reduce this source’s relevance in For You</small></span></button>
         </> : null}
         <button type="button" className="pressable" onClick={() => { onFavoriteSource(channel); setMoreOpen(false) }}><BookmarkIcon /><span><strong>{favoriteSource ? 'Remove favorite source' : 'Favorite source'}</strong><small>{favoriteSource ? 'Return this source to normal priority' : 'Keep this source easier to find'}</small></span></button>
-        {item.unread ? <button type="button" className="pressable" onClick={() => { handleRead(); setMoreOpen(false) }}><EyeIcon /><span><strong>Mark as read</strong><small>Remove this post from Unread</small></span></button> : null}
-        <button type="button" className="pressable" onClick={() => { handleSave(); setMoreOpen(false) }}><BookmarkIcon /><span><strong>{item.saved ? 'Remove saved post' : 'Save post'}</strong><small>{item.saved ? 'Remove it from your saved state' : 'Save it in Supergram and Telegram Saved Messages'}</small></span></button>
+        {item.unread ? <button type="button" className="pressable" onClick={() => { handleRead(); setMoreOpen(false) }}><EyeIcon /><span><strong>Mark read in Supergram</strong><small>This does not change Telegram read receipts</small></span></button> : null}
+        <button type="button" className="pressable" onClick={() => { handleSave(); setMoreOpen(false) }}><BookmarkIcon /><span><strong>{item.saved ? 'Remove from Supergram saved' : 'Save post'}</strong><small>{item.saved ? 'The Telegram Saved Messages copy is kept' : 'Save in Supergram and forward a copy to Telegram Saved Messages'}</small></span></button>
         {!item.noForwards ? <button type="button" className="pressable" onClick={() => { setMoreOpen(false); void openShare() }}><SendIcon /><span><strong>Forward</strong><small>Send to a Telegram contact</small></span></button> : null}
         {feedMode === 'for-you' ? <button type="button" className="pressable" onClick={() => { onHideSource(channel); setMoreOpen(false) }}><LockIcon /><span><strong>Hide source from For You</strong><small>Latest will still show this source</small></span></button> : null}
         <button type="button" className="pressable" onClick={() => { onHidePost(item); setMoreOpen(false) }}><EyeIcon /><span><strong>Hide this post</strong><small>Remove it from Supergram on this device</small></span></button>

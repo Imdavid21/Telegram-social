@@ -12,6 +12,8 @@
   --app-accent-active:#E7E7E9;
   --app-success:#58c89a;
   --app-danger:#ff7a8a;
+  --brand-mark-bg:#FAFAFA;
+  --brand-mark-fg:#0A0A0B;
   --app-radius-xs:8px;
   --app-radius-sm:10px;
   --app-radius-md:12px;
@@ -22,6 +24,8 @@
 }
 
 html[data-theme='dark']{
+  --brand-mark-bg:#FAFAFA;
+  --brand-mark-fg:#0A0A0B;
   --app-bg:#0A0A0B;
   --app-surface:#141416;
   --app-raised:#1B1B1E;
@@ -37,6 +41,8 @@ html[data-theme='dark']{
 }
 
 html[data-theme='light']{
+  --brand-mark-bg:#0A0A0B;
+  --brand-mark-fg:#FAFAFA;
   --app-bg:#fafafa;
   --app-surface:#ffffff;
   --app-raised:#f2f3f5;
@@ -135,3 +141,9 @@ html[data-theme='light'] .sg-search-scrim,html[data-theme='light'] .modal-backdr
 
 /* Current product shell: use the actual brand asset, not the legacy letter mark. */
 .sg-brand-mark{width:32px;height:32px;display:block;flex:0 0 auto}.sg-brand-mark-large{width:56px;height:56px;margin:0 auto 18px}.sg-brand-mark rect{fill:var(--app-text)}.sg-brand-mark path{fill:var(--app-bg)}.sg-brand{gap:10px}.sg-main{grid-template-columns:minmax(0,630px)!important;justify-content:center}.sg-right-rail{display:none!important}.sg-empty-icon .sg-brand-mark{width:34px;height:34px}.sg-auth-card>.sg-brand-mark-large{filter:none}
+
+/* System symmetry pass: sources live in the source browser, never in a duplicate top rail. */
+.sg-source-strip,.sg-skeleton-sources{display:none!important}
+.sg-feed-toolbar{margin-top:0}
+.sg-brand-svg svg{display:block;width:32px;height:32px}
+@media(max-width:720px){.sg-feed-toolbar{position:sticky;top:58px;z-index:55}}
