@@ -160,6 +160,7 @@ export default function App() {
   const safeChannels = Array.isArray(channels) ? channels : []
   const safeFeed = Array.isArray(feed) ? feed : []
   const newCount = queuedPosts.length
+  const savedMessagesSourceId = me?.id ? `user:${me.id}` : null
 
   useEffect(() => { feedRef.current = safeFeed }, [safeFeed])
   useEffect(() => { void bootstrap() }, [])
@@ -466,12 +467,20 @@ export default function App() {
       if (!channel) return false
       if (sourceFilter && channel.id !== sourceFilter) return false
       if (filter === 'unread' && !item.unread) return false
-      if (filter === 'saved' && !item.saved) return false
+      if (filter === 'saved') {
+        const isTelegramSavedMessage = Boolean(savedMessagesSourceId && item.channelId === savedMessagesSourceId)
+        if (!item.saved && !isTelegramSavedMessage) return false
+      }
       if (filter === 'media' && !item.media) return false
       if (q && !`${item.text || ''} ${channel.title || ''} ${channel.username || ''}`.toLowerCase().includes(q)) return false
       return true
     })
-  }, [collapsedFeed, safeChannels, filter, query, sourceFilter])
+  }, [collapsedFeed, safeChannels, filter, query, sourceFilter, savedMessagesSourceId])
+
+  useEffect(() => {
+    if (filter !== 'saved' || visibleFeed.length || mode !== 'live' || !hasMore || loadingMore) return
+    void loadMore()
+  }, [filter, visibleFeed.length, mode, hasMore, loadingMore, loadMore])
 
   const unreadTotal = safeFeed.reduce((total, item) => total + (item.unread ? 1 : 0), 0)
   const topSources = useMemo(() => [...safeChannels].sort((a, b) => Number(b.unread || 0) - Number(a.unread || 0)).slice(0, 12), [safeChannels])
@@ -575,13 +584,16 @@ export default function App() {
           {visibleFeed.length ? <VirtualFeed items={visibleFeed} renderItem={(item, index) => {
             const channel = safeChannels.find(source => source.id === item.channelId)
             if (!channel) return null
+            const displayChannel = savedMessagesSourceId && channel.id === savedMessagesSourceId
+              ? { ...channel, title: 'Saved Messages', initials: 'SM' }
+              : channel
             return item.sponsored
-              ? <SponsoredCard item={item} channel={channel} index={index} />
-              : <FeedCard item={item} channel={channel} live onSave={toggleSave} onRead={markRead} index={index} />
+              ? <SponsoredCard item={item} channel={displayChannel} index={index} />
+              : <FeedCard item={item} channel={displayChannel} live onSave={toggleSave} onRead={markRead} index={index} />
           }} /> : <div className="sg-empty">
             <div className="sg-empty-icon">S</div>
-            <strong>{query ? 'Nothing matched your search' : filter === 'unread' ? 'You’re caught up' : 'No posts here yet'}</strong>
-            <span>{query ? 'Try a source name, username, or message text.' : hasMore ? 'Loading older Telegram history…' : 'Refresh the feed or switch sources.'}</span>
+            <strong>{query ? 'Nothing matched your search' : filter === 'unread' ? 'You’re caught up' : filter === 'saved' ? (hasMore ? 'Looking through Saved Messages' : 'No saved messages yet') : 'No posts here yet'}</strong>
+            <span>{query ? 'Try a source name, username, or message text.' : filter === 'saved' && hasMore ? 'Loading older Telegram history until Saved Messages are found.' : hasMore ? 'Loading older Telegram history…' : 'Refresh the feed or switch sources.'}</span>
             <button type="button" onClick={() => void refresh()}>Refresh</button>
           </div>}
           <div ref={endRef} className="sg-feed-sentinel" aria-hidden="true" />
