@@ -1,0 +1,48 @@
+name: Fix unread stability
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-unread-stability.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch unread behavior
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('src/components/FeedCard.tsx')
+          s = p.read_text()
+          old = '''  useEffect(() => {\n    const el = root.current\n    if (!el || !item.unread || typeof IntersectionObserver === 'undefined') return\n    let timer: number | undefined\n    let done = false\n    const observer = new IntersectionObserver(entries => {\n      const visible = entries.some(entry => entry.isIntersecting && entry.intersectionRatio >= .6)\n      if (visible && !done && timer === undefined) {\n        timer = window.setTimeout(() => {\n          done = true\n          onRead(item)\n          observer.disconnect()\n        }, 700)\n      } else if (!visible && timer !== undefined) {\n        window.clearTimeout(timer)\n        timer = undefined\n      }\n    }, { threshold: [.25, .6, .85] })\n    observer.observe(el)\n    return () => {\n      if (timer !== undefined) window.clearTimeout(timer)\n      observer.disconnect()\n    }\n  }, [item.id, item.unread, onRead])\n'''
+          if old not in s:
+              raise SystemExit('auto-read observer block not found')
+          s = s.replace(old, '')
+
+          anchor = '''  function handleOriginalOpen() {\n    recordViewerAction({ type: 'open', itemId: item.id, channelId: item.channelId, timestamp: Date.now(), media: Boolean(media) })\n  }\n'''
+          replacement = '''  const handleRead = useCallback(() => {\n    if (!item.unread) return\n    onRead(item)\n  }, [item, onRead])\n\n  function handleOriginalOpen() {\n    recordViewerAction({ type: 'open', itemId: item.id, channelId: item.channelId, timestamp: Date.now(), media: Boolean(media) })\n    handleRead()\n  }\n'''
+          if anchor not in s:
+              raise SystemExit('original-open anchor not found')
+          s = s.replace(anchor, replacement)
+
+          s = s.replace('''<button type="button" className="sg-news-expand pressable" onClick={() => setExpanded(value => !value)}>{expanded ? 'Hide original' : 'Read original'}</button>''', '''<button type="button" className="sg-news-expand pressable" onClick={() => { if (!expanded) handleRead(); setExpanded(value => !value) }}>{expanded ? 'Hide original' : 'Read original'}</button>''')
+
+          menu_anchor = '''      <div className="sg-sheet-actions">\n        <button type="button" className="pressable" onClick={() => { handleSave(); setMoreOpen(false) }}><BookmarkIcon /><span><strong>{item.saved ? 'Remove saved post' : 'Save post'}</strong><small>{item.saved ? 'Keep it only in the feed' : 'Add it to your saved state'}</small></span></button>'''
+          menu_replacement = '''      <div className="sg-sheet-actions">\n        {item.unread ? <button type="button" className="pressable" onClick={() => { handleRead(); setMoreOpen(false) }}><EyeIcon /><span><strong>Mark as read</strong><small>Remove this post from Unread</small></span></button> : null}\n        <button type="button" className="pressable" onClick={() => { handleSave(); setMoreOpen(false) }}><BookmarkIcon /><span><strong>{item.saved ? 'Remove saved post' : 'Save post'}</strong><small>{item.saved ? 'Keep it only in the feed' : 'Add it to your saved state'}</small></span></button>'''
+          if menu_anchor not in s:
+              raise SystemExit('more-menu anchor not found')
+          s = s.replace(menu_anchor, menu_replacement)
+          p.write_text(s)
+      - name: Validate build
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+      - name: Commit fix
+        run: |
+          git config user.name "Supergram UX Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/components/FeedCard.tsx
+          git commit -m "Stop unread feed from auto-marking posts read"
+          git push
