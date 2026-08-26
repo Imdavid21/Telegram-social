@@ -99,6 +99,14 @@ export function fetchMediaTicket(endpoint: string, signal?: AbortSignal) {
   return request<{ url: string; expiresAt: number }>(endpoint, { signal })
 }
 
+export function summarizeMessage(text: string, signal?: AbortSignal) {
+  return request<{ headline: string; summary: string; model?: string; ml?: boolean }>('/api/summarize', {
+    method: 'POST',
+    body: JSON.stringify({ text }),
+    signal
+  })
+}
+
 export function saveTelegramPost(item: FeedItem) {
   return request<{ ok: boolean }>('/api/save', { method: 'POST', body: JSON.stringify({ channelId: item.channelId, messageId: item.messageId }) })
 }
