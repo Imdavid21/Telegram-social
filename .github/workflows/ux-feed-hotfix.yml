@@ -1,0 +1,124 @@
+name: Apply feed UX hotfix
+on:
+  push:
+    paths:
+      - '.github/workflows/ux-feed-hotfix.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Patch feed loading path
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('server/index.mjs')
+          s = p.read_text()
+          old = '''async function nextPaginatorPage(entry, paginator, limit) {
+            await ensureCandidates(entry, paginator.states)
+            const posts = []
+
+            while (posts.length < limit) {
+              let best = null
+              for (const state of paginator.states) {
+                const candidate = state.buffer[0]
+                if (!candidate) continue
+                if (!best || candidate.timestamp > best.post.timestamp || (candidate.timestamp === best.post.timestamp && candidate.id > best.post.id)) {
+                  best = { state, post: candidate }
+                }
+              }
+              if (!best) break
+
+              best.state.buffer.shift()
+              posts.push(best.post)
+              if (!best.state.buffer.length && !best.state.exhausted) await refillSource(entry, best.state)
+            }
+
+            await injectSponsored(entry, paginator, posts)
+            paginator.lastUsed = Date.now()
+            return posts
+          }'''
+          new = '''async function nextPaginatorPage(entry, paginator, limit) {
+            const posts = []
+            let refillCursor = Number(paginator.refillCursor || 0)
+            let refillRounds = 0
+
+            // Drain already-known dialog heads first. This makes the first feed paint depend on
+            // Telegram's dialog inventory, not on N sequential message-history requests.
+            while (posts.length < limit) {
+              let best = null
+              for (const state of paginator.states) {
+                const candidate = state.buffer[0]
+                if (!candidate) continue
+                if (!best || candidate.timestamp > best.post.timestamp || (candidate.timestamp === best.post.timestamp && candidate.id > best.post.id)) {
+                  best = { state, post: candidate }
+                }
+              }
+
+              if (best) {
+                best.state.buffer.shift()
+                posts.push(best.post)
+                continue
+              }
+
+              // History is fetched in bounded parallel waves only when the visible page needs it.
+              // Rotating the starting point prevents large accounts from blocking on every dialog.
+              const refillable = paginator.states.filter(state => !state.buffer.length && !state.exhausted)
+              if (!refillable.length || refillRounds >= 4) break
+              const waveSize = Math.min(16, refillable.length)
+              const wave = []
+              for (let i = 0; i < waveSize; i++) wave.push(refillable[(refillCursor + i) % refillable.length])
+              refillCursor = (refillCursor + waveSize) % Math.max(1, refillable.length)
+              await mapLimit(wave, 16, async state => refillSource(entry, state))
+              refillRounds += 1
+            }
+
+            paginator.refillCursor = refillCursor
+            // Sponsored lookups must never hold up the user's content. They are skipped on the
+            // latency-critical first paint and can arrive naturally on later pages.
+            if (paginator.lastUsed !== paginator.createdAt) await injectSponsored(entry, paginator, posts)
+            paginator.lastUsed = Date.now()
+            return posts
+          }'''
+          if old not in s:
+            raise SystemExit('nextPaginatorPage target not found')
+          p.write_text(s.replace(old, new))
+
+          p = Path('src/ProductApp.tsx')
+          s = p.read_text()
+          s = s.replace("import { useCallback, useEffect, useMemo, useRef, useState } from 'react'", "import { useCallback, useEffect, useMemo, useRef, useState } from 'react'\nimport { Skeleton } from '@mui/material'")
+          marker = "  if (mode !== 'live') {\n    return <div className=\"sg-auth-shell\">"
+          replacement = '''  if (booting) {
+            return <div className="sg-app sg-app-loading" aria-busy="true" aria-label="Loading your Telegram feed">
+              <aside className="sg-left-rail sg-skeleton-rail">
+                <Skeleton variant="rounded" width={132} height={34} />
+                <div className="sg-skeleton-nav">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} variant="rounded" height={46} />)}</div>
+              </aside>
+              <main className="sg-main"><div className="sg-feed-column">
+                <section className="sg-source-strip sg-skeleton-sources">{Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} variant="circular" width={54} height={54} />)}</section>
+                <section className="sg-feed sg-feed-skeleton">{Array.from({ length: 3 }).map((_, i) => <article className="sg-post sg-skeleton-post" key={i}>
+                  <div className="sg-skeleton-head"><Skeleton variant="circular" width={38} height={38} /><div><Skeleton width={120} /><Skeleton width={76} height={16} /></div></div>
+                  <Skeleton variant="rounded" width="100%" height={i === 0 ? 320 : 180} />
+                  <Skeleton width="88%" /><Skeleton width="62%" />
+                </article>)}</section>
+              </div></main>
+            </div>
+          }
+
+          if (mode !== 'live') {
+            return <div className="sg-auth-shell">'''
+          if marker not in s:
+            raise SystemExit('ProductApp boot marker not found')
+          p.write_text(s.replace(marker, replacement))
+      - name: Commit hotfix
+        run: |
+          git config user.name "Supergram UX Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add server/index.mjs src/ProductApp.tsx
+          git commit -m "Fix feed first-paint latency and add skeleton loading"
+          git push
