@@ -6,7 +6,7 @@ import { MediaRenderer } from './MediaRenderer'
 import { SuccessConfirm } from './SuccessConfirm'
 import { BottomSheet } from './BottomSheet'
 import { haptics } from '../lib/interaction'
-import { fetchShareTargets, forwardTelegramPost, replyToTelegramPost, setTelegramReaction, summarizeMessage, type ShareTarget } from '../lib/api'
+import { buildContextualBrief, fetchShareTargets, forwardTelegramPost, replyToTelegramPost, setTelegramReaction, summarizeMessage, type ShareTarget } from '../lib/api'
 import { recordViewerAction, type ViewerActionType } from '../lib/storage'
 import { getRankingReasons } from '../lib/ranking'
 
@@ -54,14 +54,9 @@ function clipAtWord(value: string, limit: number) {
   return `${(cut > limit * .65 ? clipped.slice(0, cut) : clipped.slice(0, limit)).trim()}…`
 }
 
-function localBrief(text: string): Brief {
-  const cleaned = cleanText(text)
-  if (!cleaned) return { headline: 'Telegram update', summary: '', ml: false }
-  const sentences = cleaned.split(/(?<=[.!?])\s+/).filter(Boolean)
-  const first = sentences[0] || cleaned
-  const headline = clipAtWord(first.replace(/[.!?]+$/, '').trim(), 94)
-  const summary = clipAtWord(sentences.slice(1, 3).join(' ').trim() || cleaned, 230)
-  return { headline, summary: summary === headline ? '' : summary, ml: false }
+function localBrief(text: string, previousMessages: string[] = [], sourceName = ''): Brief {
+  const result = buildContextualBrief(text, { previousMessages, sourceName })
+  return { headline: result.headline, summary: result.summary, ml: false }
 }
 
 function isHeart(value?: string) {
@@ -83,6 +78,7 @@ export function FeedCard({
   favoriteSource,
   summarizePrivateChats,
   storyEntries = [],
+  summaryContext = [],
   onSave,
   onRead,
   onFavoriteSource,
@@ -98,6 +94,7 @@ export function FeedCard({
   favoriteSource: boolean
   summarizePrivateChats: boolean
   storyEntries?: StoryEntry[]
+  summaryContext?: string[]
   onSave: (item: FeedItem) => void
   onRead: (item: FeedItem) => void
   onFavoriteSource: (channel: Channel) => void
@@ -171,13 +168,14 @@ export function FeedCard({
       return
     }
     const controller = new AbortController()
-    const immediate = localBrief(text)
+    const immediate = localBrief(text, summaryContext, channel.title)
     setBrief(immediate)
     setBriefState('local')
     void summarizeMessage(text, {
       outgoing: Boolean(item.outgoing),
       sourceType: item.sourceType || channel.type,
-      sourceName: channel.title
+      sourceName: channel.title,
+      previousMessages: summaryContext
     }, controller.signal)
       .then(result => {
         if (!result?.headline) return
@@ -186,7 +184,7 @@ export function FeedCard({
       })
       .catch(() => setBriefState('local'))
     return () => controller.abort()
-  }, [isNewsBrief, item.id, item.outgoing, item.sourceType, text, channel.title, channel.type])
+  }, [isNewsBrief, item.id, item.outgoing, item.sourceType, text, channel.title, channel.type, summaryContext])
 
   useEffect(() => {
     const el = root.current
@@ -307,7 +305,7 @@ export function FeedCard({
     haptics.selection()
   }
 
-  const briefLabel = briefState === 'ai' ? 'AI summary' : 'Condensed'
+  const briefLabel = summaryContext.length ? 'Context brief' : 'Condensed'
 
   return <article ref={root} className={`sg-post ${item.unread ? 'is-unread' : ''} ${media ? 'has-media' : 'text-only'} ${isNewsBrief ? 'is-news-brief' : ''} ${isTrending ? 'is-trending' : ''}`} data-feed-index={index}>
     <header className="sg-post-head">
@@ -329,8 +327,8 @@ export function FeedCard({
 
     {isNewsBrief ? <div className="sg-news-brief">
       <span className="sg-news-kicker">{storySources > 1 ? `${storySources} sources · ` : ''}{briefLabel}</span>
-      <strong>{brief?.headline || localBrief(text).headline}</strong>
-      {(brief?.summary || localBrief(text).summary) && <p>{brief?.summary || localBrief(text).summary}</p>}
+      <strong>{brief?.headline || localBrief(text, summaryContext, channel.title).headline}</strong>
+      {(brief?.summary || localBrief(text, summaryContext, channel.title).summary) && <p>{brief?.summary || localBrief(text, summaryContext, channel.title).summary}</p>}
       {hasStoryEvidence ? <button type="button" className="sg-story-evidence-link" onClick={() => setStoryOpen(true)}>View {storySources} sources</button> : null}
       <button type="button" className="sg-news-expand pressable" onClick={() => { if (!expanded) handleRead(); setExpanded(value => !value) }}>{expanded ? 'Hide original' : 'Read original'}</button>
       {expanded && <div className="sg-news-original">{text}</div>}
