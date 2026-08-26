@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
+import { Button } from '@mui/material'
 import ProductApp from './ProductApp'
 import { LandingPage } from './components/LandingPage'
 import { DemoPage } from './components/DemoPage'
 import { PromptModal } from './components/AuthModal'
 import { ScrollAnchorBridge } from './components/ScrollAnchorBridge'
+import { LogOutIcon } from './components/Icons'
 import type { AuthPrompt } from './types'
-import { authFlow, authStatus, beginAuth, healthStatus, submitAuth } from './lib/api'
+import { authFlow, authStatus, beginAuth, healthStatus, logoutTelegram, submitAuth } from './lib/api'
 import { haptics } from './lib/interaction'
 
 type Flow = { step: string; error?: string | null; meta?: Record<string, unknown> }
@@ -22,6 +24,7 @@ export default function App() {
   const [connected, setConnected] = useState<boolean | null>(null)
   const [backendReady, setBackendReady] = useState(false)
   const [connecting, setConnecting] = useState(false)
+  const [loggingOut, setLoggingOut] = useState(false)
   const [authPrompt, setAuthPrompt] = useState<AuthPrompt | null>(null)
   const [error, setError] = useState('')
   const demoMode = new URLSearchParams(window.location.search).get('demo') === '1'
@@ -112,8 +115,47 @@ export default function App() {
     }
   }
 
+  async function logout() {
+    if (loggingOut) return
+    setLoggingOut(true)
+    try { await logoutTelegram() } catch {}
+    setConnected(false)
+    setConnecting(false)
+    setAuthPrompt(null)
+    setError('')
+    window.location.href = '/'
+  }
+
   if (demoMode && !connected) return <><DemoPage onConnect={connect} /><PromptModal prompt={authPrompt} onSubmit={submitPrompt} onCancel={() => { setAuthPrompt(null); setConnecting(false) }} /></>
-  if (connected) return <ScrollAnchorBridge><ProductApp /></ScrollAnchorBridge>
+  if (connected) return <>
+    <ScrollAnchorBridge><ProductApp /></ScrollAnchorBridge>
+    <Button
+      type="button"
+      variant="text"
+      size="small"
+      startIcon={<LogOutIcon />}
+      disabled={loggingOut}
+      onClick={() => void logout()}
+      sx={{
+        position: 'fixed',
+        top: 14,
+        right: 16,
+        zIndex: 1400,
+        minWidth: 0,
+        px: 1.25,
+        color: 'text.secondary',
+        bgcolor: 'background.default',
+        border: '1px solid',
+        borderColor: 'divider',
+        borderRadius: 2,
+        fontSize: 12,
+        fontWeight: 600,
+        textTransform: 'none',
+        boxShadow: 'none',
+        '&:hover': { bgcolor: 'action.hover', boxShadow: 'none' }
+      }}
+    >{loggingOut ? 'Logging out' : 'Logout'}</Button>
+  </>
 
   return <>
     <LandingPage onConnect={connect} onDemo={() => { window.location.href = '/?demo=1' }} connecting={connecting} backendReady={backendReady} booting={connected === null} error={error} />
