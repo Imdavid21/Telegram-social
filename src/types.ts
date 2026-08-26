@@ -1,7 +1,24 @@
 export type FeedFilter = 'all' | 'unread' | 'saved' | 'media'
+export type FeedMode = 'for-you' | 'latest'
+export type ThemeMode = 'system' | 'light' | 'dark'
+export type AutoplayMode = 'off' | 'on'
 
 export type SourceType = 'person' | 'group' | 'channel' | 'conversation'
 export type MediaKind = 'photo' | 'video' | 'gif' | 'audio' | 'voice' | 'document' | 'sticker' | 'album' | 'poll' | 'location' | 'contact'
+
+export interface UserSettings {
+  feedMode: FeedMode
+  themeMode: ThemeMode
+  includePrivateChatsInForYou: boolean
+  summarizePrivateChats: boolean
+  autoplay: AutoplayMode
+}
+
+export type RankingReasonType = 'fresh' | 'source_affinity' | 'media' | 'unread' | 'multi_source' | 'engagement' | 'favorite' | 'latest'
+export interface RankingReason {
+  type: RankingReasonType
+  label: string
+}
 
 export interface Channel {
   id: string
@@ -16,6 +33,7 @@ export interface Channel {
   avatar?: string
   private?: boolean
   archived?: boolean
+  verified?: boolean
 }
 
 export interface MediaAsset {
@@ -56,7 +74,8 @@ export interface FeedItem {
   noForwards?: boolean
   groupId?: string
   media?: MediaAsset | AlbumMedia
-  reactions: Array<{ emoji: string; count: number }>
+  reactions: Array<{ emoji: string; count: number; chosen?: boolean }>
+  myReaction?: string
   views?: string
   comments?: number
   storySources?: number
