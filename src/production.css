@@ -106,17 +106,26 @@
   overflow-wrap: anywhere;
 }
 
-/* Urgency is visible but deliberately quiet. */
-.sg-priority-badge {
+/* Priority and velocity cues stay intentionally quiet. */
+.sg-priority-badge,
+.sg-trending-badge {
   padding: 4px 7px;
-  border: 1px solid color-mix(in srgb, var(--sg-danger) 34%, transparent);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--sg-danger) 8%, transparent);
-  color: var(--sg-danger);
   font-size: 8px;
   font-weight: 800;
   letter-spacing: .035em;
   text-transform: uppercase;
+  white-space: nowrap;
+}
+.sg-priority-badge {
+  border: 1px solid color-mix(in srgb, var(--sg-danger) 34%, transparent);
+  background: color-mix(in srgb, var(--sg-danger) 8%, transparent);
+  color: var(--sg-danger);
+}
+.sg-trending-badge {
+  border: 1px solid color-mix(in srgb, var(--sg-blue) 30%, transparent);
+  background: color-mix(in srgb, var(--sg-blue) 8%, transparent);
+  color: var(--sg-blue);
 }
 .sg-post.is-priority::after {
   content: "";
@@ -126,6 +135,15 @@
   height: 42px;
   border-radius: 2px;
   background: color-mix(in srgb, var(--sg-danger) 72%, transparent);
+}
+.sg-post.is-trending:not(.is-priority)::after {
+  content: "";
+  position: absolute;
+  inset: 21px auto auto -1px;
+  width: 2px;
+  height: 42px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--sg-blue) 48%, transparent);
 }
 
 /* Reduce visual chrome so content and media carry the interface. */
@@ -137,5 +155,6 @@
 @media (max-width: 720px) {
   .sg-news-brief > strong { font-size: 19px; }
   .sg-news-brief > p { font-size: 12.5px; }
-  .sg-priority-badge { display: none; }
+  .sg-priority-badge,
+  .sg-trending-badge { display: none; }
 }
