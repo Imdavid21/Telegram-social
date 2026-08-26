@@ -1,10 +1,10 @@
-name: System symmetry pass
+name: Contextual summary repair
 on:
   push:
     branches: [main]
 jobs:
   patch:
-    if: github.event.head_commit.message == 'Run system symmetry and Telegram connectivity pass'
+    if: github.event.head_commit.message == 'Trigger contextual summary pass v2'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -13,76 +13,106 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Apply theme, source-strip, unread, and labeling fixes
+      - name: Apply contextual summary model
         run: |
           python3 - <<'PY'
           from pathlib import Path
 
-          # Theme-aware brand mark.
-          p = Path('src/components/BrandMark.tsx')
-          s = p.read_text()
-          s = s.replace('fill="#0A0A0B"', 'fill="var(--brand-mark-bg, #0A0A0B)"')
-          s = s.replace('fill="#FAFAFA" fillRule="evenodd"', 'fill="var(--brand-mark-fg, #FAFAFA)" fillRule="evenodd"')
-          p.write_text(s)
-
-          # Remove the top sources rail from both real and loading shells.
           p = Path('src/ProductApp.tsx')
           s = p.read_text()
-          start = s.find('function SourceBubble(')
-          if start != -1:
-              end = s.find('\nfunction resolvedTheme', start)
-              s = s[:start] + s[end+1:]
-          skeleton = '<main className="sg-main"><div className="sg-feed-column"><section className="sg-source-strip sg-skeleton-sources">{Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} variant="circular" width={54} height={54} />)}</section><section className="sg-feed sg-feed-skeleton">'
-          s = s.replace(skeleton, '<main className="sg-main"><div className="sg-feed-column"><section className="sg-feed sg-feed-skeleton">')
-          strip_start = s.find('        <section className="sg-source-strip" aria-label="Telegram sources">')
-          if strip_start != -1:
-              strip_end = s.find('        </section>', strip_start)
-              if strip_end != -1:
-                  s = s[:strip_start] + s[strip_end + len('        </section>\n'):]
-          p.write_text(s)
+          anchor = "  const collapsedFeed = useMemo(() => collapseAlbums(safeFeed), [safeFeed])\n  const visibleFeed = useMemo(() => {"
+          insert = """  const collapsedFeed = useMemo(() => collapseAlbums(safeFeed), [safeFeed])
+  const summaryContextById = useMemo(() => {
+    const context = new Map<string, string[]>()
+    const historyBySource = new Map<string, FeedItem[]>()
+    for (const item of [...collapsedFeed].sort((a, b) => a.timestamp - b.timestamp)) {
+      const history = historyBySource.get(item.channelId) || []
+      const cutoff = item.timestamp - 7 * 24 * 60 * 60 * 1000
+      context.set(item.id, history.filter(row => row.timestamp >= cutoff && String(row.text || '').trim().length >= 12).slice(-5).map(row => String(row.text || '').trim()))
+      if (String(item.text || '').trim()) history.push(item)
+      historyBySource.set(item.channelId, history.slice(-12))
+    }
+    return context
+  }, [collapsedFeed])
+  const visibleFeed = useMemo(() => {"""
+          if anchor not in s: raise SystemExit('ProductApp context anchor missing')
+          s = s.replace(anchor, insert, 1)
+          prop_anchor = "                  storyEntries={storyEntries}\n                  onSave={toggleSave}"
+          prop_insert = "                  storyEntries={storyEntries}\n                  summaryContext={summaryContextById.get(item.id) || []}\n                  onSave={toggleSave}"
+          if prop_anchor not in s: raise SystemExit('FeedCard context prop anchor missing')
+          p.write_text(s.replace(prop_anchor, prop_insert, 1))
 
-          # Do not mutate unread state merely because a card is visible.
           p = Path('src/components/FeedCard.tsx')
           s = p.read_text()
-          marker = "  useEffect(() => {\n    const el = root.current\n    if (!el || !item.unread || typeof IntersectionObserver === 'undefined') return"
-          start = s.find(marker)
-          if start != -1:
-              end = s.find('\n  async function toggleLike()', start)
-              if end != -1:
-                  s = s[:start] + s[end:]
-          s = s.replace('<strong>Mark as read</strong><small>Remove this post from Unread</small>', '<strong>Mark read in Supergram</strong><small>This does not change Telegram read receipts</small>')
-          s = s.replace("<strong>{item.saved ? 'Remove saved post' : 'Save post'}</strong><small>{item.saved ? 'Remove it from your saved state' : 'Save it in Supergram and Telegram Saved Messages'}</small>", "<strong>{item.saved ? 'Remove from Supergram saved' : 'Save post'}</strong><small>{item.saved ? 'The Telegram Saved Messages copy is kept' : 'Save in Supergram and forward a copy to Telegram Saved Messages'}</small>")
+          s = s.replace("import { fetchShareTargets, forwardTelegramPost, replyToTelegramPost, setTelegramReaction, summarizeMessage, type ShareTarget } from '../lib/api'", "import { buildContextualBrief, fetchShareTargets, forwardTelegramPost, replyToTelegramPost, setTelegramReaction, summarizeMessage, type ShareTarget } from '../lib/api'")
+          start = s.index('function localBrief(text: string): Brief {')
+          end = s.index('\n\nfunction isHeart', start)
+          s = s[:start] + "function localBrief(text: string, previousMessages: string[] = [], sourceName = ''): Brief {\n  const result = buildContextualBrief(text, { previousMessages, sourceName })\n  return { headline: result.headline, summary: result.summary, ml: false }\n}" + s[end:]
+          s = s.replace("  storyEntries = [],\n  onSave,", "  storyEntries = [],\n  summaryContext = [],\n  onSave,", 1)
+          s = s.replace("  storyEntries?: StoryEntry[]\n  onSave:", "  storyEntries?: StoryEntry[]\n  summaryContext?: string[]\n  onSave:", 1)
+          s = s.replace("    const immediate = localBrief(text)", "    const immediate = localBrief(text, summaryContext, channel.title)", 1)
+          s = s.replace("      sourceName: channel.title\n    }, controller.signal)", "      sourceName: channel.title,\n      previousMessages: summaryContext\n    }, controller.signal)", 1)
+          s = s.replace("  }, [isNewsBrief, item.id, item.outgoing, item.sourceType, text, channel.title, channel.type])", "  }, [isNewsBrief, item.id, item.outgoing, item.sourceType, text, channel.title, channel.type, summaryContext])", 1)
+          s = s.replace("  const briefLabel = briefState === 'ai' ? 'AI summary' : 'Condensed'", "  const briefLabel = summaryContext.length ? 'Context brief' : 'Condensed'", 1)
+          s = s.replace("{brief?.headline || localBrief(text).headline}", "{brief?.headline || localBrief(text, summaryContext, channel.title).headline}")
+          s = s.replace("{(brief?.summary || localBrief(text).summary) && <p>{brief?.summary || localBrief(text).summary}</p>}", "{(brief?.summary || localBrief(text, summaryContext, channel.title).summary) && <p>{brief?.summary || localBrief(text, summaryContext, channel.title).summary}</p>}")
           p.write_text(s)
 
-          # Theme-aware logo variables and layout cleanup after removing top sources.
-          p = Path('src/app-system.css')
+          p = Path('src/lib/api.ts')
           s = p.read_text()
-          s = s.replace('  --app-danger:#ff7a8a;\n', '  --app-danger:#ff7a8a;\n  --brand-mark-bg:#FAFAFA;\n  --brand-mark-fg:#0A0A0B;\n', 1)
-          dark = "html[data-theme='dark']{\n"
-          s = s.replace(dark, dark + '  --brand-mark-bg:#FAFAFA;\n  --brand-mark-fg:#0A0A0B;\n', 1)
-          light = "html[data-theme='light']{\n"
-          s = s.replace(light, light + '  --brand-mark-bg:#0A0A0B;\n  --brand-mark-fg:#FAFAFA;\n', 1)
-          s += "\n/* System symmetry pass: sources live in the source browser, never in a duplicate top rail. */\n.sg-source-strip,.sg-skeleton-sources{display:none!important}\n.sg-feed-toolbar{margin-top:0}\n.sg-brand-svg svg{display:block;width:32px;height:32px}\n@media(max-width:720px){.sg-feed-toolbar{position:sticky;top:58px;z-index:55}}\n"
-          p.write_text(s)
+          a = s.index('function clipLocal(value: string, limit: number) {')
+          b = s.index('\n\nexport type ShareTarget', a)
+          replacement = r'''function clipLocal(value: string, limit: number) {
+  if (value.length <= limit) return value
+  const clipped = value.slice(0, limit + 1)
+  const cut = clipped.lastIndexOf(' ')
+  return `${(cut > limit * 0.65 ? clipped.slice(0, cut) : clipped.slice(0, limit)).trim()}…`
+}
+const SUMMARY_STOP = new Set('the a an and or but if then than to of in on at for from by with as is are was were be been being this that these those it its they their them we our you your i my me will would can could should may might do does did have has had not no yes into over under after before about around through up down out just very more most less new latest final notice important urgent breaking update'.split(/\s+/))
+function cleanSummaryText(value: string) { return String(value || '').replace(/https?:\/\/\S+/g, ' ').replace(/[\u{1F300}-\u{1FAFF}\u2600-\u27BF]/gu, ' ').replace(/[•▪◦]+/g, ' ').replace(/\s+/g, ' ').trim() }
+function summaryTokens(value: string) { return cleanSummaryText(value).toLowerCase().match(/[$@#]?[a-z0-9][a-z0-9._-]*/g)?.filter(token => token.length > 2 && !SUMMARY_STOP.has(token)) || [] }
+function tokenOverlap(a: string, b: string) { const left = new Set(summaryTokens(a)); const right = new Set(summaryTokens(b)); if (!left.size || !right.size) return 0; let common = 0; for (const token of left) if (right.has(token)) common += 1; return common / Math.max(1, Math.min(left.size, right.size)) }
+function contextSubject(previousMessages: string[], sourceName = '') { for (const value of [...previousMessages].reverse()) { const cleaned = cleanSummaryText(value); const cash = cleaned.match(/\$[A-Z0-9]{2,12}(?:\s+V\d+)?/); if (cash) return cash[0]; const proper = cleaned.match(/\b[A-Z][A-Za-z0-9.-]{2,}(?:\s+[A-Z][A-Za-z0-9.-]{2,}){0,2}\b/); if (proper && !/^(Final|Important|Urgent|Breaking|Update)$/i.test(proper[0])) return proper[0] } return sourceName || '' }
+function normalizeHeadline(value: string, fallbackSubject = '') { let text = cleanSummaryText(value).replace(/^(final\s+notice|important|urgent|breaking|update|announcement)\s*[:\-–—]*\s*/i, '').replace(/^[\W_]+/, '').replace(/[.!?]+$/, '').trim(); if (/^(it|this|that|they|we)\b/i.test(text) && fallbackSubject) text = `${fallbackSubject}: ${text}`; if (text && text === text.toUpperCase() && /[A-Z]/.test(text)) { text = text.toLowerCase().replace(/^./, c => c.toUpperCase()); text = text.replace(/\$[a-z0-9]+/g, m => m.toUpperCase()) } return clipLocal(text || fallbackSubject || 'Telegram update', 102) }
+export function buildContextualBrief(text: string, context: { previousMessages?: string[]; sourceName?: string; outgoing?: boolean; sourceType?: string } = {}) {
+  const cleaned = cleanSummaryText(text)
+  const previousMessages = (context.previousMessages || []).map(cleanSummaryText).filter(Boolean).slice(-5)
+  if (!cleaned) return { headline: 'Telegram update', summary: '', model: 'local-context-v2', ml: false, reason: 'on-device-context', contextUsed: previousMessages.length }
+  const contextTokens = new Set(summaryTokens(previousMessages.join(' ')))
+  const sentences = cleaned.split(/(?<=[.!?])\s+|\n+/).map(row => row.trim()).filter(Boolean)
+  const signal = /\b(launch|launched|live|release|released|listing|listed|deadline|vote|proposal|approved|rejected|security|exploit|hack|funding|raised|partnership|acquired|migration|migrate|airdrop|snapshot|claim|opens|closes|starts|ends|today|tomorrow|now)\b/i
+  const number = /\d|[$₹€£%]/; const action = /\b(must|should|need|needs|requires|required|available|live|open|closed|confirmed|delayed|cancelled|added|removed|changed|increased|decreased)\b/i
+  const ranked = sentences.map((sentence, index) => { const toks = summaryTokens(sentence); const novel = toks.length ? toks.filter(token => !contextTokens.has(token)).length / toks.length : 0; const repeated = previousMessages.reduce((max, prior) => Math.max(max, tokenOverlap(sentence, prior)), 0); return { sentence, index, novel, repeated, score: novel * 5 + (signal.test(sentence) ? 3 : 0) + (number.test(sentence) ? 1.8 : 0) + (action.test(sentence) ? 1.5 : 0) + (index === 0 ? .7 : 0) - repeated * 3 } }).sort((x, y) => y.score - x.score || x.index - y.index)
+  const best = ranked[0] || { sentence: cleaned, repeated: 0, novel: 1, index: 0, score: 0 }
+  const subject = contextSubject(previousMessages, context.sourceName || '')
+  let headline = normalizeHeadline(best.sentence, subject)
+  const migration = cleaned.match(/(\$[A-Z0-9]{2,12}(?:\s+V\d+)?)?[^.!?]{0,45}\bmigration\b[^.!?]{0,55}\blive\b/i)
+  if (migration) { const token = migration[1] || subject; const holderAction = /\bholders?\b[^.!?]{0,70}\bmigrat(?:e|ion)\b/i.test(cleaned); headline = clipLocal(`${token ? `${token} ` : ''}migration is live${holderAction ? '; holders are told to migrate' : ''}`.trim(), 102) }
+  const support = ranked.filter(row => row.sentence !== best.sentence && row.novel >= .3 && row.repeated < .8).slice(0, 2).sort((x, y) => x.index - y.index).map(row => row.sentence).join(' ')
+  const maxRepeat = previousMessages.reduce((max, prior) => Math.max(max, tokenOverlap(cleaned, prior)), 0)
+  let summary = clipLocal(support || sentences.filter(sentence => sentence !== best.sentence).slice(0, 2).join(' '), 220)
+  if (maxRepeat >= .72 && summary) summary = `Follow-up to an earlier message. ${summary}`
+  else if (maxRepeat >= .72) summary = 'This largely repeats an earlier message from the same source.'
+  const prefix = context.outgoing && context.sourceType === 'person' ? 'You: ' : ''
+  return { headline: `${prefix}${headline}`, summary, model: 'local-context-v2', ml: false, reason: previousMessages.length ? 'on-device-context' : 'on-device', contextUsed: previousMessages.length }
+}
+export async function summarizeMessage(text: string, context: { outgoing?: boolean; sourceType?: string; sourceName?: string; previousMessages?: string[] } = {}, signal?: AbortSignal) {
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+  await new Promise<void>(resolve => window.setTimeout(resolve, 0))
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+  return buildContextualBrief(text, context)
+}'''
+          p.write_text(s[:a] + replacement + s[b:])
           PY
-      - name: Validate Telegram feature symmetry
+      - name: Validate
         run: |
-          set -e
-          node --check server/index.mjs
-          for endpoint in "/api/auth/status" "/api/feed" "/api/feed/updates" "/api/media/ticket/" "/api/reaction" "/api/reply" "/api/share-targets" "/api/forward" "/api/save" "/api/auth/logout"; do
-            grep -Fq "$endpoint" server/index.mjs || { echo "Missing backend route: $endpoint"; exit 1; }
-          done
-          for clientcall in "setTelegramReaction" "replyToTelegramPost" "fetchShareTargets" "forwardTelegramPost" "saveTelegramPost" "logoutTelegram" "fetchFeedUpdates"; do
-            grep -Rq "$clientcall" src || { echo "Missing frontend connection: $clientcall"; exit 1; }
-          done
-      - name: Build
-        run: |
-          npm install --no-audit --no-fund
+          npm install
           npm run build
       - name: Commit
         run: |
+          rm -f .github/workflows/contextual-summary-pass.yml
           git config user.name "Uddalak"
           git config user.email "84083101+Imdavid21@users.noreply.github.com"
-          git add src/components/BrandMark.tsx src/ProductApp.tsx src/components/FeedCard.tsx src/app-system.css
-          git commit -m "Unify app symmetry and Telegram feature states"
+          git add -A
+          git commit -m "Build context-aware local news summaries"
           git push
