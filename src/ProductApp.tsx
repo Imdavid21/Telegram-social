@@ -22,15 +22,15 @@ import { VirtualFeed } from './components/VirtualFeed'
 import { SettingsDialog } from './components/SettingsDialog'
 import { SourceBrowser } from './components/SourceBrowser'
 import { BrandMark } from './components/BrandMark'
-import { BellIcon, BookmarkIcon, CloseIcon, HomeIcon, ImageIcon, SearchIcon, SettingsIcon } from './components/Icons'
+import { BellIcon, BookmarkIcon, CloseIcon, HomeIcon, ImageIcon, MessageIcon, SearchIcon, SendIcon, SettingsIcon } from './components/Icons'
 
 const APP_NAME = 'Supergram'
 const API_PAGE_SIZE = 40
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 const nav: Array<{ id: FeedFilter; label: string; icon: typeof HomeIcon }> = [
   { id: 'all', label: 'Home', icon: HomeIcon },
-  { id: 'unread', label: 'Unread', icon: BellIcon },
-  { id: 'media', label: 'Media', icon: ImageIcon },
+  { id: 'media', label: 'Discover', icon: SearchIcon },
+  { id: 'unread', label: 'Activity', icon: BellIcon },
   { id: 'saved', label: 'Saved', icon: BookmarkIcon }
 ]
 
@@ -137,6 +137,7 @@ export default function ProductApp() {
   const [searchOpen, setSearchOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [sourceBrowserOpen, setSourceBrowserOpen] = useState(false)
+  const [discussionItem, setDiscussionItem] = useState<FeedItem | null>(null)
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [hasMore, setHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -543,6 +544,7 @@ export default function ProductApp() {
           return <button type="button" key={entry.id} className={filter === entry.id ? 'is-active' : ''} onClick={() => changeFilter(entry.id)}><span className="sg-nav-icon"><Icon />{count > 0 && <b>{count > 99 ? '99+' : count}</b>}</span><span>{entry.label}</span></button>
         })}
         <button type="button" className={searchOpen || query ? 'is-active' : ''} onClick={() => setSearchOpen(true)}><span className="sg-nav-icon"><SearchIcon /></span><span>Search</span></button>
+        <button type="button" onClick={() => setSourceBrowserOpen(true)}><span className="sg-nav-icon"><MessageIcon /></span><span>Chats</span></button>
       </nav>
       <div className="sg-rail-bottom">
         <button type="button" onClick={() => setSourceBrowserOpen(true)}><span className="sg-nav-icon"><HomeIcon /></span><span>All sources</span></button>
@@ -561,7 +563,7 @@ export default function ProductApp() {
         <section className="sg-feed-toolbar" aria-label="Feed controls">
           <div className="sg-feed-mode" role="group" aria-label="Feed order">
             <button type="button" className={settings.feedMode === 'for-you' ? 'is-active' : ''} onClick={() => changeFeedMode('for-you')}>For You</button>
-            <button type="button" className={settings.feedMode === 'latest' ? 'is-active' : ''} onClick={() => changeFeedMode('latest')}>Latest</button>
+            <button type="button" className={settings.feedMode === 'latest' ? 'is-active' : ''} onClick={() => changeFeedMode('latest')}>Following</button>
           </div>
           <button type="button" className="sg-all-sources-button" onClick={() => setSourceBrowserOpen(true)}>{sourceFilter ? channelMap.get(sourceFilter)?.title || 'Source' : 'All sources'}</button>
         </section>
@@ -597,6 +599,7 @@ export default function ProductApp() {
                   onHidePost={hidePost}
                   onFeedback={feedback}
                   onSourceOpen={source => { setSourceFilter(source.id); setSourceBrowserOpen(true) }}
+                  onDiscussionOpen={post => setDiscussionItem(post)}
                   index={index}
                 />
           }} /> : <div className="sg-empty">
@@ -612,7 +615,13 @@ export default function ProductApp() {
       </div>
     </main>
 
-    <aside className="sg-context-rail" aria-label="Telegram context">
+    <aside className={`sg-context-rail ${discussionItem ? 'is-discussion' : ''}`} aria-label="Telegram context">
+      {discussionItem ? <section className="sg-context-section sg-discussion-context">
+        <div className="sg-context-title"><strong>Discussion</strong><button type="button" onClick={() => setDiscussionItem(null)}>Close</button></div>
+        <div className="sg-discussion-origin"><strong>{channelMap.get(discussionItem.channelId)?.title || 'Telegram'}</strong><p>{String(discussionItem.text || '').slice(0,220) || 'Media post'}</p></div>
+        <div className="sg-discussion-prompt"><MessageIcon/><span>Join the Telegram conversation around this post.</span></div>
+        <button type="button" className="sg-discussion-send" onClick={() => setSourceBrowserOpen(true)}><SendIcon/> Open conversation</button>
+      </section> : <>
       <section className="sg-context-section">
         <div className="sg-context-title"><strong>Recent chats</strong><button type="button" onClick={() => setSourceBrowserOpen(true)}>See all</button></div>
         {recentConversations.length ? recentConversations.map(({ item, channel }) => <button type="button" className="sg-context-row" key={channel.id} onClick={() => selectSource(channel.id)}>
@@ -630,6 +639,7 @@ export default function ProductApp() {
         </button>)}
       </section> : null}
       <p className="sg-context-note">Public content can move directly into Telegram discussion, forwarding, and Saved Messages.</p>
+      </>}
     </aside>
 
     {searchOpen && <div className="sg-search-layer" role="dialog" aria-modal="true" aria-label="Search Supergram">
@@ -642,8 +652,11 @@ export default function ProductApp() {
     </div>}
 
     <nav className="sg-mobile-nav" aria-label="Primary mobile navigation">
-      {nav.map(entry => { const Icon = entry.icon; return <button type="button" key={entry.id} className={filter === entry.id ? 'is-active' : ''} onClick={() => changeFilter(entry.id)} aria-label={entry.label}><Icon />{entry.id === 'unread' && unreadTotal > 0 && <b>{unreadTotal > 99 ? '99+' : unreadTotal}</b>}<span>{filter === entry.id ? entry.label : ''}</span></button> })}
-      <button type="button" onClick={() => setSearchOpen(true)} aria-label="Search"><SearchIcon /><span>{searchOpen ? 'Search' : ''}</span></button>
+      <button type="button" className={filter === 'all' ? 'is-active' : ''} onClick={() => changeFilter('all')} aria-label="Home"><HomeIcon/><span>Home</span></button>
+      <button type="button" className={filter === 'media' ? 'is-active' : ''} onClick={() => changeFilter('media')} aria-label="Discover"><SearchIcon/><span>Discover</span></button>
+      <button type="button" onClick={() => setSourceBrowserOpen(true)} aria-label="Chats"><MessageIcon/><span>Chats</span></button>
+      <button type="button" className={filter === 'unread' ? 'is-active' : ''} onClick={() => changeFilter('unread')} aria-label="Activity"><BellIcon/>{unreadTotal > 0 && <b>{unreadTotal > 99 ? '99+' : unreadTotal}</b>}<span>Activity</span></button>
+      <button type="button" onClick={() => setSettingsOpen(true)} aria-label="Profile"><span className="sg-mobile-profile-dot">{me?.avatar ? <img src={me.avatar} alt=""/> : initials(me?.firstName)}</span><span>Profile</span></button>
     </nav>
 
     <SourceBrowser open={sourceBrowserOpen} channels={safeChannels} favorites={favorites} selectedSource={sourceFilter} onClose={() => setSourceBrowserOpen(false)} onSelect={selectSource} onFavorite={toggleFavorite} />

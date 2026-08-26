@@ -87,6 +87,7 @@ export function FeedCard({
   onHidePost,
   onFeedback,
   onSourceOpen,
+  onDiscussionOpen,
   index = 0
 }: {
   item: FeedItem
@@ -103,6 +104,7 @@ export function FeedCard({
   onHidePost: (item: FeedItem) => void
   onFeedback: (item: FeedItem, type: Extract<ViewerActionType, 'more_like_this' | 'less_like_this'>) => void
   onSourceOpen?: (channel: Channel) => void
+  onDiscussionOpen?: (item: FeedItem) => void
   index?: number
 }) {
   const root = useRef<HTMLElement>(null)
