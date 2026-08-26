@@ -52,7 +52,7 @@ function makeNewsBrief(text: string) {
   let headline = first.replace(/[.!?]+$/, '').trim()
 
   if (headline.length > 94) {
-    const lead = headline.split(/[:;–—-]/)[0]?.trim()
+    const lead = headline.split(/[:;–-]/)[0]?.trim()
     headline = lead && lead.length >= 24 && lead.length <= 94 ? lead : clipAtWord(headline, 88)
   }
 
