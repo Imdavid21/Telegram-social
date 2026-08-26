@@ -1,0 +1,272 @@
+name: Apply Telegram interaction hotfix
+on:
+  push:
+    paths:
+      - '.github/workflows/telegram-actions-hotfix.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Implement Telegram like reply and forward
+        shell: python
+        run: |
+          from pathlib import Path
+
+          # Backend
+          p = Path('server/index.mjs')
+          s = p.read_text()
+          s = s.replace("import { TelegramClient } from 'teleproto'", "import { Api, TelegramClient } from 'teleproto'", 1)
+          marker = "app.post('/api/save', async (req, res) => {"
+          if marker not in s:
+              raise SystemExit('save endpoint marker not found')
+          block = r'''app.post('/api/reaction', async (req, res) => {
+  if (!requireConfig(res)) return
+  try {
+    const entry = await getClientEntry(req)
+    if (!entry) return res.status(401).json({ error: 'Connect Telegram first.' })
+    await ensureInventory(entry)
+    const sourceId = String(req.body?.channelId || '')
+    const messageId = Number(req.body?.messageId || 0)
+    const liked = Boolean(req.body?.liked)
+    const entity = entry.entityMap.get(sourceId)
+    if (!entity || !messageId) return res.status(400).json({ error: 'Invalid post.' })
+    const reaction = liked ? [new Api.ReactionEmoji({ emoticon: '❤' })] : []
+    await entry.client.sendReaction(entity, messageId, reaction)
+    res.json({ ok: true, liked })
+  } catch (error) {
+    res.status(400).json({ error: String(error?.message || 'Could not react to this post.') })
+  }
+})
+
+app.post('/api/reply', async (req, res) => {
+  if (!requireConfig(res)) return
+  try {
+    const entry = await getClientEntry(req)
+    if (!entry) return res.status(401).json({ error: 'Connect Telegram first.' })
+    await ensureInventory(entry)
+    const sourceId = String(req.body?.channelId || '')
+    const messageId = Number(req.body?.messageId || 0)
+    const text = String(req.body?.text || '').trim()
+    const entity = entry.entityMap.get(sourceId)
+    if (!entity || !messageId || !text) return res.status(400).json({ error: 'Reply text is required.' })
+    const params = isBroadcastEntity(entity)
+      ? { message: text, commentTo: messageId }
+      : { message: text, replyTo: messageId }
+    const sent = await entry.client.sendMessage(entity, params)
+    res.json({ ok: true, messageId: Number(sent?.id || 0) })
+  } catch (error) {
+    res.status(400).json({ error: String(error?.message || 'Could not send this reply.') })
+  }
+})
+
+app.get('/api/share-targets', async (req, res) => {
+  if (!requireConfig(res)) return
+  try {
+    const entry = await getClientEntry(req)
+    if (!entry) return res.status(401).json({ error: 'Connect Telegram first.' })
+    await ensureInventory(entry)
+    const me = await entry.client.getMe().catch(() => null)
+    const selfId = me?.id ? `user:${String(me.id)}` : ''
+    const targets = [...entry.sourceMap.values()]
+      .filter(source => source.type === 'person' && source.id !== selfId)
+      .slice(0, 250)
+      .map(source => ({ id: source.id, title: source.title, username: source.username, initials: source.initials, accent: source.accent, avatar: source.avatar }))
+    res.json({ targets })
+  } catch (error) {
+    res.status(400).json({ error: String(error?.message || 'Could not load contacts.') })
+  }
+})
+
+app.post('/api/forward', async (req, res) => {
+  if (!requireConfig(res)) return
+  try {
+    const entry = await getClientEntry(req)
+    if (!entry) return res.status(401).json({ error: 'Connect Telegram first.' })
+    await ensureInventory(entry)
+    const sourceId = String(req.body?.channelId || '')
+    const messageId = Number(req.body?.messageId || 0)
+    const targetId = String(req.body?.targetId || '')
+    const source = entry.entityMap.get(sourceId)
+    const target = entry.entityMap.get(targetId)
+    if (!source || !target || !messageId) return res.status(400).json({ error: 'Invalid forwarding target.' })
+    await entry.client.forwardMessages(target, { messages: messageId, fromPeer: source })
+    res.json({ ok: true })
+  } catch (error) {
+    res.status(400).json({ error: String(error?.message || 'Could not forward this post.') })
+  }
+})
+
+'''
+          s = s.replace(marker, block + marker, 1)
+          p.write_text(s)
+
+          # Client API
+          p = Path('src/lib/api.ts')
+          s = p.read_text()
+          marker = "export function saveTelegramPost(item: FeedItem) {"
+          if marker not in s:
+              raise SystemExit('api save marker not found')
+          block = r'''export type ShareTarget = { id: string; title: string; username?: string; initials?: string; accent?: string; avatar?: string }
+
+export function setTelegramReaction(item: FeedItem, liked: boolean) {
+  return request<{ ok: boolean; liked: boolean }>('/api/reaction', { method: 'POST', body: JSON.stringify({ channelId: item.channelId, messageId: item.messageId, liked }) })
+}
+
+export function replyToTelegramPost(item: FeedItem, text: string) {
+  return request<{ ok: boolean; messageId?: number }>('/api/reply', { method: 'POST', body: JSON.stringify({ channelId: item.channelId, messageId: item.messageId, text }) })
+}
+
+export function fetchShareTargets() {
+  return request<{ targets: ShareTarget[] }>('/api/share-targets')
+}
+
+export function forwardTelegramPost(item: FeedItem, targetId: string) {
+  return request<{ ok: boolean }>('/api/forward', { method: 'POST', body: JSON.stringify({ channelId: item.channelId, messageId: item.messageId, targetId }) })
+}
+
+'''
+          s = s.replace(marker, block + marker, 1)
+          p.write_text(s)
+
+          # Feed card behavior and layout
+          p = Path('src/components/FeedCard.tsx')
+          s = p.read_text()
+          s = s.replace("import { BookmarkIcon, EyeIcon, LockIcon, MessageIcon, MoreIcon, SendIcon } from './Icons'", "import { BookmarkIcon, EyeIcon, HeartIcon, LockIcon, MessageIcon, MoreIcon, SendIcon } from './Icons'", 1)
+          s = s.replace("import { summarizeMessage } from '../lib/api'", "import { fetchShareTargets, forwardTelegramPost, replyToTelegramPost, setTelegramReaction, summarizeMessage, type ShareTarget } from '../lib/api'", 1)
+          state_marker = "  const [moreOpen, setMoreOpen] = useState(false)\n"
+          states = """  const [moreOpen, setMoreOpen] = useState(false)\n  const [liked, setLiked] = useState(false)\n  const [likeBusy, setLikeBusy] = useState(false)\n  const [replyOpen, setReplyOpen] = useState(false)\n  const [replyText, setReplyText] = useState('')\n  const [replyBusy, setReplyBusy] = useState(false)\n  const [shareOpen, setShareOpen] = useState(false)\n  const [shareTargets, setShareTargets] = useState<ShareTarget[]>([])\n  const [shareLoading, setShareLoading] = useState(false)\n  const [shareBusy, setShareBusy] = useState('')\n  const [interactionError, setInteractionError] = useState('')\n"""
+          if state_marker not in s:
+              raise SystemExit('FeedCard state marker not found')
+          s = s.replace(state_marker, states, 1)
+          share_start = "  const share = async () => {\n"
+          share_end = "  const handleSave = useCallback(() => {\n"
+          a = s.find(share_start); b = s.find(share_end)
+          if a < 0 or b < 0 or b <= a:
+              raise SystemExit('share handler block not found')
+          handlers = r'''  async function toggleLike() {
+    if (likeBusy) return
+    const next = !liked
+    setLiked(next)
+    setLikeBusy(true)
+    setInteractionError('')
+    haptics.light()
+    try { await setTelegramReaction(item, next) }
+    catch (error) { setLiked(!next); setInteractionError(String((error as Error)?.message || 'Could not update reaction.')); haptics.error() }
+    finally { setLikeBusy(false) }
+  }
+
+  async function sendReply() {
+    const value = replyText.trim()
+    if (!value || replyBusy) return
+    setReplyBusy(true)
+    setInteractionError('')
+    try { await replyToTelegramPost(item, value); setReplyText(''); setReplyOpen(false); haptics.success() }
+    catch (error) { setInteractionError(String((error as Error)?.message || 'Could not send reply.')); haptics.error() }
+    finally { setReplyBusy(false) }
+  }
+
+  async function openShare() {
+    if (item.noForwards) return
+    setShareOpen(true)
+    if (shareTargets.length || shareLoading) return
+    setShareLoading(true)
+    setInteractionError('')
+    try { const result = await fetchShareTargets(); setShareTargets(Array.isArray(result.targets) ? result.targets : []) }
+    catch (error) { setInteractionError(String((error as Error)?.message || 'Could not load contacts.')) }
+    finally { setShareLoading(false) }
+  }
+
+  async function forwardTo(targetId: string) {
+    if (shareBusy) return
+    setShareBusy(targetId)
+    setInteractionError('')
+    try { await forwardTelegramPost(item, targetId); setShareOpen(false); haptics.success() }
+    catch (error) { setInteractionError(String((error as Error)?.message || 'Could not forward post.')); haptics.error() }
+    finally { setShareBusy('') }
+  }
+
+'''
+          s = s[:a] + handlers + s[b:]
+          old_actions = r'''    <div className="sg-post-actions">
+      <div className="sg-actions-left">
+        <button className={`sg-action pressable ${item.noForwards ? 'is-disabled' : ''}`} disabled={item.noForwards} onClick={share} aria-label={item.noForwards ? 'Sharing restricted' : 'Share'}><SendIcon /></button>
+        {original ? <a className="sg-action pressable" href={original} target="_blank" rel="noreferrer" aria-label="Open in Telegram" onClick={handleOriginalOpen}><MessageIcon /></a> : <span className="sg-action is-disabled" title="Private source"><MessageIcon /></span>}
+      </div>
+      <span className="sg-save-slot">
+        <button className={`sg-action pressable ${item.saved ? 'is-active' : ''}`} onClick={handleSave} aria-label={item.saved ? 'Remove from saved' : 'Save'}><BookmarkIcon /></button>
+        {saveConfirm ? <SuccessConfirm onComplete={() => setSaveConfirm(false)} /> : null}
+      </span>
+    </div>
+'''
+          new_actions = r'''    <div className="sg-post-actions sg-post-actions-ref">
+      <div className="sg-actions-left">
+        <button className={`sg-action pressable sg-like ${liked ? 'is-liked' : ''}`} disabled={likeBusy} onClick={() => void toggleLike()} aria-label={liked ? 'Unlike on Telegram' : 'Like on Telegram'}><HeartIcon /></button>
+        <button className="sg-action pressable" onClick={() => { setInteractionError(''); setReplyOpen(true) }} aria-label="Quote reply on Telegram"><MessageIcon /></button>
+        <button className={`sg-action pressable ${item.noForwards ? 'is-disabled' : ''}`} disabled={item.noForwards} onClick={() => void openShare()} aria-label={item.noForwards ? 'Forwarding restricted' : 'Forward to contact'}><SendIcon /></button>
+      </div>
+      <span className="sg-save-slot">
+        <button className={`sg-action pressable ${item.saved ? 'is-active' : ''}`} onClick={handleSave} aria-label={item.saved ? 'Remove from saved' : 'Save'}><BookmarkIcon /></button>
+        {saveConfirm ? <SuccessConfirm onComplete={() => setSaveConfirm(false)} /> : null}
+      </span>
+    </div>
+    {interactionError && <div className="sg-interaction-error">{interactionError}</div>}
+'''
+          if old_actions not in s:
+              raise SystemExit('action row block not found')
+          s = s.replace(old_actions, new_actions, 1)
+          insert_marker = "    <BottomSheet open={moreOpen}"
+          sheets = r'''    <BottomSheet open={replyOpen} onClose={() => setReplyOpen(false)} title="Reply">
+      <div className="sg-reply-box">
+        <div className="sg-reply-context"><strong>{channel.title}</strong><span>{clipAtWord(cleanText(text) || 'Original post', 120)}</span></div>
+        <textarea value={replyText} onChange={event => setReplyText(event.target.value)} placeholder="Write a reply…" autoFocus />
+        <button type="button" disabled={!replyText.trim() || replyBusy} onClick={() => void sendReply()}>{replyBusy ? 'Sending…' : 'Reply on Telegram'}</button>
+      </div>
+    </BottomSheet>
+
+    <BottomSheet open={shareOpen} onClose={() => setShareOpen(false)} title="Forward to">
+      <div className="sg-share-picker">
+        {shareLoading ? <><Skeleton height={52} /><Skeleton height={52} /><Skeleton height={52} /></> : shareTargets.length ? shareTargets.map(target => <button type="button" key={target.id} disabled={Boolean(shareBusy)} onClick={() => void forwardTo(target.id)}>
+          <span className="sg-share-avatar" style={{ background: target.accent || '#777' }}>{target.initials || target.title.slice(0, 2).toUpperCase()}</span>
+          <span><strong>{target.title}</strong>{target.username && <small>@{target.username}</small>}</span>
+          <em>{shareBusy === target.id ? 'Sending…' : 'Send'}</em>
+        </button>) : <div className="sg-share-empty">No Telegram contacts found.</div>}
+      </div>
+    </BottomSheet>
+
+'''
+          if insert_marker not in s:
+              raise SystemExit('BottomSheet marker not found')
+          s = s.replace(insert_marker, sheets + insert_marker, 1)
+          p.write_text(s)
+
+          # Styling aligned to supplied compact action reference
+          p = Path('src/app-system.css')
+          s = p.read_text()
+          s += r'''
+
+/* Telegram-native post actions */
+.sg-post-actions-ref{display:flex!important;align-items:center!important;justify-content:space-between!important;min-height:34px;margin-top:8px!important}
+.sg-post-actions-ref .sg-actions-left{display:flex;align-items:center;gap:7px}
+.sg-post-actions-ref .sg-action{width:30px;height:30px;padding:4px;display:grid;place-items:center;background:transparent!important;color:var(--app-muted);border:0;border-radius:6px}
+.sg-post-actions-ref .sg-action svg{width:20px;height:20px}
+.sg-post-actions-ref .sg-action:hover{color:var(--app-text);transform:translateY(-1px)}
+.sg-post-actions-ref .sg-action.is-liked{color:#ed4956}
+.sg-post-actions-ref .sg-action.is-liked svg{fill:currentColor}
+.sg-interaction-error{margin:2px 13px 8px;color:var(--app-danger);font-size:10px;line-height:1.4}
+.sg-reply-box{display:grid;gap:12px}.sg-reply-context{display:grid;gap:4px;padding:12px;border:1px solid var(--app-border-soft);border-radius:10px;background:var(--app-raised)}.sg-reply-context strong{font-size:11px}.sg-reply-context span{color:var(--app-muted);font-size:11px;line-height:1.45}.sg-reply-box textarea{min-height:110px;resize:vertical;padding:13px;border:1px solid var(--app-border);border-radius:10px;background:var(--app-surface);color:var(--app-text);outline:0}.sg-reply-box textarea:focus{border-color:var(--app-text)}.sg-reply-box>button{height:44px;border:0;border-radius:10px;background:var(--app-text);color:var(--app-bg);font-weight:700}.sg-reply-box>button:disabled{opacity:.4}
+.sg-share-picker{display:grid;gap:2px}.sg-share-picker>button{min-height:58px;padding:8px 6px;display:grid;grid-template-columns:42px 1fr auto;align-items:center;gap:10px;border:0;border-radius:10px;background:transparent;color:var(--app-text);text-align:left}.sg-share-picker>button:hover{background:var(--app-hover)}.sg-share-avatar{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:11px;font-weight:800}.sg-share-picker>button>span:nth-child(2){display:grid;gap:2px}.sg-share-picker strong{font-size:12px}.sg-share-picker small{color:var(--app-muted);font-size:10px}.sg-share-picker em{font-style:normal;color:var(--app-secondary);font-size:10px}.sg-share-empty{padding:30px 8px;text-align:center;color:var(--app-muted);font-size:12px}
+'''
+          p.write_text(s)
+      - name: Validate and commit
+        run: |
+          npm install --ignore-scripts
+          node --check server/index.mjs
+          npm run build
+          git config user.name "Supergram UX Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add server/index.mjs src/lib/api.ts src/components/FeedCard.tsx src/app-system.css
+          git commit -m "Implement Telegram-native post actions"
+          git push
