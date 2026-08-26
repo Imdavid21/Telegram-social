@@ -1,0 +1,61 @@
+name: Repair live product shell
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/repair-live-shell.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Replace legacy product shell branding
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path('src/ProductApp.tsx')
+          s = p.read_text()
+          if "./components/BrandMark" not in s:
+              s = s.replace("import { PromptModal } from './components/AuthModal'", "import { PromptModal } from './components/AuthModal'\nimport { BrandMark } from './components/BrandMark'")
+
+          s = s.replace('<div className="sg-mark sg-mark-large" aria-hidden="true"><span>S</span></div>', '<BrandMark className="sg-brand-mark sg-brand-mark-large" title="Supergram" />')
+          s = s.replace('<span className="sg-mark"><span>S</span></span><strong>Supergram</strong>', '<BrandMark className="sg-brand-mark" /><strong>Supergram</strong>')
+          s = s.replace('<div className="sg-empty-icon">S</div>', '<div className="sg-empty-icon"><BrandMark className="sg-brand-mark" /></div>')
+
+          # The old right-side profile/source rail is from the previous app shell. The
+          # current product is intentionally a focused, centered feed with navigation.
+          s = re.sub(r'\n\s*<aside className="sg-right-rail">.*?</aside>\n\s*</main>', '\n    </main>', s, flags=re.S)
+          p.write_text(s)
+
+          css = Path('src/app-system.css')
+          c = css.read_text()
+          c += '''\n\n/* Current product shell: use the actual brand asset, not the legacy letter mark. */\n.sg-brand-mark{width:32px;height:32px;display:block;flex:0 0 auto}.sg-brand-mark-large{width:56px;height:56px;margin:0 auto 18px}.sg-brand-mark rect{fill:var(--app-text)}.sg-brand-mark path{fill:var(--app-bg)}.sg-brand{gap:10px}.sg-main{grid-template-columns:minmax(0,630px)!important;justify-content:center}.sg-right-rail{display:none!important}.sg-empty-icon .sg-brand-mark{width:34px;height:34px}.sg-auth-card>.sg-brand-mark-large{filter:none}\n'''
+          css.write_text(c)
+
+          server = Path('server/railway-frontend.mjs')
+          r = server.read_text()
+          r = r.replace("'cache-control': path.endsWith('.html') ? 'no-cache' : 'public, max-age=31536000, immutable'", "'cache-control': path.endsWith('.html') ? 'no-store, no-cache, must-revalidate, max-age=0' : 'public, max-age=31536000, immutable'")
+          server.write_text(r)
+          PY
+      - name: Validate production build
+        run: npm install --no-audit --no-fund && npm run build
+      - name: Commit repaired shell
+        run: |
+          git config user.name "supergram-bot"
+          git config user.email "supergram-bot@users.noreply.github.com"
+          git add src/ProductApp.tsx src/app-system.css server/railway-frontend.mjs
+          git diff --cached --quiet && exit 0
+          git commit -m "Replace legacy live app shell branding"
+          git push origin HEAD:main
