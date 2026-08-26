@@ -1,25 +1,48 @@
-import type { SVGProps } from 'react'
+import type { SvgIconProps } from '@mui/material/SvgIcon'
+import HomeOutlined from '@mui/icons-material/HomeOutlined'
+import SearchOutlined from '@mui/icons-material/SearchOutlined'
+import BookmarkBorderOutlined from '@mui/icons-material/BookmarkBorderOutlined'
+import ImageOutlined from '@mui/icons-material/ImageOutlined'
+import ExploreOutlined from '@mui/icons-material/ExploreOutlined'
+import SettingsOutlined from '@mui/icons-material/SettingsOutlined'
+import MoreHorizOutlined from '@mui/icons-material/MoreHorizOutlined'
+import SendOutlined from '@mui/icons-material/SendOutlined'
+import FavoriteBorderOutlined from '@mui/icons-material/FavoriteBorderOutlined'
+import VisibilityOutlined from '@mui/icons-material/VisibilityOutlined'
+import ChatBubbleOutlineOutlined from '@mui/icons-material/ChatBubbleOutlineOutlined'
+import NotificationsNoneOutlined from '@mui/icons-material/NotificationsNoneOutlined'
+import CheckOutlined from '@mui/icons-material/CheckOutlined'
+import CloseOutlined from '@mui/icons-material/CloseOutlined'
+import RefreshOutlined from '@mui/icons-material/RefreshOutlined'
+import LogoutOutlined from '@mui/icons-material/LogoutOutlined'
+import DarkModeOutlined from '@mui/icons-material/DarkModeOutlined'
+import LightModeOutlined from '@mui/icons-material/LightModeOutlined'
+import LockOutlined from '@mui/icons-material/LockOutlined'
+import KeyboardArrowUpOutlined from '@mui/icons-material/KeyboardArrowUpOutlined'
+import MenuOutlined from '@mui/icons-material/MenuOutlined'
 
-type P = SVGProps<SVGSVGElement>
-const Base = ({ children, ...p }: P) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...p}>{children}</svg>
-export const HomeIcon = (p:P)=><Base {...p}><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5M9 21v-7h6v7"/></Base>
-export const SearchIcon=(p:P)=><Base {...p}><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></Base>
-export const BookmarkIcon=(p:P)=><Base {...p}><path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-4-6 4z"/></Base>
-export const ImageIcon=(p:P)=><Base {...p}><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9" r="1.5"/><path d="m21 15-5-5L5 20"/></Base>
-export const CompassIcon=(p:P)=><Base {...p}><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2.1 4.9-4.9 2.1 2.1-4.9z"/></Base>
-export const SettingsIcon=(p:P)=><Base {...p}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.1A1.7 1.7 0 0 0 8 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.1A1.7 1.7 0 0 0 4.6 8a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.1A1.7 1.7 0 0 0 16 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.12.37.33.7.6 1 .28.28.66.42 1.1.4h.1v4h-.1c-.44-.02-.82.12-1.1.4-.27.3-.48.63-.6 1z"/></Base>
-export const MoreIcon=(p:P)=><Base {...p}><circle cx="5" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1" fill="currentColor" stroke="none"/></Base>
-export const SendIcon=(p:P)=><Base {...p}><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></Base>
-export const HeartIcon=(p:P)=><Base {...p}><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8z"/></Base>
-export const EyeIcon=(p:P)=><Base {...p}><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.5"/></Base>
-export const MessageIcon=(p:P)=><Base {...p}><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></Base>
-export const BellIcon=(p:P)=><Base {...p}><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></Base>
-export const CheckIcon=(p:P)=><Base {...p}><path d="m5 12 4 4L19 6"/></Base>
-export const CloseIcon=(p:P)=><Base {...p}><path d="m6 6 12 12M18 6 6 18"/></Base>
-export const RefreshIcon=(p:P)=><Base {...p}><path d="M20 7v5h-5"/><path d="M4 17v-5h5"/><path d="M6.1 8a7 7 0 0 1 11.6-2.6L20 8M4 16l2.3 2.6A7 7 0 0 0 17.9 16"/></Base>
-export const LogOutIcon=(p:P)=><Base {...p}><path d="M10 17l5-5-5-5M15 12H3M14 4h5a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-5"/></Base>
-export const MoonIcon=(p:P)=><Base {...p}><path d="M21 12.8A8.5 8.5 0 1 1 11.2 3 6.6 6.6 0 0 0 21 12.8z"/></Base>
-export const SunIcon=(p:P)=><Base {...p}><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></Base>
-export const LockIcon=(p:P)=><Base {...p}><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></Base>
-export const ChevronUpIcon=(p:P)=><Base {...p}><path d="m6 15 6-6 6 6"/></Base>
-export const MenuIcon=(p:P)=><Base {...p}><path d="M4 7h16M4 12h16M4 17h16"/></Base>
+type P = SvgIconProps
+const minimal = { fontSize: 'inherit' as const, strokeWidth: 1.25 }
+const icon = (Icon: typeof HomeOutlined) => (p: P) => <Icon {...minimal} {...p} />
+
+export const HomeIcon = icon(HomeOutlined)
+export const SearchIcon = icon(SearchOutlined)
+export const BookmarkIcon = icon(BookmarkBorderOutlined)
+export const ImageIcon = icon(ImageOutlined)
+export const CompassIcon = icon(ExploreOutlined)
+export const SettingsIcon = icon(SettingsOutlined)
+export const MoreIcon = icon(MoreHorizOutlined)
+export const SendIcon = icon(SendOutlined)
+export const HeartIcon = icon(FavoriteBorderOutlined)
+export const EyeIcon = icon(VisibilityOutlined)
+export const MessageIcon = icon(ChatBubbleOutlineOutlined)
+export const BellIcon = icon(NotificationsNoneOutlined)
+export const CheckIcon = icon(CheckOutlined)
+export const CloseIcon = icon(CloseOutlined)
+export const RefreshIcon = icon(RefreshOutlined)
+export const LogOutIcon = icon(LogoutOutlined)
+export const MoonIcon = icon(DarkModeOutlined)
+export const SunIcon = icon(LightModeOutlined)
+export const LockIcon = icon(LockOutlined)
+export const ChevronUpIcon = icon(KeyboardArrowUpOutlined)
+export const MenuIcon = icon(MenuOutlined)
