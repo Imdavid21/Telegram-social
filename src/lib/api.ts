@@ -42,7 +42,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
     try { data = JSON.parse(text) }
     catch { throw new ApiError(`Invalid JSON response from ${url} (${res.status}).`, res.status) }
   } else if (res.status !== 204) {
-    throw new ApiError(`Empty API response from ${url} (${res.status}).`, res.status) }
+    throw new ApiError(`Empty API response from ${url} (${res.status}).`, res.status)
   }
 
   if (!res.ok) throw new ApiError(data?.error || `Request failed (${res.status})`, res.status, data?.code)
