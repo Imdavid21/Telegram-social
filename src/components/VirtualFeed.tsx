@@ -5,8 +5,10 @@ const INITIAL_WINDOW = 36
 const WINDOW_CAP = 84
 const STEP = 18
 const HOUR = 60 * 60 * 1000
+const STORY_WINDOW = 12 * HOUR
 
 const URGENT_TERMS = /\b(breaking|urgent|alert|deadline|today|now|live|incident|outage|exploit|hack|hacked|breach|warning|critical|launch|listing|delist|airdrop|snapshot|vote|proposal|claim|ends? in|last chance|action required|security)\b/i
+const STOP_WORDS = new Set('a an and are as at be been being but by can could did do does for from had has have he her here him his how i if in into is it its me more most my no not of on one or our out over she so some than that the their them then there they this to too up us was we were what when where which who why will with you your'.split(' '))
 
 function parseMetric(value?: string) {
   if (!value) return 0
@@ -18,6 +20,24 @@ function parseMetric(value?: string) {
   return base * multiplier
 }
 
+function storyTokens(item: FeedItem) {
+  const text = String(item.text || '')
+    .toLowerCase()
+    .replace(/https?:\/\/\S+/g, ' ')
+    .replace(/[@#][\w-]+/g, ' ')
+    .replace(/[^a-z0-9\s]/g, ' ')
+  const tokens = text.split(/\s+/).filter(token => token.length > 2 && !STOP_WORDS.has(token))
+  return new Set(tokens.slice(0, 64))
+}
+
+function similarity(a: Set<string>, b: Set<string>) {
+  if (!a.size || !b.size) return 0
+  let intersection = 0
+  for (const token of a) if (b.has(token)) intersection += 1
+  const union = a.size + b.size - intersection
+  return union ? intersection / union : 0
+}
+
 function rankScore(item: FeedItem) {
   const ageHours = Math.max(0, (Date.now() - Number(item.timestamp || 0)) / HOUR)
   const reactionCount = (item.reactions || []).reduce((total, reaction) => total + Number(reaction?.count || 0), 0)
@@ -25,7 +45,6 @@ function rankScore(item: FeedItem) {
 
   let score = 0
 
-  // Media is the strongest default signal, but a genuinely urgent text post can still outrank stale media.
   if (item.media) {
     score += 52
     if (item.media.kind === 'album') score += 7
@@ -44,37 +63,114 @@ function rankScore(item: FeedItem) {
   else score -= Math.min(18, (ageHours - 168) / 24)
 
   score += Math.min(20, engagement)
+  score += Math.min(32, Number(item.storyVelocity || 0) * 8)
+  score += Math.min(18, Math.max(0, Number(item.storySources || 1) - 1) * 6)
 
-  // Keep sponsored content from displacing genuinely useful posts at the top.
   if (item.sponsored) score -= 28
-
   return score
 }
 
+function clusterStories(items: FeedItem[]) {
+  type Cluster = { members: FeedItem[]; tokens: Set<string>; newest: number }
+  const clusters: Cluster[] = []
+  const passthrough: FeedItem[] = []
+
+  const eligible = items
+    .filter(item => !item.sponsored && String(item.text || '').trim().length >= 42)
+    .sort((a, b) => b.timestamp - a.timestamp)
+
+  const eligibleIds = new Set(eligible.map(item => item.id))
+  for (const item of items) if (!eligibleIds.has(item.id)) passthrough.push(item)
+
+  for (const item of eligible) {
+    const tokens = storyTokens(item)
+    if (tokens.size < 4) {
+      passthrough.push(item)
+      continue
+    }
+
+    let match: Cluster | undefined
+    let bestSimilarity = 0
+    for (const cluster of clusters) {
+      if (Math.abs(cluster.newest - item.timestamp) > STORY_WINDOW) continue
+      const sameSourceOnly = cluster.members.every(member => member.channelId === item.channelId)
+      if (sameSourceOnly && cluster.members.length >= 2) continue
+      const score = similarity(tokens, cluster.tokens)
+      if (score >= .38 && score > bestSimilarity) {
+        bestSimilarity = score
+        match = cluster
+      }
+    }
+
+    if (!match) {
+      clusters.push({ members: [item], tokens, newest: item.timestamp })
+      continue
+    }
+
+    match.members.push(item)
+    match.newest = Math.max(match.newest, item.timestamp)
+    for (const token of tokens) match.tokens.add(token)
+  }
+
+  const clustered = clusters.flatMap(cluster => {
+    const sources = new Set(cluster.members.map(member => member.channelId))
+    if (cluster.members.length < 2 || sources.size < 2) return cluster.members
+
+    const times = cluster.members.map(member => member.timestamp)
+    const newest = Math.max(...times)
+    const oldest = Math.min(...times)
+    const spanHours = Math.max(.25, (newest - oldest) / HOUR)
+    const velocity = sources.size / spanHours
+    const representative = [...cluster.members].sort((a, b) => rankScore(b) - rankScore(a) || b.timestamp - a.timestamp)[0]
+    const strongestMedia = cluster.members.find(member => member.media)?.media
+
+    return [{
+      ...representative,
+      media: representative.media || strongestMedia,
+      timestamp: newest,
+      unread: cluster.members.some(member => member.unread),
+      saved: cluster.members.some(member => member.saved),
+      storySources: sources.size,
+      storyVelocity: velocity,
+      storyClustered: true,
+      storyKey: `story:${[...sources].sort().join(':')}:${Math.floor(newest / STORY_WINDOW)}`
+    }]
+  })
+
+  return [...clustered, ...passthrough]
+}
+
 function rankFeed(items: FeedItem[]) {
-  const ranked = [...items]
+  const clusteredItems = clusterStories(items)
+  const ranked = [...clusteredItems]
     .map((item, index) => ({ item, index, score: rankScore(item) }))
     .sort((a, b) => b.score - a.score || b.item.timestamp - a.item.timestamp || a.index - b.index)
 
-  // Lightweight source diversity rerank. This prevents one noisy channel from filling the entire first screen.
   const output: FeedItem[] = []
   const remaining = [...ranked]
+  const sourceCounts = new Map<string, number>()
+
   while (remaining.length) {
-    const recentSources = output.slice(-2).map(item => item.channelId)
+    const recentSources = output.slice(-3).map(item => item.channelId)
     let bestIndex = 0
     let bestAdjusted = -Infinity
 
-    for (let i = 0; i < Math.min(10, remaining.length); i++) {
+    for (let i = 0; i < Math.min(14, remaining.length); i++) {
       const candidate = remaining[i]
-      const repetitionPenalty = recentSources.filter(source => source === candidate.item.channelId).length * 22
-      const adjusted = candidate.score - repetitionPenalty
+      const recentRepetition = recentSources.filter(source => source === candidate.item.channelId).length
+      const globalCount = sourceCounts.get(candidate.item.channelId) || 0
+      const repetitionPenalty = recentRepetition * 24 + Math.max(0, globalCount - 2) * 6
+      const storyRelief = candidate.item.storyClustered ? 10 : 0
+      const adjusted = candidate.score - repetitionPenalty + storyRelief
       if (adjusted > bestAdjusted) {
         bestAdjusted = adjusted
         bestIndex = i
       }
     }
 
-    output.push(remaining.splice(bestIndex, 1)[0].item)
+    const selected = remaining.splice(bestIndex, 1)[0].item
+    output.push(selected)
+    sourceCounts.set(selected.channelId, (sourceCounts.get(selected.channelId) || 0) + 1)
   }
 
   return output
@@ -199,7 +295,7 @@ export function VirtualFeed({ items, renderItem }: {
     <div ref={topSentinel} className="sg-virtual-sentinel" aria-hidden="true" />
     {rankedItems.slice(safeRange.start, safeRange.end).map((item, localIndex) => {
       const index = safeRange.start + localIndex
-      return <MeasuredRow item={item} index={index} onHeight={onHeight} key={item.id}>{renderItem(item, index)}</MeasuredRow>
+      return <MeasuredRow item={item} index={index} onHeight={onHeight} key={item.storyKey || item.id}>{renderItem(item, index)}</MeasuredRow>
     })}
     <div ref={bottomSentinel} className="sg-virtual-sentinel" aria-hidden="true" />
     {spacers.bottom > 0 ? <div className="sg-virtual-spacer" style={{ height: spacers.bottom }} aria-hidden="true" /> : null}
