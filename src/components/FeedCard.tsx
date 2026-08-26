@@ -10,7 +10,6 @@ import { fetchShareTargets, forwardTelegramPost, replyToTelegramPost, setTelegra
 import { recordViewerAction } from '../lib/storage'
 
 const HOUR = 60 * 60 * 1000
-const URGENT_TERMS = /\b(breaking|urgent|alert|deadline|today|now|live|incident|outage|exploit|hack|hacked|breach|warning|critical|launch|listing|delist|airdrop|snapshot|vote|proposal|claim|ends? in|last chance|action required|security)\b/i
 
 type Brief = { headline: string; summary: string; ml: boolean }
 type BriefState = 'idle' | 'loading' | 'ai' | 'local'
@@ -62,7 +61,7 @@ function localBrief(text: string): Brief {
 function SourceAvatar({ channel }: { channel: Channel }) {
   const [failed, setFailed] = useState(false)
   const initials = String(channel.initials || channel.title?.slice(0, 2) || 'SG').toUpperCase()
-  return <span className="sg-avatar" style={{ background: channel.accent || '#2AABEE' }}>
+  return <span className="sg-avatar" style={{ background: channel.accent || '#242426' }}>
     {channel.avatar && !failed ? <img src={channel.avatar} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)} /> : initials}
   </span>
 }
@@ -103,7 +102,6 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
   const minimumBriefLength = privateConversation ? 24 : 56
   const meaningfulWords = cleanText(text).split(/\s+/).filter(Boolean).length
   const isNewsBrief = ageHours <= 168 && text.trim().length >= minimumBriefLength && meaningfulWords >= (privateConversation ? 5 : 8)
-  const isUrgent = URGENT_TERMS.test(text)
   const storySources = Math.max(0, Number(item.storySources || 0))
   const storyVelocity = Math.max(0, Number(item.storyVelocity || 0))
   const isTrending = Boolean(item.storyClustered && (storySources >= 3 || storyVelocity >= 1.25))
@@ -238,7 +236,7 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
 
   const briefLabel = briefState === 'ai' ? 'AI brief' : 'Smart brief'
 
-  return <article ref={root} className={`sg-post ${item.unread ? 'is-unread' : ''} ${media ? 'has-media' : 'text-only'} ${isNewsBrief ? 'is-news-brief' : ''} ${isUrgent ? 'is-priority' : ''} ${isTrending ? 'is-trending' : ''} ${saveConfirm ? 'is-confirming' : ''}`} data-feed-index={index}>
+  return <article ref={root} className={`sg-post ${item.unread ? 'is-unread' : ''} ${media ? 'has-media' : 'text-only'} ${isNewsBrief ? 'is-news-brief' : ''} ${isTrending ? 'is-trending' : ''} ${saveConfirm ? 'is-confirming' : ''}`} data-feed-index={index}>
     <header className="sg-post-head">
       <SourceAvatar channel={channel} />
       <div className="sg-post-who">
@@ -249,7 +247,7 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
         </div>
         <span>{channel.username ? `@${channel.username}` : channel.type === 'group' ? 'Group' : channel.type === 'person' ? 'Private chat' : 'Telegram'} · {timeAgo(item.timestamp)}{item.outgoing ? ' · sent by you' : ''}{storySources > 1 ? ` · ${storySources} sources` : ''}{item.edited ? ' · edited' : ''}</span>
       </div>
-      {isUrgent ? <span className="sg-priority-badge">Priority</span> : isTrending ? <span className="sg-trending-badge">Trending</span> : null}
+      {isTrending ? <span className="sg-trending-badge">Trending</span> : null}
       {item.unread && <span className="sg-unread-dot" title="Unread" />}
       <button className="sg-icon-button sg-more pressable" onClick={openMore} aria-label="Post options"><MoreIcon /></button>
     </header>
