@@ -184,16 +184,27 @@ function clusterStories(items: FeedItem[], model: ViewerModel, options: RankingO
     const velocity = sources.size / spanHours
     const representative = [...cluster.members].sort((a, b) => rankScore(b, model, options) - rankScore(a, model, options) || b.timestamp - a.timestamp)[0]
     const strongestMedia = cluster.members.find(member => member.media)?.media
+    const evidenceSeen = new Set<string>()
+    const storyMembers = [...cluster.members]
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .filter(member => {
+        if (evidenceSeen.has(member.channelId)) return false
+        evidenceSeen.add(member.channelId)
+        return true
+      })
+      .map(member => ({ id: member.id, messageId: member.messageId, channelId: member.channelId, timestamp: member.timestamp, text: member.text }))
+
     return [{
       ...representative,
       media: representative.media || strongestMedia,
       timestamp: newest,
       unread: cluster.members.some(member => member.unread),
       saved: cluster.members.some(member => member.saved),
-      storySources: sources.size,
+      storySources: storyMembers.length,
       storyVelocity: velocity,
       storyClustered: true,
-      storyKey: `story:${[...sources].sort().join(':')}:${Math.floor(newest / STORY_WINDOW)}`
+      storyMembers,
+      storyKey: `story:${storyMembers.map(member => member.channelId).sort().join(':')}:${Math.floor(newest / STORY_WINDOW)}`
     }]
   })
 
