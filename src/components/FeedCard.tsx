@@ -13,6 +13,7 @@ const HOUR = 60 * 60 * 1000
 const URGENT_TERMS = /\b(breaking|urgent|alert|deadline|today|now|live|incident|outage|exploit|hack|hacked|breach|warning|critical|launch|listing|delist|airdrop|snapshot|vote|proposal|claim|ends? in|last chance|action required|security)\b/i
 
 type Brief = { headline: string; summary: string; ml: boolean }
+type BriefState = 'idle' | 'loading' | 'ai' | 'local'
 
 function timeAgo(timestamp: number) {
   const value = Number(timestamp)
@@ -82,13 +83,14 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
   const [saveConfirm, setSaveConfirm] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
   const [brief, setBrief] = useState<Brief | null>(null)
-  const [briefLoading, setBriefLoading] = useState(false)
+  const [briefState, setBriefState] = useState<BriefState>('idle')
   const original = originalPostUrl(item, channel)
   const reactions = useMemo(() => Array.isArray(item.reactions) ? item.reactions.filter(Boolean).slice(0, 6) : [], [item.reactions])
   const media = item.media && typeof item.media === 'object' ? item.media : undefined
   const text = String(item.text || '')
   const ageHours = Math.max(0, (Date.now() - Number(item.timestamp || 0)) / HOUR)
-  const isNewsBrief = !media && ageHours >= 24 && ageHours <= 168 && text.trim().length > 80
+  const minimumBriefLength = item.sourceType === 'person' || channel.type === 'person' ? 48 : 80
+  const isNewsBrief = !media && ageHours <= 168 && text.trim().length >= minimumBriefLength
   const isUrgent = URGENT_TERMS.test(text)
   const storySources = Math.max(0, Number(item.storySources || 0))
   const storyVelocity = Math.max(0, Number(item.storyVelocity || 0))
@@ -100,19 +102,22 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
   useEffect(() => {
     if (!isNewsBrief) {
       setBrief(null)
-      setBriefLoading(false)
+      setBriefState('idle')
       return
     }
     const controller = new AbortController()
     setBrief(localBrief(text))
-    setBriefLoading(true)
+    setBriefState('loading')
     void summarizeMessage(text, controller.signal)
       .then(result => {
-        if (!result?.headline) return
+        if (!result?.headline) {
+          setBriefState('local')
+          return
+        }
         setBrief({ headline: result.headline, summary: result.summary || '', ml: Boolean(result.ml) })
+        setBriefState(result.ml ? 'ai' : 'local')
       })
-      .catch(() => {})
-      .finally(() => setBriefLoading(false))
+      .catch(() => setBriefState('local'))
     return () => controller.abort()
   }, [isNewsBrief, item.id, text])
 
@@ -199,6 +204,8 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
     recordViewerAction({ type: 'open', itemId: item.id, channelId: item.channelId, timestamp: Date.now(), media: Boolean(media) })
   }
 
+  const briefLabel = briefState === 'ai' ? 'AI brief' : briefState === 'loading' ? 'Summarizing' : 'Local brief'
+
   return <article ref={root} className={`sg-post ${item.unread ? 'is-unread' : ''} ${media ? 'has-media' : 'text-only'} ${isNewsBrief ? 'is-news-brief' : ''} ${isUrgent ? 'is-priority' : ''} ${isTrending ? 'is-trending' : ''} ${saveConfirm ? 'is-confirming' : ''}`} data-feed-index={index}>
     <header className="sg-post-head">
       <SourceAvatar channel={channel} />
@@ -208,7 +215,7 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
           {privateSource && <LockIcon className="sg-private-icon" />}
           {channel.username && <span className="sg-verified">✓</span>}
         </div>
-        <span>{channel.username ? `@${channel.username}` : channel.type === 'group' ? 'Group' : channel.type === 'person' ? 'Private chat' : 'Telegram'} · {timeAgo(item.timestamp)}{storySources > 1 ? ` · ${storySources} sources` : ''}{item.edited ? ' · edited' : ''}</span>
+        <span>{channel.username ? `@${channel.username}` : channel.type === 'group' ? 'Group' : channel.type === 'person' ? 'Private chat' : 'Telegram'} · {timeAgo(item.timestamp)}{item.outgoing ? ' · sent by you' : ''}{storySources > 1 ? ` · ${storySources} sources` : ''}{item.edited ? ' · edited' : ''}</span>
       </div>
       {isUrgent ? <span className="sg-priority-badge">Priority</span> : isTrending ? <span className="sg-trending-badge">Trending</span> : null}
       {item.unread && <span className="sg-unread-dot" title="Unread" />}
@@ -218,8 +225,8 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
     {media && <div className={`sg-media sg-media-${media.kind}`}><MediaRenderer media={media} /></div>}
 
     {isNewsBrief ? <div className="sg-news-brief">
-      <span className="sg-news-kicker">{storySources > 1 ? `${storySources} sources · ` : ''}{brief?.ml ? 'AI brief' : 'Brief'} · {timeAgo(item.timestamp)}</span>
-      {briefLoading && !brief ? <><Skeleton width="78%" height={34} /><Skeleton width="92%" /><Skeleton width="66%" /></> : <>
+      <span className="sg-news-kicker">{storySources > 1 ? `${storySources} sources · ` : ''}{briefLabel} · {timeAgo(item.timestamp)}</span>
+      {briefState === 'loading' && !brief ? <><Skeleton width="78%" height={34} /><Skeleton width="92%" /><Skeleton width="66%" /></> : <>
         <strong>{brief?.headline || localBrief(text).headline}</strong>
         {(brief?.summary || localBrief(text).summary) && <p>{brief?.summary || localBrief(text).summary}</p>}
       </>}
