@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Skeleton } from '@mui/material'
-import type { Channel, FeedItem, FeedMode } from '../types'
+import type { Channel, FeedItem, FeedMode, StoryMember } from '../types'
 import { BookmarkIcon, EyeIcon, HeartIcon, LockIcon, MessageIcon, MoreIcon, SearchIcon, SendIcon } from './Icons'
 import { MediaRenderer } from './MediaRenderer'
 import { SuccessConfirm } from './SuccessConfirm'
@@ -14,6 +14,7 @@ const HOUR = 60 * 60 * 1000
 
 type Brief = { headline: string; summary: string; ml: boolean }
 type BriefState = 'idle' | 'ai' | 'local'
+type StoryEntry = { member: StoryMember; channel: Channel }
 
 function timeAgo(timestamp: number) {
   const value = Number(timestamp)
@@ -27,9 +28,13 @@ function timeAgo(timestamp: number) {
   return new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
+function telegramPostUrl(channel: Channel | undefined, messageId?: number) {
+  if (!channel?.username || !messageId) return null
+  return `https://t.me/${encodeURIComponent(channel.username)}/${Number(messageId)}`
+}
+
 function originalPostUrl(item: FeedItem, channel?: Channel) {
-  if (!channel?.username || !item.messageId) return null
-  return `https://t.me/${encodeURIComponent(channel.username)}/${Number(item.messageId)}`
+  return telegramPostUrl(channel, item.messageId)
 }
 
 function cleanText(value: string) {
@@ -77,6 +82,7 @@ export function FeedCard({
   feedMode,
   favoriteSource,
   summarizePrivateChats,
+  storyEntries = [],
   onSave,
   onRead,
   onFavoriteSource,
@@ -91,6 +97,7 @@ export function FeedCard({
   feedMode: FeedMode
   favoriteSource: boolean
   summarizePrivateChats: boolean
+  storyEntries?: StoryEntry[]
   onSave: (item: FeedItem) => void
   onRead: (item: FeedItem) => void
   onFavoriteSource: (channel: Channel) => void
@@ -119,6 +126,7 @@ export function FeedCard({
   const [shareBusy, setShareBusy] = useState('')
   const [shareQuery, setShareQuery] = useState('')
   const [whyOpen, setWhyOpen] = useState(false)
+  const [storyOpen, setStoryOpen] = useState(false)
   const [interactionError, setInteractionError] = useState('')
   const [brief, setBrief] = useState<Brief | null>(null)
   const [briefState, setBriefState] = useState<BriefState>('idle')
@@ -128,13 +136,14 @@ export function FeedCard({
   const text = String(item.text || '')
   const ageHours = Math.max(0, (Date.now() - Number(item.timestamp || 0)) / HOUR)
   const privateConversation = item.sourceType === 'person' || channel.type === 'person'
-  const minimumBriefLength = privateConversation ? 56 : 56
+  const minimumBriefLength = 56
   const meaningfulWords = cleanText(text).split(/\s+/).filter(Boolean).length
   const canSummarize = !privateConversation || summarizePrivateChats
   const isNewsBrief = canSummarize && ageHours <= 168 && text.trim().length >= minimumBriefLength && meaningfulWords >= 8
   const storySources = Math.max(0, Number(item.storySources || 0))
   const storyVelocity = Math.max(0, Number(item.storyVelocity || 0))
   const isTrending = Boolean(item.storyClustered && storySources >= 3 && storyVelocity >= .5)
+  const hasStoryEvidence = item.storyClustered && storyEntries.length > 1
   const isLong = text.length > 650
   const visibleText = !expanded && isLong ? `${text.slice(0, 650).trimEnd()}…` : text
   const privateSource = Boolean(channel.private || (!channel.username && (channel.type === 'person' || item.sourceType === 'person')))
@@ -335,7 +344,7 @@ export function FeedCard({
         </div>
         <span>{channel.username ? `@${channel.username}` : channel.type === 'group' ? 'Group' : channel.type === 'person' ? 'Private chat' : 'Telegram'} · <time dateTime={new Date(item.timestamp).toISOString()} title={new Date(item.timestamp).toLocaleString()}>{timeAgo(item.timestamp)}</time>{item.outgoing ? ' · sent by you' : ''}{storySources > 1 ? ` · ${storySources} sources` : ''}{item.edited ? ' · edited' : ''}</span>
       </div>
-      {isTrending ? <button type="button" className="sg-trending-badge" onClick={() => setWhyOpen(true)}>Trending · {storySources}</button> : null}
+      {isTrending ? <button type="button" className="sg-trending-badge" onClick={() => hasStoryEvidence ? setStoryOpen(true) : setWhyOpen(true)}>Trending · {storySources}</button> : null}
       {item.unread && <span className="sg-unread-dot" title="Unread" />}
       <button className="sg-icon-button sg-more pressable" onClick={() => { haptics.light(); setMoreOpen(true) }} aria-label="Post options"><MoreIcon /></button>
     </header>
@@ -346,6 +355,7 @@ export function FeedCard({
       <span className="sg-news-kicker">{storySources > 1 ? `${storySources} sources · ` : ''}{briefLabel}</span>
       <strong>{brief?.headline || localBrief(text).headline}</strong>
       {(brief?.summary || localBrief(text).summary) && <p>{brief?.summary || localBrief(text).summary}</p>}
+      {hasStoryEvidence ? <button type="button" className="sg-story-evidence-link" onClick={() => setStoryOpen(true)}>View {storySources} sources</button> : null}
       <button type="button" className="sg-news-expand pressable" onClick={() => { if (!expanded) handleRead(); setExpanded(value => !value) }}>{expanded ? 'Hide original' : 'Read original'}</button>
       {expanded && <div className="sg-news-original">{text}</div>}
     </div> : visibleText && <div className={`sg-caption ${media ? '' : 'sg-text-post'}`}>
@@ -388,10 +398,29 @@ export function FeedCard({
       <div className="sg-why-list">{rankingReasons.length ? rankingReasons.map(reason => <div key={reason.type}><strong>{reason.label}</strong></div>) : <div><strong>Part of your current feed</strong></div>}</div>
     </BottomSheet>
 
+    <BottomSheet open={storyOpen} onClose={() => setStoryOpen(false)} title={`${storySources || storyEntries.length} sources`}>
+      <div className="sg-story-sources">
+        {storyEntries.map(({ member, channel: source }) => {
+          const url = telegramPostUrl(source, member.messageId)
+          return <article key={`${member.channelId}:${member.messageId}`} className="sg-story-source-row">
+            <SourceAvatar channel={source} />
+            <div className="sg-story-source-copy">
+              <strong>{source.title}</strong>
+              <span>{source.username ? `@${source.username}` : source.type === 'group' ? 'Group' : source.type === 'person' ? 'Private chat' : 'Telegram'} · <time dateTime={new Date(member.timestamp).toISOString()}>{timeAgo(member.timestamp)}</time></span>
+              <p>{clipAtWord(cleanText(member.text) || 'Telegram post', 180)}</p>
+            </div>
+            {url ? <a href={url} target="_blank" rel="noreferrer">Open</a> : null}
+          </article>
+        })}
+        {!storyEntries.length ? <div className="sg-share-empty">Source evidence is not available for this story.</div> : null}
+      </div>
+    </BottomSheet>
+
     <BottomSheet open={moreOpen} onClose={() => setMoreOpen(false)} title={channel.title || 'Post options'}>
       <div className="sg-sheet-source"><SourceAvatar channel={channel} /><div><strong>{channel.title}</strong><span>{channel.username ? `@${channel.username}` : channel.type === 'person' ? 'Private chat' : channel.type === 'group' ? 'Group' : 'Telegram source'}</span></div></div>
       <div className="sg-sheet-actions">
         <button type="button" className="pressable" onClick={() => { setMoreOpen(false); setWhyOpen(true) }}><EyeIcon /><span><strong>Why this post?</strong><small>{feedMode === 'latest' ? 'Latest is ordered chronologically' : 'See what influenced its position'}</small></span></button>
+        {hasStoryEvidence ? <button type="button" className="pressable" onClick={() => { setMoreOpen(false); setStoryOpen(true) }}><MessageIcon /><span><strong>View {storySources} sources</strong><small>Inspect the Telegram posts grouped into this story</small></span></button> : null}
         {feedMode === 'for-you' ? <>
           <button type="button" className="pressable" onClick={() => applyFeedback('more_like_this')}><HeartIcon /><span><strong>More like this</strong><small>Increase this source’s relevance in For You</small></span></button>
           <button type="button" className="pressable" onClick={() => applyFeedback('less_like_this')}><EyeIcon /><span><strong>Less like this</strong><small>Reduce this source’s relevance in For You</small></span></button>
