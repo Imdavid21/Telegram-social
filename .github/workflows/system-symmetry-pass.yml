@@ -1,10 +1,10 @@
-name: Home feed redesign
+name: Telegram summary policy integration
 on:
   push:
     branches: [main]
 jobs:
   patch:
-    if: github.event.head_commit.message == 'Run Home feed redesign'
+    if: github.event.head_commit.message == 'Run Telegram summary policy integration'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -13,8 +13,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Apply redesign
-        run: python3 scripts/home-feed-redesign.py
+      - name: Apply policy integration
+        run: python3 scripts/telegram-summary-policy-pass.py
       - name: Validate
         run: |
           npm install
@@ -22,9 +22,9 @@ jobs:
           node --check server/index.mjs
       - name: Commit
         run: |
-          rm -f scripts/home-feed-redesign.py
+          rm -f scripts/telegram-summary-policy-pass.py
           git config user.name "Uddalak"
           git config user.email "84083101+Imdavid21@users.noreply.github.com"
           git add -A
-          git commit -m "Redesign Home around media and Telegram conversations"
+          git commit -m "Integrate Telegram-specific summarization policy"
           git push
