@@ -1,14 +1,23 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FeedItem } from '../types'
+import { loadViewerActions } from '../lib/storage'
 
 const INITIAL_WINDOW = 36
 const WINDOW_CAP = 84
 const STEP = 18
 const HOUR = 60 * 60 * 1000
 const STORY_WINDOW = 12 * HOUR
+const ACTION_WINDOW = 30 * 24 * HOUR
 
 const URGENT_TERMS = /\b(breaking|urgent|alert|deadline|today|now|live|incident|outage|exploit|hack|hacked|breach|warning|critical|launch|listing|delist|airdrop|snapshot|vote|proposal|claim|ends? in|last chance|action required|security)\b/i
 const STOP_WORDS = new Set('a an and are as at be been being but by can could did do does for from had has have he her here him his how i if in into is it its me more most my no not of on one or our out over she so some than that the their them then there they this to too up us was we were what when where which who why will with you your'.split(' '))
+
+type ViewerModel = {
+  sourceAffinity: Map<string, number>
+  sourceNegative: Map<string, number>
+  mediaAffinity: number
+  seen: Set<string>
+}
 
 function parseMetric(value?: string) {
   if (!value) return 0
@@ -38,12 +47,57 @@ function similarity(a: Set<string>, b: Set<string>) {
   return union ? intersection / union : 0
 }
 
-function rankScore(item: FeedItem) {
+function buildViewerModel(): ViewerModel {
+  const sourceAffinity = new Map<string, number>()
+  const sourceNegative = new Map<string, number>()
+  const seen = new Set<string>()
+  let mediaPositive = 0
+  let mediaTotal = 0
+  const now = Date.now()
+
+  for (const action of loadViewerActions()) {
+    const age = Math.max(0, now - action.timestamp)
+    if (age > ACTION_WINDOW) continue
+    const recency = Math.max(.18, 1 - age / ACTION_WINDOW)
+    const dwellSeconds = Math.max(0, Number(action.value || 0))
+    let positive = 0
+    let negative = 0
+
+    if (action.type === 'save') positive = 5.5
+    else if (action.type === 'open') positive = 3.5
+    else if (action.type === 'dwell') positive = Math.min(5, dwellSeconds / 7)
+    else if (action.type === 'impression') positive = .35
+    else if (action.type === 'skip') negative = 2.5
+    else if (action.type === 'unsave') negative = 1.5
+
+    if (positive > 0) sourceAffinity.set(action.channelId, (sourceAffinity.get(action.channelId) || 0) + positive * recency)
+    if (negative > 0) sourceNegative.set(action.channelId, (sourceNegative.get(action.channelId) || 0) + negative * recency)
+    if (action.type === 'impression' || action.type === 'dwell' || action.type === 'open' || action.type === 'save') seen.add(action.itemId)
+
+    if (action.media !== undefined && positive > 0) {
+      mediaTotal += positive * recency
+      if (action.media) mediaPositive += positive * recency
+    }
+  }
+
+  return { sourceAffinity, sourceNegative, mediaAffinity: mediaTotal ? mediaPositive / mediaTotal : .5, seen }
+}
+
+function predictedViewerValue(item: FeedItem, model: ViewerModel) {
+  const affinity = model.sourceAffinity.get(item.channelId) || 0
+  const negative = model.sourceNegative.get(item.channelId) || 0
+  const sourceSignal = Math.tanh((affinity - negative) / 8) * 24
+  const mediaSignal = item.media ? (model.mediaAffinity - .5) * 24 : (.5 - model.mediaAffinity) * 8
+  const unseenBoost = model.seen.has(item.id) ? -16 : 8
+  return sourceSignal + mediaSignal + unseenBoost
+}
+
+function rankScore(item: FeedItem, model: ViewerModel) {
   const ageHours = Math.max(0, (Date.now() - Number(item.timestamp || 0)) / HOUR)
   const reactionCount = (item.reactions || []).reduce((total, reaction) => total + Number(reaction?.count || 0), 0)
   const engagement = reactionCount + Number(item.comments || 0) * 2 + Math.log10(parseMetric(item.views) + 1) * 3
 
-  let score = 0
+  let score = predictedViewerValue(item, model)
 
   if (item.media) {
     score += 52
@@ -70,7 +124,7 @@ function rankScore(item: FeedItem) {
   return score
 }
 
-function clusterStories(items: FeedItem[]) {
+function clusterStories(items: FeedItem[], model: ViewerModel) {
   type Cluster = { members: FeedItem[]; tokens: Set<string>; newest: number }
   const clusters: Cluster[] = []
   const passthrough: FeedItem[] = []
@@ -121,7 +175,7 @@ function clusterStories(items: FeedItem[]) {
     const oldest = Math.min(...times)
     const spanHours = Math.max(.25, (newest - oldest) / HOUR)
     const velocity = sources.size / spanHours
-    const representative = [...cluster.members].sort((a, b) => rankScore(b) - rankScore(a) || b.timestamp - a.timestamp)[0]
+    const representative = [...cluster.members].sort((a, b) => rankScore(b, model) - rankScore(a, model) || b.timestamp - a.timestamp)[0]
     const strongestMedia = cluster.members.find(member => member.media)?.media
 
     return [{
@@ -141,9 +195,10 @@ function clusterStories(items: FeedItem[]) {
 }
 
 function rankFeed(items: FeedItem[]) {
-  const clusteredItems = clusterStories(items)
+  const model = buildViewerModel()
+  const clusteredItems = clusterStories(items, model)
   const ranked = [...clusteredItems]
-    .map((item, index) => ({ item, index, score: rankScore(item) }))
+    .map((item, index) => ({ item, index, score: rankScore(item, model) }))
     .sort((a, b) => b.score - a.score || b.item.timestamp - a.item.timestamp || a.index - b.index)
 
   const output: FeedItem[] = []
@@ -151,17 +206,18 @@ function rankFeed(items: FeedItem[]) {
   const sourceCounts = new Map<string, number>()
 
   while (remaining.length) {
-    const recentSources = output.slice(-3).map(item => item.channelId)
+    const recentSources = output.slice(-4).map(item => item.channelId)
     let bestIndex = 0
     let bestAdjusted = -Infinity
 
-    for (let i = 0; i < Math.min(14, remaining.length); i++) {
+    for (let i = 0; i < Math.min(16, remaining.length); i++) {
       const candidate = remaining[i]
       const recentRepetition = recentSources.filter(source => source === candidate.item.channelId).length
       const globalCount = sourceCounts.get(candidate.item.channelId) || 0
-      const repetitionPenalty = recentRepetition * 24 + Math.max(0, globalCount - 2) * 6
+      const repetitionPenalty = recentRepetition * 26 + Math.max(0, globalCount - 2) * 7
       const storyRelief = candidate.item.storyClustered ? 10 : 0
-      const adjusted = candidate.score - repetitionPenalty + storyRelief
+      const explorationBoost = globalCount === 0 && !model.seen.has(candidate.item.id) ? 4 : 0
+      const adjusted = candidate.score - repetitionPenalty + storyRelief + explorationBoost
       if (adjusted > bestAdjusted) {
         bestAdjusted = adjusted
         bestIndex = i
