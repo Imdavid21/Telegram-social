@@ -23,8 +23,39 @@ jobs:
           npm run build
       - name: Commit validated result
         run: |
-          rm -f scripts/apply-backend-final-v2.py
-          git show origin/main:.github/workflows/system-symmetry-pass.yml > .github/workflows/system-symmetry-pass.yml
+          rm -f scripts/apply-backend-final-v2.py .backend-final-v2-trigger
+          cat > .github/workflows/system-symmetry-pass.yml <<'EOF'
+          name: Telegram summary policy integration
+          on:
+            push:
+              branches: [main]
+          jobs:
+            patch:
+              if: github.event.head_commit.message == 'Run Telegram summary policy integration'
+              runs-on: ubuntu-latest
+              permissions:
+                contents: write
+              steps:
+                - uses: actions/checkout@v4
+                - uses: actions/setup-node@v4
+                  with:
+                    node-version: 22
+                - name: Apply policy integration
+                  run: python3 scripts/telegram-summary-policy-pass.py
+                - name: Validate
+                  run: |
+                    npm install
+                    npm run build
+                    node --check server/index.mjs
+                - name: Commit
+                  run: |
+                    rm -f scripts/telegram-summary-policy-pass.py
+                    git config user.name "Uddalak"
+                    git config user.email "84083101+Imdavid21@users.noreply.github.com"
+                    git add -A
+                    git commit -m "Integrate Telegram-specific summarization policy"
+                    git push
+          EOF
           git config user.name "Uddalak"
           git config user.email "84083101+Imdavid21@users.noreply.github.com"
           git add -A
