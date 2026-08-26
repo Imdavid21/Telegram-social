@@ -11,7 +11,7 @@
 /* Sources are filters, not Stories. Remove Instagram-style semantic rings. */
 .sg-source-ring{background:transparent!important;padding:2px!important;border:1px solid transparent}
 .sg-source-bubble.is-active .sg-source-ring{background:transparent!important;border-color:var(--app-accent);box-shadow:0 0 0 1px var(--app-accent)!important}
-.sg-source-bubble.is-favorite .sg-source-ring:not(.is-active){border-color:var(--app-border)}
+.sg-source-bubble.is-favorite:not(.is-active) .sg-source-ring{border-color:var(--app-border)}
 .sg-source-avatar{border:2px solid var(--app-bg)!important}
 .sg-all-avatar{background:var(--app-raised)!important;color:var(--app-text)!important}
 .sg-more-sources .sg-source-avatar{font-size:20px!important}
@@ -32,6 +32,9 @@
 .sg-share-search{height:44px;margin:0 0 8px;padding:0 11px;display:flex;align-items:center;gap:8px;border:1px solid var(--app-border);border-radius:10px;background:var(--app-raised);color:var(--app-secondary)}
 .sg-share-search svg{width:18px;height:18px}.sg-share-search input{width:100%;min-width:0;border:0;outline:0;background:transparent;color:var(--app-text);font-size:14px}
 .sg-why-list{display:grid;gap:2px}.sg-why-list>div{min-height:48px;padding:12px 4px;display:flex;align-items:center;border-bottom:1px solid var(--app-border-soft)}.sg-why-list>div:last-child{border-bottom:0}.sg-why-list strong{font-size:13px}
+
+/* Draggable sheets keep touch behavior while MUI owns focus, Escape, and scroll lock. */
+.sg-sheet-drag{position:relative;padding-right:52px!important}.sg-sheet-close{position:absolute!important;top:5px;right:6px;z-index:2;color:var(--app-secondary)!important}.sg-sheet-close svg{width:19px;height:19px}.MuiModal-root .sg-sheet-layer{z-index:inherit}
 
 .sg-connection-banner{margin:10px 0;padding:9px 12px;border:1px solid var(--app-border);border-radius:10px;background:var(--app-surface);color:var(--app-secondary);font-size:12px;text-align:center}
 .sg-feed-error>div{display:flex;align-items:center;gap:6px}.sg-error-retry{min-height:32px;padding:0 10px;border:1px solid currentColor;border-radius:8px;background:transparent;color:inherit;font-weight:700}
