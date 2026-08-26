@@ -33,6 +33,11 @@
 .sg-share-search svg{width:18px;height:18px}.sg-share-search input{width:100%;min-width:0;border:0;outline:0;background:transparent;color:var(--app-text);font-size:14px}
 .sg-why-list{display:grid;gap:2px}.sg-why-list>div{min-height:48px;padding:12px 4px;display:flex;align-items:center;border-bottom:1px solid var(--app-border-soft)}.sg-why-list>div:last-child{border-bottom:0}.sg-why-list strong{font-size:13px}
 
+/* Media preview is a real keyboard target rather than an image with click behavior. */
+.sg-lightbox-button{display:block;width:100%;height:100%;margin:0;padding:0;border:0;background:transparent;color:inherit;cursor:zoom-in}
+.sg-lightbox-button:focus-visible{outline:2px solid var(--app-accent);outline-offset:-3px}
+.sg-lightbox-button img{width:100%;height:100%;display:block}
+
 /* Draggable sheets keep touch behavior while MUI owns focus, Escape, and scroll lock. */
 .sg-sheet-drag{position:relative;padding-right:52px!important}.sg-sheet-close{position:absolute!important;top:5px;right:6px;z-index:2;color:var(--app-secondary)!important}.sg-sheet-close svg{width:19px;height:19px}.MuiModal-root .sg-sheet-layer{z-index:inherit}
 
