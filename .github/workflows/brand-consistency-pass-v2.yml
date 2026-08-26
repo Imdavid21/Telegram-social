@@ -1,0 +1,86 @@
+name: Apply corrected branding consistency pass
+on:
+  push:
+    paths:
+      - '.github/workflows/brand-consistency-pass-v2.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure commits
+        run: |
+          git config user.name "Supergram UX Bot"
+          git config user.email "actions@users.noreply.github.com"
+      - name: Patch pages one by one
+        shell: python
+        run: |
+          from pathlib import Path
+          import re, subprocess
+
+          def commit(path, message):
+              subprocess.run(['git','add',path], check=True)
+              if subprocess.run(['git','diff','--cached','--quiet']).returncode != 0:
+                  subprocess.run(['git','commit','-m',message], check=True)
+
+          # Feed treatment
+          p=Path('src/components/FeedCard.tsx'); s=p.read_text()
+          s=re.sub(r"\nconst URGENT_TERMS = .*?\n", "\n", s, count=1)
+          s=re.sub(r"\n  const isUrgent = URGENT_TERMS\.test\(text\)", "", s, count=1)
+          s=s.replace(" ${isUrgent ? 'is-priority' : ''}","")
+          s=s.replace('{isUrgent ? <span className="sg-priority-badge">Priority</span> : isTrending ? <span className="sg-trending-badge">Trending</span> : null}','{isTrending ? <span className="sg-trending-badge">Trending</span> : null}')
+          s=s.replace("channel.accent || '#2AABEE'","channel.accent || '#242426'")
+          p.write_text(s); commit(str(p),'Remove Priority treatment from feed')
+
+          # Core product shell, source strip, search, auth tokens, empty/loading states
+          p=Path('src/app-system.css'); s=p.read_text()
+          pairs=[('#0e1114','#0A0A0B'),('#11161b','#141416'),('#17212b','#1B1B1E'),('#1d2933','#222225'),('#25313b','#2B2B2F'),('#f4f7f9','#FAFAFA'),('#8e9caa','#B6B6BA'),('#617384','#77777D'),('#2aabee','#FAFAFA'),('#3390ec','#E7E7E9')]
+          for a,b in pairs:s=s.replace(a,b)
+          s=s.replace('--app-accent:#FAFAFA;','--app-accent:#FAFAFA;')
+          s=s.replace('background:linear-gradient(135deg,#f9ce34,#ee2a7b,#6228d7)','background:var(--app-raised);box-shadow:inset 0 0 0 1px var(--app-border)')
+          s=s.replace('.sg-source-bubble.is-active .sg-source-ring{background:var(--app-accent);box-shadow:0 0 0 1px var(--app-accent)}','.sg-source-bubble.is-active .sg-source-ring{background:var(--app-text);box-shadow:0 0 0 1px var(--app-text)}')
+          s=s.replace('.sg-priority-badge,.sg-trending-badge{border-radius:999px}.sg-post.is-priority::after,.sg-post.is-trending:not(.is-priority)::after{left:0;top:14px}','.sg-trending-badge{border-radius:999px}.sg-post.is-trending::after{display:none!important}')
+          s=re.sub(r'\.sg-post\.is-priority::after\s*\{[^}]*\}','',s)
+          s=re.sub(r'\.sg-priority-badge\s*\{[^}]*\}','',s)
+          s=s.replace('rgba(42,171,238,.12)','rgba(255,255,255,.10)')
+          p.write_text(s); commit(str(p),'Align product shell to monochrome brand')
+
+          # Product app hardcoded avatar fallback
+          p=Path('src/ProductApp.tsx'); s=p.read_text().replace("channel.accent || '#2AABEE'","channel.accent || '#242426'"); p.write_text(s); commit(str(p),'Align product app fallback colors')
+
+          # Session restore page
+          p=Path('src/App.tsx'); s=p.read_text()
+          if "import { BrandMark } from './components/BrandMark'" not in s:s=s.replace("import { LogOutIcon } from './components/Icons'","import { LogOutIcon } from './components/Icons'\nimport { BrandMark } from './components/BrandMark'")
+          s=s.replace('<div className="sg-session-boot-brand"><span>S</span><strong>Supergram</strong></div>','<div className="sg-session-boot-brand"><BrandMark /><strong>Supergram</strong></div>')
+          p.write_text(s); commit(str(p),'Use new logo on session restore screen')
+
+          p=Path('src/session-boot.css'); s=p.read_text()
+          for a,b in [('#0e1114','#0A0A0B'),('#11161b','#141416'),('#17212b','#1B1B1E'),('#25313b','#2B2B2F'),('#2aabee','#FAFAFA'),('#3390ec','#E7E7E9')]:s=s.replace(a,b)
+          if '.sg-session-boot-brand svg' not in s:s+='\n.sg-session-boot-brand svg{width:32px;height:32px;flex:0 0 auto}\n.sg-session-boot-brand>span{display:none}\n'
+          p.write_text(s); commit(str(p),'Restyle session loading skeleton')
+
+          # Demo page mirrors real action row
+          p=Path('src/components/DemoPage.tsx'); s=p.read_text()
+          s=s.replace("import { BookmarkIcon, HomeIcon, ImageIcon, SearchIcon, SendIcon } from './Icons'","import { BookmarkIcon, HeartIcon, HomeIcon, ImageIcon, MessageIcon, SearchIcon, SendIcon } from './Icons'")
+          s=s.replace('<div className="demo-actions"><button className="pressable"><SendIcon /></button><button className={`pressable ${saved.has(item.id) ? \'is-saved\' : \'\'}`} onClick={() => toggleSaved(item.id)}><BookmarkIcon /></button></div>','<div className="demo-actions"><span><button className="pressable" aria-label="Like"><HeartIcon /></button><button className="pressable" aria-label="Comment"><MessageIcon /></button><button className="pressable" aria-label="Share"><SendIcon /></button></span><button className={`pressable ${saved.has(item.id) ? \'is-saved\' : \'\'}`} onClick={() => toggleSaved(item.id)} aria-label="Save"><BookmarkIcon /></button></div>')
+          p.write_text(s); commit(str(p),'Align demo page with production feed')
+
+          p=Path('src/demo.css'); s=p.read_text()
+          for a,b in [('#0e1114','#0A0A0B'),('#11161b','#141416'),('#17212b','#1B1B1E'),('#25313b','#2B2B2F'),('#2aabee','#FAFAFA'),('#3390ec','#E7E7E9')]:s=s.replace(a,b)
+          if '.demo-actions>span' not in s:s+='\n.demo-actions{display:flex;align-items:center;justify-content:space-between}.demo-actions>span{display:flex;align-items:center;gap:2px}.demo-actions button{color:var(--app-secondary);background:transparent}.demo-actions button:hover{color:var(--app-text);background:var(--app-hover)}\n'
+          p.write_text(s); commit(str(p),'Restyle demo surfaces')
+
+          # Legacy utility/auth CSS still leaks Telegram blue
+          for fname,msg in [('src/production.css','Align auth search and utility states'),('src/styles.css','Remove legacy Telegram blue from utility pages'),('src/identity.css','Align sheets and media overlays')]:
+              p=Path(fname); s=p.read_text().replace('#2AABEE','#FAFAFA').replace('#2aabee','#FAFAFA').replace('#3390ec','#E7E7E9').replace('#2f83d7','#E7E7E9')
+              if fname.endswith('identity.css'):s=s.replace('color:var(--sg-blue)','color:var(--sg-text)')
+              p.write_text(s); commit(str(p),msg)
+      - name: Validate production build
+        run: |
+          npm install --no-audit --no-fund
+          node --check server/index.mjs
+          npm run build
+      - name: Push page commits
+        run: git push
