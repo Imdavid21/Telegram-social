@@ -7,6 +7,7 @@ import { SuccessConfirm } from './SuccessConfirm'
 import { BottomSheet } from './BottomSheet'
 import { haptics } from '../lib/interaction'
 import { summarizeMessage } from '../lib/api'
+import { recordViewerAction } from '../lib/storage'
 
 const HOUR = 60 * 60 * 1000
 const URGENT_TERMS = /\b(breaking|urgent|alert|deadline|today|now|live|incident|outage|exploit|hack|hacked|breach|warning|critical|launch|listing|delist|airdrop|snapshot|vote|proposal|claim|ends? in|last chance|action required|security)\b/i
@@ -74,6 +75,9 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
   index?: number
 }) {
   const root = useRef<HTMLElement>(null)
+  const dwellStartedAt = useRef<number | null>(null)
+  const impressionLogged = useRef(false)
+  const skipLogged = useRef(false)
   const [expanded, setExpanded] = useState(false)
   const [saveConfirm, setSaveConfirm] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
@@ -114,6 +118,39 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
 
   useEffect(() => {
     const el = root.current
+    if (!el || typeof IntersectionObserver === 'undefined') return
+    const observer = new IntersectionObserver(entries => {
+      const entry = entries[0]
+      const visible = Boolean(entry?.isIntersecting && entry.intersectionRatio >= .55)
+      if (visible) {
+        if (!impressionLogged.current) {
+          impressionLogged.current = true
+          recordViewerAction({ type: 'impression', itemId: item.id, channelId: item.channelId, timestamp: Date.now(), media: Boolean(media) })
+        }
+        if (dwellStartedAt.current === null) dwellStartedAt.current = Date.now()
+      } else if (dwellStartedAt.current !== null) {
+        const dwellSeconds = Math.max(0, (Date.now() - dwellStartedAt.current) / 1000)
+        dwellStartedAt.current = null
+        if (dwellSeconds >= 1.5) {
+          recordViewerAction({ type: 'dwell', itemId: item.id, channelId: item.channelId, timestamp: Date.now(), value: dwellSeconds, media: Boolean(media) })
+        } else if (impressionLogged.current && !skipLogged.current) {
+          skipLogged.current = true
+          recordViewerAction({ type: 'skip', itemId: item.id, channelId: item.channelId, timestamp: Date.now(), value: dwellSeconds, media: Boolean(media) })
+        }
+      }
+    }, { threshold: [.15, .55, .85] })
+    observer.observe(el)
+    return () => {
+      if (dwellStartedAt.current !== null) {
+        const dwellSeconds = Math.max(0, (Date.now() - dwellStartedAt.current) / 1000)
+        if (dwellSeconds >= 1.5) recordViewerAction({ type: 'dwell', itemId: item.id, channelId: item.channelId, timestamp: Date.now(), value: dwellSeconds, media: Boolean(media) })
+      }
+      observer.disconnect()
+    }
+  }, [item.id, item.channelId, media])
+
+  useEffect(() => {
+    const el = root.current
     if (!el || !item.unread || typeof IntersectionObserver === 'undefined') return
     let timer: number | undefined
     let done = false
@@ -148,13 +185,18 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
   const handleSave = useCallback(() => {
     haptics.light()
     const saving = !item.saved
+    recordViewerAction({ type: saving ? 'save' : 'unsave', itemId: item.id, channelId: item.channelId, timestamp: Date.now(), media: Boolean(media) })
     onSave(item)
     if (saving) setSaveConfirm(true)
-  }, [item, onSave])
+  }, [item, media, onSave])
 
   function openMore() {
     haptics.light()
     setMoreOpen(true)
+  }
+
+  function handleOriginalOpen() {
+    recordViewerAction({ type: 'open', itemId: item.id, channelId: item.channelId, timestamp: Date.now(), media: Boolean(media) })
   }
 
   return <article ref={root} className={`sg-post ${item.unread ? 'is-unread' : ''} ${media ? 'has-media' : 'text-only'} ${isNewsBrief ? 'is-news-brief' : ''} ${isUrgent ? 'is-priority' : ''} ${isTrending ? 'is-trending' : ''} ${saveConfirm ? 'is-confirming' : ''}`} data-feed-index={index}>
@@ -192,7 +234,7 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
     <div className="sg-post-actions">
       <div className="sg-actions-left">
         <button className={`sg-action pressable ${item.noForwards ? 'is-disabled' : ''}`} disabled={item.noForwards} onClick={share} aria-label={item.noForwards ? 'Sharing restricted' : 'Share'}><SendIcon /></button>
-        {original ? <a className="sg-action pressable" href={original} target="_blank" rel="noreferrer" aria-label="Open in Telegram"><MessageIcon /></a> : <span className="sg-action is-disabled" title="Private source"><MessageIcon /></span>}
+        {original ? <a className="sg-action pressable" href={original} target="_blank" rel="noreferrer" aria-label="Open in Telegram" onClick={handleOriginalOpen}><MessageIcon /></a> : <span className="sg-action is-disabled" title="Private source"><MessageIcon /></span>}
       </div>
       <span className="sg-save-slot">
         <button className={`sg-action pressable ${item.saved ? 'is-active' : ''}`} onClick={handleSave} aria-label={item.saved ? 'Remove from saved' : 'Save'}><BookmarkIcon /></button>
@@ -213,7 +255,7 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
       <div className="sg-sheet-actions">
         <button type="button" className="pressable" onClick={() => { handleSave(); setMoreOpen(false) }}><BookmarkIcon /><span><strong>{item.saved ? 'Remove saved post' : 'Save post'}</strong><small>{item.saved ? 'Keep it only in the feed' : 'Add it to your saved state'}</small></span></button>
         {!item.noForwards ? <button type="button" className="pressable" onClick={() => { void share(); setMoreOpen(false) }}><SendIcon /><span><strong>Share</strong><small>Use your device share sheet or copy the post</small></span></button> : null}
-        {original ? <a className="pressable" href={original} target="_blank" rel="noreferrer" onClick={() => setMoreOpen(false)}><MessageIcon /><span><strong>Open in Telegram</strong><small>View this message in its original source</small></span></a> : null}
+        {original ? <a className="pressable" href={original} target="_blank" rel="noreferrer" onClick={() => { handleOriginalOpen(); setMoreOpen(false) }}><MessageIcon /><span><strong>Open in Telegram</strong><small>View this message in its original source</small></span></a> : null}
       </div>
     </BottomSheet>
   </article>
