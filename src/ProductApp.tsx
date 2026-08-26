@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Skeleton } from '@mui/material'
+import { Skeleton } from './components/ui/skeleton'
 import type { AlbumMedia, Channel, FeedDiagnostics, FeedFilter, FeedItem, FeedPage, FeedUpdate, MediaAsset, TelegramAccount, UserSettings } from './types'
 import {
   loadFavorites,
@@ -22,6 +22,8 @@ import { VirtualFeed } from './components/VirtualFeed'
 import { SettingsDialog } from './components/SettingsDialog'
 import { SourceBrowser } from './components/SourceBrowser'
 import { BrandMark } from './components/BrandMark'
+import { useAppDispatch, useAppSelector } from './store/hooks'
+import { setDiscussionItemId, setFilter as setFilterAction, setQuery as setQueryAction, setSearchOpen as setSearchOpenAction, setSettings as setSettingsAction, setSettingsOpen as setSettingsOpenAction, setSourceBrowserOpen as setSourceBrowserOpenAction, setSourceFilter as setSourceFilterAction } from './store/uiSlice'
 import { BellIcon, BookmarkIcon, CloseIcon, HomeIcon, ImageIcon, MessageIcon, SearchIcon, SendIcon, SettingsIcon } from './components/Icons'
 
 const APP_NAME = 'Supergram'
@@ -120,24 +122,25 @@ function resolvedTheme(settings: UserSettings) {
 }
 
 export default function ProductApp() {
-  const [filter, setFilter] = useState<FeedFilter>('all')
-  const [query, setQuery] = useState('')
-  const [sourceFilter, setSourceFilter] = useState<string | null>(null)
+  const dispatch = useAppDispatch()
+  const { filter, query, sourceFilter, searchOpen, settingsOpen, sourceBrowserOpen, discussionItemId, settings } = useAppSelector(state => state.ui)
+  const setFilter = (value: FeedFilter) => dispatch(setFilterAction(value))
+  const setQuery = (value: string) => dispatch(setQueryAction(value))
+  const setSourceFilter = (value: string | null) => dispatch(setSourceFilterAction(value))
+  const setSearchOpen = (value: boolean) => dispatch(setSearchOpenAction(value))
+  const setSettingsOpen = (value: boolean) => dispatch(setSettingsOpenAction(value))
+  const setSourceBrowserOpen = (value: boolean) => dispatch(setSourceBrowserOpenAction(value))
+  const setSettings = (value: UserSettings) => dispatch(setSettingsAction(value))
   const [channels, setChannels] = useState<Channel[]>([])
   const [feed, setFeed] = useState<FeedItem[]>([])
   const [connection, setConnection] = useState<'connecting' | 'connected' | 'error'>('connecting')
   const [error, setError] = useState('')
   const [booting, setBooting] = useState(true)
   const [me, setMe] = useState<Me | null>(null)
-  const [settings, setSettings] = useState<UserSettings>(() => loadSettings())
   const [favorites, setFavorites] = useState<Set<string>>(() => loadFavorites())
   const [hiddenSources, setHiddenSources] = useState<Set<string>>(() => loadHiddenSources())
   const [hiddenPosts, setHiddenPosts] = useState<Set<string>>(() => loadHiddenPosts())
   const [rankingRevision, setRankingRevision] = useState(0)
-  const [searchOpen, setSearchOpen] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const [sourceBrowserOpen, setSourceBrowserOpen] = useState(false)
-  const [discussionItem, setDiscussionItem] = useState<FeedItem | null>(null)
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [hasMore, setHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -155,6 +158,7 @@ export default function ProductApp() {
   const safeFeed = Array.isArray(feed) ? feed : []
   const newCount = queuedPosts.length
   const savedMessagesSourceId = me?.id ? `user:${me.id}` : null
+  const discussionItem = discussionItemId ? safeFeed.find(item => item.id === discussionItemId) || null : null
   const channelMap = useMemo(() => new Map(safeChannels.map(channel => [channel.id, channel])), [safeChannels])
 
   useEffect(() => { feedRef.current = safeFeed }, [safeFeed])
@@ -530,8 +534,8 @@ export default function ProductApp() {
   }, [visibleFeed])
 
   if (booting) return <div className="sg-app sg-app-loading" aria-busy="true" aria-label="Loading your Telegram feed">
-    <aside className="sg-left-rail sg-skeleton-rail"><Skeleton variant="rounded" width={132} height={34} /><div className="sg-skeleton-nav">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} variant="rounded" height={46} />)}</div></aside>
-    <main className="sg-main"><div className="sg-feed-column"><section className="sg-feed sg-feed-skeleton">{Array.from({ length: 3 }).map((_, i) => <article className="sg-post sg-skeleton-post" key={i}><div className="sg-skeleton-head"><Skeleton variant="circular" width={38} height={38} /><div><Skeleton width={120} /><Skeleton width={76} height={16} /></div></div><Skeleton variant="rounded" width="100%" height={i === 0 ? 320 : 180} /><Skeleton width="88%" /><Skeleton width="62%" /></article>)}</section></div></main>
+    <aside className="sg-left-rail sg-skeleton-rail"><Skeleton className="h-[34px] w-[132px]" /><div className="sg-skeleton-nav">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-[46px] w-full" />)}</div></aside>
+    <main className="sg-main"><div className="sg-feed-column"><section className="sg-feed sg-feed-skeleton">{Array.from({ length: 3 }).map((_, i) => <article className="sg-post sg-skeleton-post" key={i}><div className="sg-skeleton-head"><Skeleton className="h-[38px] w-[38px] rounded-full" /><div><Skeleton className="h-4 w-[120px]" /><Skeleton className="h-4 w-[76px]" /></div></div><Skeleton className={i === 0 ? "h-[320px] w-full" : "h-[180px] w-full"} /><Skeleton className="h-4 w-[88%]" /><Skeleton className="h-4 w-[62%]" /></article>)}</section></div></main>
   </div>
 
   return <div className="sg-app">
@@ -599,7 +603,7 @@ export default function ProductApp() {
                   onHidePost={hidePost}
                   onFeedback={feedback}
                   onSourceOpen={source => { setSourceFilter(source.id); setSourceBrowserOpen(true) }}
-                  onDiscussionOpen={post => setDiscussionItem(post)}
+                  onDiscussionOpen={post => dispatch(setDiscussionItemId(post.id))}
                   index={index}
                 />
           }} /> : <div className="sg-empty">
@@ -617,7 +621,7 @@ export default function ProductApp() {
 
     <aside className={`sg-context-rail ${discussionItem ? 'is-discussion' : ''}`} aria-label="Telegram context">
       {discussionItem ? <section className="sg-context-section sg-discussion-context">
-        <div className="sg-context-title"><strong>Discussion</strong><button type="button" onClick={() => setDiscussionItem(null)}>Close</button></div>
+        <div className="sg-context-title"><strong>Discussion</strong><button type="button" onClick={() => dispatch(setDiscussionItemId(null))}>Close</button></div>
         <div className="sg-discussion-origin"><strong>{channelMap.get(discussionItem.channelId)?.title || 'Telegram'}</strong><p>{String(discussionItem.text || '').slice(0,220) || 'Media post'}</p></div>
         <div className="sg-discussion-prompt"><MessageIcon/><span>Join the Telegram conversation around this post.</span></div>
         <button type="button" className="sg-discussion-send" onClick={() => setSourceBrowserOpen(true)}><SendIcon/> Open conversation</button>

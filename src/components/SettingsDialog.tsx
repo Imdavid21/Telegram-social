@@ -1,127 +1,19 @@
-import {
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  Divider,
-  FormControl,
-  FormControlLabel,
-  FormLabel,
-  Radio,
-  RadioGroup,
-  Stack,
-  Switch,
-  Typography,
-  Avatar,
-  Chip,
-  useMediaQuery,
-  useTheme
-} from '@mui/material'
-import type { TelegramAccount, ThemeMode, UserSettings } from '../types'
-
-export function SettingsDialog({
-  open,
-  settings,
-  account,
-  favoriteCount,
-  hiddenSourceCount,
-  onClose,
-  onChange,
-  onResetPersonalization,
-  onLogout
-}: {
-  open: boolean
-  settings: UserSettings
-  account: TelegramAccount | null
-  favoriteCount: number
-  hiddenSourceCount: number
-  onClose: () => void
-  onChange: (next: UserSettings) => void
-  onResetPersonalization: () => void
-  onLogout: () => void
-}) {
-  const theme = useTheme()
-  const fullScreen = useMediaQuery(theme.breakpoints.down('sm'))
-  const update = <K extends keyof UserSettings,>(key: K, value: UserSettings[K]) => onChange({ ...settings, [key]: value })
-
-  return <Dialog open={open} onClose={onClose} fullScreen={fullScreen} fullWidth maxWidth="sm" aria-labelledby="supergram-settings-title">
-    <DialogTitle id="supergram-settings-title">Settings</DialogTitle>
-    <DialogContent dividers>
-      <Stack spacing={3}>
-        <Stack spacing={1.5}>
-          <Typography variant="overline" color="text.secondary">Feed</Typography>
-          <FormControl>
-            <FormLabel>Default feed</FormLabel>
-            <RadioGroup row value={settings.feedMode} onChange={event => update('feedMode', event.target.value === 'latest' ? 'latest' : 'for-you')}>
-              <FormControlLabel value="for-you" control={<Radio />} label="For You" />
-              <FormControlLabel value="latest" control={<Radio />} label="Latest" />
-            </RadioGroup>
-          </FormControl>
-          <FormControlLabel control={<Switch checked={settings.includePrivateChatsInForYou} onChange={event => update('includePrivateChatsInForYou', event.target.checked)} />} label="Include private chats in For You" />
-          <FormControlLabel control={<Switch checked={settings.summarizePrivateChats} onChange={event => update('summarizePrivateChats', event.target.checked)} />} label="Summarize private chats" />
-          <FormControlLabel control={<Switch checked={settings.autoplay === 'on'} onChange={event => update('autoplay', event.target.checked ? 'on' : 'off')} />} label="Autoplay videos" />
-          <Typography variant="body2" color="text.secondary">{favoriteCount} favorite {favoriteCount === 1 ? 'source' : 'sources'} · {hiddenSourceCount} hidden from For You</Typography>
-          <Button variant="outlined" color="inherit" onClick={onResetPersonalization} sx={{ alignSelf: 'flex-start' }}>Reset For You</Button>
-          <Typography variant="caption" color="text.secondary">Resets reading and relevance signals. It does not remove saved posts, read state, or favorite sources.</Typography>
-        </Stack>
-
-        <Divider />
-
-        <Stack spacing={1.5}>
-          <Typography variant="overline" color="text.secondary">Appearance</Typography>
-          <FormControl>
-            <FormLabel>Theme</FormLabel>
-            <RadioGroup row value={settings.themeMode} onChange={event => update('themeMode', event.target.value as ThemeMode)}>
-              <FormControlLabel value="system" control={<Radio />} label="System" />
-              <FormControlLabel value="light" control={<Radio />} label="Light" />
-              <FormControlLabel value="dark" control={<Radio />} label="Dark" />
-            </RadioGroup>
-          </FormControl>
-        </Stack>
-
-        <Divider />
-
-        <Stack spacing={1.5}>
-          <Typography variant="overline" color="text.secondary">Telegram account</Typography>
-          <Stack direction="row" spacing={1.5} alignItems="center">
-            <Avatar src={account?.avatar} alt="" sx={{ width: 52, height: 52 }}>{account?.firstName?.[0] || 'T'}</Avatar>
-            <Stack spacing={.25} minWidth={0}>
-              <Stack direction="row" spacing={.75} alignItems="center" flexWrap="wrap">
-                <Typography variant="body1" fontWeight={750}>{[account?.firstName, account?.lastName].filter(Boolean).join(' ') || 'Connected account'}</Typography>
-                {account?.premium && <Chip label="Premium" size="small" variant="outlined" />}
-                {account?.verified && <Chip label="Verified" size="small" variant="outlined" />}
-              </Stack>
-              {account?.username && <Typography variant="body2" color="text.secondary">@{account.username}</Typography>}
-              {account?.bio && <Typography variant="body2" color="text.secondary" sx={{ mt: .5 }}>{account.bio}</Typography>}
-            </Stack>
-          </Stack>
-          <Typography variant="caption" color="text.secondary">Telegram settings exposed to this client are shown read-only. Supergram does not change them unless a feature explicitly says it will.</Typography>
-          <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-            {account?.settings?.archiveAndMuteNewNoncontactPeers !== undefined && <Chip size="small" label={`Auto-archive strangers: ${account.settings.archiveAndMuteNewNoncontactPeers ? 'On' : 'Off'}`} />}
-            {account?.settings?.keepArchivedUnmuted !== undefined && <Chip size="small" label={`Keep unmuted archived: ${account.settings.keepArchivedUnmuted ? 'On' : 'Off'}`} />}
-            {account?.settings?.hideReadMarks !== undefined && <Chip size="small" label={`Hide read marks: ${account.settings.hideReadMarks ? 'On' : 'Off'}`} />}
-            {account?.translationDisabled !== undefined && <Chip size="small" label={`Translation: ${account.translationDisabled ? 'Off' : 'On'}`} />}
-          </Stack>
-          <Typography variant="overline" color="text.secondary" sx={{ mt: .5 }}>Available in Supergram</Typography>
-          <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-            {Object.entries(account?.capabilities || {}).filter(([, enabled]) => enabled).map(([key]) => <Chip key={key} size="small" variant="outlined" label={key.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase())} />)}
-          </Stack>
-          <Button variant="outlined" color="inherit" onClick={onLogout} sx={{ alignSelf: 'flex-start' }}>Switch Telegram account</Button>
-        </Stack>
-
-        <Divider />
-
-        <Stack spacing={.5}>
-          <Typography variant="overline" color="text.secondary">About</Typography>
-          <Typography variant="body2" color="text.secondary">Supergram is an independent client using the Telegram API. It is not affiliated with Telegram.</Typography>
-          <Stack direction="row" spacing={2}>
-            <Button component="a" href="/privacy.html" size="small" color="inherit">Privacy</Button>
-            <Button component="a" href="/terms.html" size="small" color="inherit">Terms</Button>
-          </Stack>
-        </Stack>
-      </Stack>
-    </DialogContent>
-    <DialogActions><Button onClick={onClose}>Done</Button></DialogActions>
-  </Dialog>
+import type { TelegramAccount,ThemeMode,UserSettings } from '../types'
+import { Dialog,DialogContent,DialogDescription,DialogFooter,DialogHeader,DialogTitle } from './ui/dialog'
+import { Button } from './ui/button'
+import { Switch } from './ui/switch'
+import { Avatar,AvatarFallback,AvatarImage } from './ui/avatar'
+import { Badge } from './ui/badge'
+import { Separator } from './ui/separator'
+export function SettingsDialog({open,settings,account,favoriteCount,hiddenSourceCount,onClose,onChange,onResetPersonalization,onLogout}:{open:boolean;settings:UserSettings;account:TelegramAccount|null;favoriteCount:number;hiddenSourceCount:number;onClose:()=>void;onChange:(next:UserSettings)=>void;onResetPersonalization:()=>void;onLogout:()=>void}){
+ const update=<K extends keyof UserSettings>(key:K,value:UserSettings[K])=>onChange({...settings,[key]:value})
+ const name=[account?.firstName,account?.lastName].filter(Boolean).join(' ')||'Connected account'
+ const initials=(account?.firstName?.[0]||'T')+(account?.lastName?.[0]||'')
+ return <Dialog open={open} onOpenChange={v=>!v&&onClose()}><DialogContent className="sg-settings-shadcn"><DialogHeader><DialogTitle>Settings</DialogTitle><DialogDescription>Feed, appearance, and Telegram account preferences.</DialogDescription></DialogHeader><div className="sg-settings-scroll">
+ <section className="sg-settings-section"><h3>Profile</h3><div className="sg-profile-settings"><Avatar className="h-12 w-12"><AvatarImage src={account?.avatar}/><AvatarFallback>{initials}</AvatarFallback></Avatar><div className="sg-profile-settings-copy"><strong>{name}</strong>{account?.username&&<span>@{account.username}</span>}{account?.bio&&<p>{account.bio}</p>}</div></div><div className="sg-capability-grid">{account?.premium&&<Badge>Premium</Badge>}{account?.verified&&<Badge>Verified</Badge>}</div></section><Separator/>
+ <section className="sg-settings-section"><h3>Feed</h3><div className="sg-settings-row"><span><strong>Private chats in For You</strong><small>Allow relevant incoming private messages in recommendations.</small></span><Switch checked={settings.includePrivateChatsInForYou} onCheckedChange={v=>update('includePrivateChatsInForYou',v)}/></div><div className="sg-settings-row"><span><strong>Summarize private chats</strong><small>Use local context-aware summaries where eligible.</small></span><Switch checked={settings.summarizePrivateChats} onCheckedChange={v=>update('summarizePrivateChats',v)}/></div><div className="sg-settings-row"><span><strong>Autoplay video</strong><small>Play visible feed videos automatically.</small></span><Switch checked={settings.autoplay==='on'} onCheckedChange={v=>update('autoplay',v?'on':'off')}/></div><div className="sg-settings-row"><span><strong>Personalization</strong><small>{favoriteCount} favorite sources · {hiddenSourceCount} hidden</small></span><Button variant="outline" size="sm" onClick={onResetPersonalization}>Reset</Button></div></section><Separator/>
+ <section className="sg-settings-section"><h3>Appearance</h3><div className="sg-settings-row"><span><strong>Theme</strong><small>Match your browser or choose a mode.</small></span><div className="sg-theme-segment">{(['system','light','dark'] as ThemeMode[]).map(mode=><button key={mode} className={settings.themeMode===mode?'is-active':''} onClick={()=>update('themeMode',mode)}>{mode[0].toUpperCase()+mode.slice(1)}</button>)}</div></div></section><Separator/>
+ <section className="sg-settings-section"><h3>Telegram</h3><div className="sg-capability-grid">{Object.entries(account?.capabilities||{}).filter(([,enabled])=>enabled).map(([key])=><Badge key={key}>{key.replace(/([A-Z])/g,' $1').replace(/^./,c=>c.toUpperCase())}</Badge>)}</div><p className="text-xs text-muted-foreground mt-3">Telegram account settings shown here are read-only unless an action explicitly says otherwise.</p></section><Separator/>
+ <section className="sg-settings-section"><h3>Account</h3><div className="sg-settings-linkrow"><Button variant="outline" asChild><a href="/privacy.html">Privacy</a></Button><Button variant="outline" asChild><a href="/terms.html">Terms</a></Button></div><Button variant="ghost" className="sg-settings-danger mt-3 px-0" onClick={onLogout}>Switch Telegram account</Button></section>
+ </div><DialogFooter><Button onClick={onClose}>Done</Button></DialogFooter></DialogContent></Dialog>
 }

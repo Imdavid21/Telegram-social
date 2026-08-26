@@ -17,15 +17,22 @@
     "vercel-build": "npm run copy:audit && npm run observer:audit && vite build"
   },
   "dependencies": {
-    "@emotion/react": "^11.14.0",
-    "@emotion/styled": "^11.14.0",
-    "@mui/icons-material": "^7.3.2",
-    "@mui/material": "^7.3.2",
     "cookie-parser": "^1.4.7",
     "express": "^5.1.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
-    "teleproto": "^1.228.5"
+    "teleproto": "^1.228.5",
+    "@reduxjs/toolkit": "^2.9.0",
+    "react-redux": "^9.2.0",
+    "@radix-ui/react-dialog": "^1.1.15",
+    "@radix-ui/react-switch": "^1.2.6",
+    "@radix-ui/react-avatar": "^1.1.10",
+    "@radix-ui/react-tabs": "^1.1.13",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^3.3.1",
+    "lucide-react": "^0.468.0",
+    "@radix-ui/react-slot": "^1.2.3"
   },
   "devDependencies": {
     "@types/react": "^19.1.10",
@@ -33,6 +40,9 @@
     "@vitejs/plugin-react": "^6.1.0",
     "typescript": "^5.9.2",
     "vite": "^8.2.2",
-    "vite-plugin-pwa": "^1.0.3"
+    "vite-plugin-pwa": "^1.0.3",
+    "tailwindcss": "^4.1.12",
+    "@tailwindcss/vite": "^4.1.12",
+    "@types/node": "^22.15.0"
   }
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Skeleton } from '@mui/material'
+import { Skeleton } from './ui/skeleton'
 import type { Channel, FeedItem, FeedMode, StoryMember } from '../types'
 import { BookmarkIcon, EyeIcon, HeartIcon, LockIcon, MessageIcon, MoreIcon, SearchIcon, SendIcon } from './Icons'
 import { MediaRenderer } from './MediaRenderer'

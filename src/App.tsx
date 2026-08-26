@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Skeleton } from '@mui/material'
+import { Skeleton } from './components/ui/skeleton'
 import ProductApp from './ProductApp'
 import { LandingPage } from './components/LandingPage'
 import { DemoPage } from './components/DemoPage'
@@ -24,14 +24,14 @@ function SessionBoot() {
   return <main className="sg-session-boot" aria-label="Restoring Supergram session">
     <aside className="sg-session-boot-rail">
       <div className="sg-session-boot-brand"><BrandMark /><strong>Supergram</strong></div>
-      {[0,1,2,3,4].map(i => <div className="sg-session-boot-nav" key={i}><Skeleton variant="circular" width={22} height={22} /><Skeleton width={82} height={18} /></div>)}
+      {[0,1,2,3,4].map(i => <div className="sg-session-boot-nav" key={i}><Skeleton className="h-[22px] w-[22px] rounded-full" /><Skeleton className="h-[18px] w-[82px]" /></div>)}
     </aside>
     <section className="sg-session-boot-feed">
-      <div className="sg-session-boot-stories">{[0,1,2,3,4,5].map(i => <Skeleton key={i} variant="circular" width={52} height={52} />)}</div>
+      <div className="sg-session-boot-stories">{[0,1,2,3,4,5].map(i => <Skeleton key={i} className="h-[52px] w-[52px] rounded-full" />)}</div>
       {[0,1,2].map(i => <div className="sg-session-boot-card" key={i}>
-        <div><Skeleton variant="circular" width={36} height={36} /><span><Skeleton width={112} height={17} /><Skeleton width={72} height={13} /></span></div>
-        <Skeleton variant="rectangular" width="100%" height={i === 0 ? 340 : 180} />
-        <Skeleton width="74%" height={16} /><Skeleton width="54%" height={16} />
+        <div><Skeleton className="h-9 w-9 rounded-full" /><span><Skeleton className="h-[17px] w-28" /><Skeleton className="h-[13px] w-[72px]" /></span></div>
+        <Skeleton className={i === 0 ? "h-[340px] w-full rounded-none" : "h-[180px] w-full rounded-none"} />
+        <Skeleton className="h-4 w-[74%]" /><Skeleton className="h-4 w-[54%]" />
       </div>)}
     </section>
   </main>
