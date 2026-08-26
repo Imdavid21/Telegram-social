@@ -1,4 +1,4 @@
-import type { Channel, FeedDiagnostics, FeedItem, FeedPage, FeedUpdate } from '../types'
+import type { Channel, FeedDiagnostics, FeedItem, FeedPage, FeedUpdate, TelegramAccount } from '../types'
 
 type FlowState = { step: 'starting'|'processing'|'phone'|'code'|'password'|'done'|'error'; error?: string | null; meta?: Record<string, unknown> }
 type HealthState = { ok: boolean; configured: boolean; runtime?: string; version?: string }
@@ -53,8 +53,9 @@ export function healthStatus() {
   return request<HealthState>('/api/health')
 }
 export function authStatus() {
-  return request<{ connected: boolean; user?: { id: string; firstName: string; username?: string } }>('/api/auth/status')
+  return request<{ connected: boolean; user?: TelegramAccount }>('/api/auth/status')
 }
+export function fetchTelegramAccount() { return request<{ user: TelegramAccount }>('/api/account') }
 export function beginAuth() { return request<FlowState>('/api/auth/begin', { method: 'POST', body: '{}' }) }
 export function submitAuth(value: string) { return request<FlowState>('/api/auth/input', { method: 'POST', body: JSON.stringify({ value }) }) }
 export function authFlow() { return request<FlowState>('/api/auth/flow') }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Skeleton } from '@mui/material'
-import type { AlbumMedia, Channel, FeedDiagnostics, FeedFilter, FeedItem, FeedPage, FeedUpdate, MediaAsset, UserSettings } from './types'
+import type { AlbumMedia, Channel, FeedDiagnostics, FeedFilter, FeedItem, FeedPage, FeedUpdate, MediaAsset, TelegramAccount, UserSettings } from './types'
 import {
   loadFavorites,
   loadHiddenPosts,
@@ -34,7 +34,7 @@ const nav: Array<{ id: FeedFilter; label: string; icon: typeof HomeIcon }> = [
   { id: 'saved', label: 'Saved', icon: BookmarkIcon }
 ]
 
-type Me = { id: string; firstName: string; username?: string }
+type Me = TelegramAccount
 
 function initials(value?: string) {
   return String(value || 'SG').split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]?.toUpperCase()).join('') || 'SG'
@@ -453,6 +453,7 @@ export default function ProductApp() {
     return collapsedFeed.filter(item => {
       const channel = channelMap.get(item.channelId)
       if (!channel || hiddenPosts.has(item.id)) return false
+      if (item.outgoing && (item.sourceType === 'person' || item.sourceType === 'group')) return false
       if (sourceFilter && channel.id !== sourceFilter) return false
       if (!sourceFilter && settings.feedMode === 'for-you') {
         if (hiddenSources.has(channel.id)) return false

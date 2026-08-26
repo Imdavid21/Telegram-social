@@ -13,10 +13,12 @@ import {
   Stack,
   Switch,
   Typography,
+  Avatar,
+  Chip,
   useMediaQuery,
   useTheme
 } from '@mui/material'
-import type { ThemeMode, UserSettings } from '../types'
+import type { TelegramAccount, ThemeMode, UserSettings } from '../types'
 
 export function SettingsDialog({
   open,
@@ -31,7 +33,7 @@ export function SettingsDialog({
 }: {
   open: boolean
   settings: UserSettings
-  account: { firstName: string; username?: string } | null
+  account: TelegramAccount | null
   favoriteCount: number
   hiddenSourceCount: number
   onClose: () => void
@@ -80,10 +82,31 @@ export function SettingsDialog({
 
         <Divider />
 
-        <Stack spacing={1}>
-          <Typography variant="overline" color="text.secondary">Telegram</Typography>
-          <Typography variant="body1" fontWeight={700}>{account?.username ? `@${account.username}` : account?.firstName || 'Connected account'}</Typography>
-          <Typography variant="body2" color="text.secondary">{account?.firstName || 'Connected to Telegram'}</Typography>
+        <Stack spacing={1.5}>
+          <Typography variant="overline" color="text.secondary">Telegram account</Typography>
+          <Stack direction="row" spacing={1.5} alignItems="center">
+            <Avatar src={account?.avatar} alt="" sx={{ width: 52, height: 52 }}>{account?.firstName?.[0] || 'T'}</Avatar>
+            <Stack spacing={.25} minWidth={0}>
+              <Stack direction="row" spacing={.75} alignItems="center" flexWrap="wrap">
+                <Typography variant="body1" fontWeight={750}>{[account?.firstName, account?.lastName].filter(Boolean).join(' ') || 'Connected account'}</Typography>
+                {account?.premium && <Chip label="Premium" size="small" variant="outlined" />}
+                {account?.verified && <Chip label="Verified" size="small" variant="outlined" />}
+              </Stack>
+              {account?.username && <Typography variant="body2" color="text.secondary">@{account.username}</Typography>}
+              {account?.bio && <Typography variant="body2" color="text.secondary" sx={{ mt: .5 }}>{account.bio}</Typography>}
+            </Stack>
+          </Stack>
+          <Typography variant="caption" color="text.secondary">Telegram settings exposed to this client are shown read-only. Supergram does not change them unless a feature explicitly says it will.</Typography>
+          <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+            {account?.settings?.archiveAndMuteNewNoncontactPeers !== undefined && <Chip size="small" label={`Auto-archive strangers: ${account.settings.archiveAndMuteNewNoncontactPeers ? 'On' : 'Off'}`} />}
+            {account?.settings?.keepArchivedUnmuted !== undefined && <Chip size="small" label={`Keep unmuted archived: ${account.settings.keepArchivedUnmuted ? 'On' : 'Off'}`} />}
+            {account?.settings?.hideReadMarks !== undefined && <Chip size="small" label={`Hide read marks: ${account.settings.hideReadMarks ? 'On' : 'Off'}`} />}
+            {account?.translationDisabled !== undefined && <Chip size="small" label={`Translation: ${account.translationDisabled ? 'Off' : 'On'}`} />}
+          </Stack>
+          <Typography variant="overline" color="text.secondary" sx={{ mt: .5 }}>Available in Supergram</Typography>
+          <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+            {Object.entries(account?.capabilities || {}).filter(([, enabled]) => enabled).map(([key]) => <Chip key={key} size="small" variant="outlined" label={key.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase())} />)}
+          </Stack>
           <Button variant="outlined" color="inherit" onClick={onLogout} sx={{ alignSelf: 'flex-start' }}>Switch Telegram account</Button>
         </Stack>
 

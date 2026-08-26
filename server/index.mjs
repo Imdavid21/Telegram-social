@@ -757,15 +757,101 @@ app.get('/api/ready', (_req, res) => {
   res.json({ ok: true, configured: true })
 })
 
+async function accountSnapshot(entry) {
+  const me = await entry.client.getMe()
+  let full = null
+  let contentSettings = null
+  let globalPrivacy = null
+  try {
+    const result = await entry.client.invoke(new Api.users.GetFullUser({ id: me }))
+    full = result?.fullUser || null
+  } catch {}
+  try { contentSettings = await entry.client.invoke(new Api.account.GetContentSettings()) } catch {}
+  try { globalPrivacy = await entry.client.invoke(new Api.account.GetGlobalPrivacySettings()) } catch {}
+
+  return {
+    id: String(me.id),
+    firstName: me.firstName || '',
+    lastName: me.lastName || '',
+    username: me.username || '',
+    usernames: Array.isArray(me.usernames) ? me.usernames.map(row => row?.username).filter(Boolean) : [],
+    bio: full?.about || '',
+    premium: Boolean(me.premium),
+    verified: Boolean(me.verified),
+    scam: Boolean(me.scam),
+    fake: Boolean(me.fake),
+    avatar: `/api/me/avatar`,
+    commonChatsCount: Number(full?.commonChatsCount || 0),
+    voiceMessagesForbidden: Boolean(full?.voiceMessagesForbidden),
+    translationDisabled: Boolean(full?.translationDisabled),
+    settings: {
+      sensitiveContentEnabled: contentSettings ? !Boolean(contentSettings.sensitiveEnabled === false) : undefined,
+      canSetContentSettings: contentSettings ? Boolean(contentSettings.sensitiveCanChange) : undefined,
+      archiveAndMuteNewNoncontactPeers: globalPrivacy ? Boolean(globalPrivacy.archiveAndMuteNewNoncontactPeers) : undefined,
+      keepArchivedUnmuted: globalPrivacy ? Boolean(globalPrivacy.keepArchivedUnmuted) : undefined,
+      keepArchivedFolders: globalPrivacy ? Boolean(globalPrivacy.keepArchivedFolders) : undefined,
+      hideReadMarks: globalPrivacy ? Boolean(globalPrivacy.hideReadMarks) : undefined
+    },
+    capabilities: {
+      reactions: true,
+      replies: true,
+      channelComments: true,
+      forwarding: true,
+      savedMessages: true,
+      media: true,
+      unread: true,
+      searchLoadedHistory: true,
+      fullTelegramSearch: false,
+      localContextSummaries: true,
+      privateChatContext: true
+    }
+  }
+}
+
 app.get('/api/auth/status', async (req, res) => {
   if (!requireConfig(res)) return
   try {
     const entry = await getClientEntry(req)
     if (!entry) return res.json({ connected: false })
-    const me = await entry.client.getMe()
-    res.json({ connected: true, user: { id: String(me.id), firstName: me.firstName || '', username: me.username || '' } })
+    const user = await accountSnapshot(entry)
+    res.json({ connected: true, user })
   } catch {
     res.json({ connected: false })
+  }
+})
+
+
+app.get('/api/account', async (req, res) => {
+  try {
+    const entry = await getClientEntry(req)
+    if (!entry) return res.status(401).json({ error: 'Connect Telegram first.' })
+    const user = await accountSnapshot(entry)
+    res.setHeader('Cache-Control', 'private, no-store')
+    res.json({ user })
+  } catch (err) {
+    res.status(500).json({ error: String(err?.message || err) })
+  }
+})
+
+app.get('/api/me/avatar', async (req, res) => {
+  try {
+    const entry = await getClientEntry(req)
+    if (!entry) return res.status(401).end()
+    const me = await entry.client.getMe()
+    const key = `me:${String(me.id)}`
+    const cached = entry.avatarCache.get(key)
+    if (cached && cached.expiresAt > Date.now()) {
+      res.setHeader('Cache-Control', 'private, max-age=1800')
+      res.type('image/jpeg').send(cached.buffer)
+      return
+    }
+    const buffer = await entry.client.downloadProfilePhoto(me, { isBig: false, requestTimeout: 15_000 })
+    if (!Buffer.isBuffer(buffer) || !buffer.length) return res.status(404).end()
+    entry.avatarCache.set(key, { buffer, expiresAt: Date.now() + 30 * 60 * 1000 })
+    res.setHeader('Cache-Control', 'private, max-age=1800')
+    res.type('image/jpeg').send(buffer)
+  } catch {
+    res.status(404).end()
   }
 })
 
