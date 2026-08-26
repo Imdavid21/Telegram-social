@@ -40,21 +40,22 @@ function MeasuredRow({ item, index, onHeight, children }: {
   return <div ref={ref} className="sg-virtual-row" data-feed-index={index} data-post-id={item.id}>{children}</div>
 }
 
-export function VirtualFeed({ items, mode, favoriteSources, renderItem }: {
+export function VirtualFeed({ items, mode, favoriteSources, rankingRevision, renderItem }: {
   items: FeedItem[]
   mode: FeedMode
   favoriteSources: Set<string>
+  rankingRevision: number
   renderItem: (item: FeedItem, index: number) => ReactNode
 }) {
   const orderedItems = useMemo(
     () => mode === 'latest' ? latestFeed(items) : rankFeed(items, { favoriteSources }),
-    [favoriteSources, items, mode]
+    [favoriteSources, items, mode, rankingRevision]
   )
   const heightsRef = useRef(new Map<string, number>())
   const topSentinel = useRef<HTMLDivElement>(null)
   const bottomSentinel = useRef<HTMLDivElement>(null)
   const [range, setRange] = useState(() => ({ start: 0, end: Math.min(orderedItems.length, INITIAL_WINDOW) }))
-  const [revision, setRevision] = useState(0)
+  const [heightRevision, setHeightRevision] = useState(0)
 
   useEffect(() => {
     const valid = new Set(orderedItems.map(item => item.id))
@@ -75,7 +76,7 @@ export function VirtualFeed({ items, mode, favoriteSources, renderItem }: {
     const previous = heightsRef.current.get(id)
     if (previous && Math.abs(previous - height) < 2) return
     heightsRef.current.set(id, height)
-    setRevision(value => value + 1)
+    setHeightRevision(value => value + 1)
   }, [])
 
   const heightFor = useCallback((item?: FeedItem) => item ? (heightsRef.current.get(item.id) || estimateHeight(item)) : 0, [])
@@ -92,7 +93,7 @@ export function VirtualFeed({ items, mode, favoriteSources, renderItem }: {
     for (let i = 0; i < safeRange.start; i++) top += heightFor(orderedItems[i])
     for (let i = safeRange.end; i < orderedItems.length; i++) bottom += heightFor(orderedItems[i])
     return { top, bottom }
-  }, [heightFor, orderedItems, safeRange, revision])
+  }, [heightFor, orderedItems, safeRange, heightRevision])
 
   useEffect(() => {
     if (typeof IntersectionObserver === 'undefined' || !orderedItems.length) return
