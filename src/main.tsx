@@ -10,16 +10,35 @@ import './feed-engine.css'
 import './landing.css'
 import './demo.css'
 import './identity.css'
+import './app-system.css'
 
 const muiTheme = createTheme({
+  palette: {
+    mode: 'dark',
+    background: { default: '#0e1114', paper: '#11161b' },
+    primary: { main: '#2aabee' },
+    text: { primary: '#f4f7f9', secondary: '#8e9caa' },
+    divider: '#25313b',
+    action: { hover: 'rgba(255,255,255,.045)', selected: 'rgba(42,171,238,.10)' }
+  },
   typography: {
     fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-    button: { textTransform: 'none' }
+    button: { textTransform: 'none', fontWeight: 700 }
   },
-  shape: { borderRadius: 10 },
+  shape: { borderRadius: 12 },
   components: {
-    MuiButton: { defaultProps: { disableRipple: true, disableElevation: true } },
-    MuiIconButton: { defaultProps: { disableRipple: true } }
+    MuiButton: {
+      defaultProps: { disableRipple: true, disableElevation: true },
+      styleOverrides: { root: { borderRadius: 12, minHeight: 40 } }
+    },
+    MuiIconButton: {
+      defaultProps: { disableRipple: true },
+      styleOverrides: { root: { borderRadius: 10 } }
+    },
+    MuiPaper: { styleOverrides: { root: { backgroundImage: 'none' } } },
+    MuiDialog: { styleOverrides: { paper: { border: '1px solid #25313b', borderRadius: 24 } } },
+    MuiInputBase: { styleOverrides: { root: { borderRadius: 12 } } },
+    MuiTooltip: { styleOverrides: { tooltip: { background: '#17212b', color: '#f4f7f9', border: '1px solid #25313b', fontSize: 11 } } }
   }
 })
 
@@ -70,10 +89,10 @@ class RenderBoundary extends Component<{ children: ReactNode }, { error: string 
   render() {
     if (this.state.error) {
       return <main style={{ minHeight: 'var(--tg-viewport-height, 100vh)', display: 'grid', placeItems: 'center', padding: 24, background: '#0e1114', color: '#f4f7f9', fontFamily: 'Inter, system-ui, sans-serif' }}>
-        <section style={{ width: 'min(520px, 100%)', padding: 24, border: '1px solid #25313b', borderRadius: 16, background: '#11161b' }}>
-          <strong style={{ display: 'block', marginBottom: 8 }}>Supergram could not render this view.</strong>
-          <p style={{ margin: '0 0 16px', color: '#8e9caa', lineHeight: 1.5 }}>{this.state.error}</p>
-          <button className="pressable" onClick={() => location.reload()} style={{ border: 0, borderRadius: 10, padding: '10px 14px', background: '#2aabee', color: '#fff', fontWeight: 700 }}>Reload</button>
+        <section style={{ width: 'min(520px, 100%)', padding: 28, border: '1px solid #25313b', borderRadius: 24, background: '#11161b' }}>
+          <strong style={{ display: 'block', marginBottom: 8, fontSize: 22, letterSpacing: '-.035em' }}>Supergram could not render this view.</strong>
+          <p style={{ margin: '0 0 18px', color: '#8e9caa', lineHeight: 1.55 }}>{this.state.error}</p>
+          <button className="pressable" onClick={() => location.reload()} style={{ border: 0, borderRadius: 12, padding: '11px 16px', background: '#2aabee', color: '#fff', fontWeight: 700 }}>Reload</button>
         </section>
       </main>
     }
@@ -86,7 +105,7 @@ initInteractionEnvironment()
 
 const root = document.getElementById('root')
 if (!root) throw new Error('App root not found')
-root.innerHTML = '<div style="min-height:var(--tg-viewport-height,100vh);display:grid;place-items:center;background:#0e1114;color:#8e9caa;font:14px system-ui">Loading Supergram…</div>'
+root.innerHTML = '<div style="min-height:var(--tg-viewport-height,100vh);display:grid;place-items:center;background:#0e1114;color:#8e9caa;font:13px Inter,system-ui,sans-serif">Loading Supergram…</div>'
 createRoot(root).render(
   <StrictMode>
     <ThemeProvider theme={muiTheme}>
