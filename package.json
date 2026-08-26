@@ -1,7 +1,7 @@
 {
   "name": "supergram",
   "private": true,
-  "version": "0.4.4",
+  "version": "0.5.0",
   "type": "module",
   "engines": {
     "node": ">=22 <23"
@@ -17,6 +17,10 @@
     "vercel-build": "npm run copy:audit && npm run observer:audit && vite build"
   },
   "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@mui/icons-material": "^7.3.2",
+    "@mui/material": "^7.3.2",
     "cookie-parser": "^1.4.7",
     "express": "^5.1.0",
     "react": "^19.1.1",
