@@ -1,0 +1,80 @@
+/* Supergram UX overhaul. Loaded last so these rules deliberately normalize legacy layers. */
+
+.sg-brand-svg{display:grid;width:32px;height:32px;flex:0 0 32px}.sg-brand-svg svg{display:block;width:100%;height:100%}
+.sg-feed-toolbar{min-height:58px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 4px;border-bottom:1px solid var(--app-border-soft)}
+.sg-feed-mode{display:inline-flex;padding:3px;border:1px solid var(--app-border);border-radius:12px;background:var(--app-surface)}
+.sg-feed-mode button{min-height:36px;padding:0 15px;border:0;border-radius:9px;background:transparent;color:var(--app-secondary);font-size:13px;font-weight:650;cursor:pointer}
+.sg-feed-mode button.is-active{background:var(--app-raised);color:var(--app-text);box-shadow:var(--app-shadow-card)}
+.sg-all-sources-button{max-width:190px;min-height:40px;padding:0 12px;border:1px solid var(--app-border);border-radius:10px;background:transparent;color:var(--app-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:650}
+.sg-all-sources-button:hover{background:var(--app-hover);color:var(--app-text)}
+
+/* Sources are filters, not Stories. Remove Instagram-style semantic rings. */
+.sg-source-ring{background:transparent!important;padding:2px!important;border:1px solid transparent}
+.sg-source-bubble.is-active .sg-source-ring{background:transparent!important;border-color:var(--app-accent);box-shadow:0 0 0 1px var(--app-accent)!important}
+.sg-source-bubble.is-favorite:not(.is-active) .sg-source-ring{border-color:var(--app-border)}
+.sg-source-avatar{border:2px solid var(--app-bg)!important}
+.sg-all-avatar{background:var(--app-raised)!important;color:var(--app-text)!important}
+.sg-more-sources .sg-source-avatar{font-size:20px!important}
+
+.sg-source-open,.sg-source-line button{appearance:none;padding:0;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.sg-source-open{width:44px;height:44px;display:grid;place-items:center;margin-left:-3px;border-radius:50%}
+.sg-source-open:focus-visible,.sg-source-line button:focus-visible{outline:2px solid var(--app-accent);outline-offset:2px}
+.sg-source-line button{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:700;letter-spacing:-.01em}
+
+/* Effective touch targets. Icons stay visually compact. */
+.sg-post-actions-ref .sg-action,.sg-icon-button{min-width:44px!important;width:44px!important;min-height:44px!important;height:44px!important;border-radius:12px!important}
+.sg-post-actions-ref .sg-actions-left{gap:1px!important}.sg-post-actions-ref{min-height:44px!important}
+.sg-post-actions-ref .sg-action svg{width:21px!important;height:21px!important}
+.sg-mobile-nav button{min-width:48px!important;min-height:46px!important;display:flex!important;align-items:center!important;justify-content:center!important;gap:5px!important}
+.sg-mobile-nav button>span:last-child{font-size:10px;font-weight:700}
+.sg-account-button-mobile{width:44px;height:44px;padding:0;border:0;background:transparent;border-radius:12px;display:grid;place-items:center}
+
+.sg-share-search{height:44px;margin:0 0 8px;padding:0 11px;display:flex;align-items:center;gap:8px;border:1px solid var(--app-border);border-radius:10px;background:var(--app-raised);color:var(--app-secondary)}
+.sg-share-search svg{width:18px;height:18px}.sg-share-search input{width:100%;min-width:0;border:0;outline:0;background:transparent;color:var(--app-text);font-size:14px}
+.sg-why-list{display:grid;gap:2px}.sg-why-list>div{min-height:48px;padding:12px 4px;display:flex;align-items:center;border-bottom:1px solid var(--app-border-soft)}.sg-why-list>div:last-child{border-bottom:0}.sg-why-list strong{font-size:13px}
+
+.sg-story-evidence-link{margin:9px 10px 0 0;padding:0;border:0;background:transparent;color:var(--app-accent);font-size:11.5px;font-weight:700}.sg-story-evidence-link:hover{text-decoration:underline}
+.sg-story-sources{display:grid}.sg-story-source-row{min-height:96px;padding:12px 2px;display:grid;grid-template-columns:40px minmax(0,1fr) auto;align-items:start;gap:10px;border-bottom:1px solid var(--app-border-soft)}.sg-story-source-row:last-child{border-bottom:0}.sg-story-source-row .sg-avatar{width:38px;height:38px}.sg-story-source-copy{min-width:0;display:grid;gap:3px}.sg-story-source-copy>strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}.sg-story-source-copy>span{color:var(--app-muted);font-size:11px}.sg-story-source-copy>p{margin:4px 0 0;color:var(--app-secondary);font-size:12px;line-height:1.45}.sg-story-source-row>a{min-height:36px;padding:0 8px;display:flex;align-items:center;border-radius:8px;color:var(--app-accent);font-size:11px;font-weight:700}
+
+/* Media preview is a real keyboard target rather than an image with click behavior. */
+.sg-lightbox-button{display:block;width:100%;height:100%;margin:0;padding:0;border:0;background:transparent;color:inherit;cursor:zoom-in}
+.sg-lightbox-button:focus-visible{outline:2px solid var(--app-accent);outline-offset:-3px}
+.sg-lightbox-button img{width:100%;height:100%;display:block}
+
+/* Draggable sheets keep touch behavior while MUI owns focus, Escape, and scroll lock. */
+.sg-sheet-drag{position:relative;padding-right:52px!important}.sg-sheet-close{position:absolute!important;top:5px;right:6px;z-index:2;color:var(--app-secondary)!important}.sg-sheet-close svg{width:19px;height:19px}.MuiModal-root .sg-sheet-layer{z-index:inherit}
+
+.sg-connection-banner{margin:10px 0;padding:9px 12px;border:1px solid var(--app-border);border-radius:10px;background:var(--app-surface);color:var(--app-secondary);font-size:12px;text-align:center}
+.sg-feed-error>div{display:flex;align-items:center;gap:6px}.sg-error-retry{min-height:32px;padding:0 10px;border:1px solid currentColor;border-radius:8px;background:transparent;color:inherit;font-weight:700}
+.sg-search-all{width:100%;min-height:42px;margin-top:10px;border:1px solid var(--app-border);border-radius:10px;background:transparent;color:var(--app-muted);font-size:12px}
+.sg-sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+
+/* Verification is reserved for real Telegram verification data. */
+.sg-verified{font-size:9px}
+
+/* Keep small metadata readable. */
+.sg-post-who>span,.sg-engagement,.sg-source-bubble>span:last-child{font-size:11.5px!important}
+.sg-news-kicker{font-size:10.5px!important}.sg-auth-card>small,.auth-disclosure{font-size:11.5px!important}
+
+/* Settings/dialogs are controlled by MUI; keep their surface aligned with CSS theme. */
+.MuiDialog-paper{background-color:var(--app-surface)!important;color:var(--app-text)!important}
+.MuiDialogContent-root{border-color:var(--app-border-soft)!important}
+
+@media(max-width:720px){
+  .sg-feed-toolbar{position:sticky;top:58px;z-index:55;padding:8px 12px;background:color-mix(in srgb,var(--app-bg) 92%,transparent);backdrop-filter:blur(16px)}
+  .sg-feed-mode button{min-height:34px;padding:0 12px;font-size:12px}
+  .sg-all-sources-button{max-width:132px;min-height:36px}
+  .sg-source-strip{height:84px!important;padding-top:9px!important;padding-bottom:8px!important}
+  .sg-source-ring{width:46px!important;height:46px!important}.sg-source-avatar{width:42px!important;height:42px!important}.sg-source-bubble{width:52px!important;gap:5px!important}
+  .sg-feed{padding:0!important;gap:8px!important}
+  .sg-virtual-row{border-left:0!important;border-right:0!important;border-radius:0!important;box-shadow:none!important}
+  .sg-post{padding:11px 12px 13px!important}
+  .sg-mobile-nav{width:min(360px,calc(100% - 20px))!important;height:62px!important;border-radius:20px!important}
+  .sg-mobile-nav button{flex:1!important;border-radius:14px!important}
+  .sg-mobile-nav button.is-active{min-width:62px!important}
+}
+
+@media(prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto!important}
+  .sg-new-posts,.sg-post,.sg-mobile-nav button,.sg-feed-mode button{transition:none!important}
+}
