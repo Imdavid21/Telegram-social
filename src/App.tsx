@@ -6,6 +6,7 @@ import { DemoPage } from './components/DemoPage'
 import { PromptModal } from './components/AuthModal'
 import { ScrollAnchorBridge } from './components/ScrollAnchorBridge'
 import { LogOutIcon } from './components/Icons'
+import { BrandMark } from './components/BrandMark'
 import type { AuthPrompt } from './types'
 import { authFlow, authStatus, beginAuth, healthStatus, logoutTelegram, submitAuth } from './lib/api'
 import { haptics } from './lib/interaction'
@@ -23,7 +24,7 @@ function promptFromFlow(flow: Flow): AuthPrompt | null {
 function SessionBoot() {
   return <main className="sg-session-boot" aria-label="Restoring Supergram session">
     <aside className="sg-session-boot-rail">
-      <div className="sg-session-boot-brand"><span>S</span><strong>Supergram</strong></div>
+      <div className="sg-session-boot-brand"><BrandMark /><strong>Supergram</strong></div>
       {[0,1,2,3,4].map(i => <div className="sg-session-boot-nav" key={i}><Skeleton variant="circular" width={22} height={22} /><Skeleton width={82} height={18} /></div>)}
     </aside>
     <section className="sg-session-boot-feed">
