@@ -561,6 +561,10 @@ export default function ProductApp() {
             const channel = channelMap.get(item.channelId)
             if (!channel) return null
             const displayChannel = savedMessagesSourceId && channel.id === savedMessagesSourceId ? { ...channel, title: 'Saved Messages', initials: 'SM' } : channel
+            const storyEntries = (item.storyMembers || []).flatMap(member => {
+              const storyChannel = channelMap.get(member.channelId)
+              return storyChannel ? [{ member, channel: storyChannel }] : []
+            })
             return item.sponsored
               ? <SponsoredCard item={item} channel={displayChannel} index={index} />
               : <FeedCard
@@ -569,6 +573,7 @@ export default function ProductApp() {
                   feedMode={settings.feedMode}
                   favoriteSource={favorites.has(channel.id)}
                   summarizePrivateChats={settings.summarizePrivateChats}
+                  storyEntries={storyEntries}
                   onSave={toggleSave}
                   onRead={markRead}
                   onFavoriteSource={toggleFavorite}
