@@ -6,6 +6,9 @@ import { SuccessConfirm } from './SuccessConfirm'
 import { BottomSheet } from './BottomSheet'
 import { haptics } from '../lib/interaction'
 
+const HOUR = 60 * 60 * 1000
+const URGENT_TERMS = /\b(breaking|urgent|alert|deadline|today|now|live|incident|outage|exploit|hack|hacked|breach|warning|critical|launch|listing|delist|airdrop|snapshot|vote|proposal|claim|ends? in|last chance|action required|security)\b/i
+
 function timeAgo(timestamp: number) {
   const value = Number(timestamp)
   if (!Number.isFinite(value) || value <= 0) return ''
@@ -21,6 +24,43 @@ function timeAgo(timestamp: number) {
 function originalPostUrl(item: FeedItem, channel?: Channel) {
   if (!channel?.username || !item.messageId) return null
   return `https://t.me/${encodeURIComponent(channel.username)}/${Number(item.messageId)}`
+}
+
+function cleanText(value: string) {
+  return value
+    .replace(/https?:\/\/\S+/g, '')
+    .replace(/(^|\s)@[\w_]+/g, '$1')
+    .replace(/(^|\s)#[\w-]+/g, '$1')
+    .replace(/[•▪◦]\s*/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function clipAtWord(value: string, limit: number) {
+  if (value.length <= limit) return value
+  const clipped = value.slice(0, limit + 1)
+  const cut = clipped.lastIndexOf(' ')
+  return `${(cut > limit * .65 ? clipped.slice(0, cut) : clipped.slice(0, limit)).trim()}…`
+}
+
+function makeNewsBrief(text: string) {
+  const cleaned = cleanText(text)
+  if (!cleaned) return { headline: 'Telegram update', brief: '' }
+
+  const sentences = cleaned.split(/(?<=[.!?])\s+/).filter(Boolean)
+  const first = sentences[0] || cleaned
+  let headline = first.replace(/[.!?]+$/, '').trim()
+
+  if (headline.length > 94) {
+    const lead = headline.split(/[:;–—-]/)[0]?.trim()
+    headline = lead && lead.length >= 24 && lead.length <= 94 ? lead : clipAtWord(headline, 88)
+  }
+
+  const remaining = sentences.slice(1).join(' ').trim()
+  const fallback = cleaned.slice(first.length).trim().replace(/^[.!?\s-]+/, '')
+  const brief = clipAtWord(remaining || fallback || cleaned, 230)
+
+  return { headline: clipAtWord(headline, 94), brief: brief === headline ? '' : brief }
 }
 
 function SourceAvatar({ channel }: { channel: Channel }) {
@@ -47,6 +87,10 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
   const reactions = useMemo(() => Array.isArray(item.reactions) ? item.reactions.filter(Boolean).slice(0, 6) : [], [item.reactions])
   const media = item.media && typeof item.media === 'object' ? item.media : undefined
   const text = String(item.text || '')
+  const ageHours = Math.max(0, (Date.now() - Number(item.timestamp || 0)) / HOUR)
+  const isNewsBrief = !media && ageHours >= 24 && ageHours <= 168 && text.trim().length > 80
+  const newsBrief = useMemo(() => makeNewsBrief(text), [text])
+  const isUrgent = URGENT_TERMS.test(text)
   const isLong = text.length > 650
   const visibleText = !expanded && isLong ? `${text.slice(0, 650).trimEnd()}…` : text
   const privateSource = Boolean(channel.private || (!channel.username && (channel.type === 'person' || item.sourceType === 'person')))
@@ -96,7 +140,7 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
     setMoreOpen(true)
   }
 
-  return <article ref={root} className={`sg-post ${item.unread ? 'is-unread' : ''} ${media ? 'has-media' : 'text-only'} ${saveConfirm ? 'is-confirming' : ''}`} data-feed-index={index}>
+  return <article ref={root} className={`sg-post ${item.unread ? 'is-unread' : ''} ${media ? 'has-media' : 'text-only'} ${isNewsBrief ? 'is-news-brief' : ''} ${isUrgent ? 'is-priority' : ''} ${saveConfirm ? 'is-confirming' : ''}`} data-feed-index={index}>
     <header className="sg-post-head">
       <SourceAvatar channel={channel} />
       <div className="sg-post-who">
@@ -107,13 +151,20 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
         </div>
         <span>{channel.username ? `@${channel.username}` : channel.type === 'group' ? 'Group' : channel.type === 'person' ? 'Private chat' : 'Telegram'} · {timeAgo(item.timestamp)}{item.edited ? ' · edited' : ''}</span>
       </div>
+      {isUrgent && <span className="sg-priority-badge">Priority</span>}
       {item.unread && <span className="sg-unread-dot" title="Unread" />}
       <button className="sg-icon-button sg-more pressable" onClick={openMore} aria-label="Post options"><MoreIcon /></button>
     </header>
 
     {media && <div className={`sg-media sg-media-${media.kind}`}><MediaRenderer media={media} /></div>}
 
-    {visibleText && <div className={`sg-caption ${media ? '' : 'sg-text-post'}`}>
+    {isNewsBrief ? <div className="sg-news-brief">
+      <span className="sg-news-kicker">Brief · {timeAgo(item.timestamp)}</span>
+      <strong>{newsBrief.headline}</strong>
+      {newsBrief.brief && <p>{newsBrief.brief}</p>}
+      <button type="button" className="sg-news-expand pressable" onClick={() => setExpanded(value => !value)}>{expanded ? 'Hide original' : 'Read original'}</button>
+      {expanded && <div className="sg-news-original">{text}</div>}
+    </div> : visibleText && <div className={`sg-caption ${media ? '' : 'sg-text-post'}`}>
       <span className="sg-caption-source">{String(channel.title || 'Telegram')}</span>{' '}
       <span>{visibleText}</span>
       {isLong && <button className="sg-more-text pressable" onClick={() => setExpanded(value => !value)}>{expanded ? 'less' : 'more'}</button>}
