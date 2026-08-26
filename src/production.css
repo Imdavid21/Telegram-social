@@ -32,3 +32,110 @@
   font-size: 10px;
   line-height: 1.5;
 }
+
+/* Clean desktop home: one focused reading column, no secondary profile/source rail. */
+@media (min-width: 1025px) {
+  .sg-app .sg-right-rail { display: none; }
+  .sg-app .sg-main {
+    width: min(980px, calc(100% - 244px));
+    grid-template-columns: minmax(0, 760px);
+    justify-content: center;
+    gap: 0;
+    padding: 0 42px 84px;
+  }
+  .sg-app .sg-feed-column { max-width: 760px; }
+  .sg-app .sg-source-strip {
+    height: 108px;
+    padding: 20px 0 12px;
+    gap: 12px;
+    border-bottom-color: transparent;
+  }
+  .sg-app .sg-source-ring { width: 54px; height: 54px; }
+  .sg-app .sg-source-avatar { width: 50px; height: 50px; }
+  .sg-app .sg-source-bubble { width: 62px; gap: 6px; }
+  .sg-app .sg-post { padding-top: 22px; padding-bottom: 25px; }
+}
+
+/* News-style compression for text posts between one and seven days old. */
+.sg-news-brief {
+  margin: 3px 0 13px;
+  padding: 2px 0 3px;
+}
+.sg-news-kicker {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--sg-blue);
+  font-size: 9.5px;
+  font-weight: 760;
+  letter-spacing: .055em;
+  text-transform: uppercase;
+}
+.sg-news-brief > strong {
+  display: block;
+  max-width: 680px;
+  color: var(--sg-text);
+  font-size: clamp(18px, 2.2vw, 23px);
+  line-height: 1.18;
+  letter-spacing: -.025em;
+}
+.sg-news-brief > p {
+  max-width: 660px;
+  margin: 8px 0 0;
+  color: var(--sg-text-2);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.sg-news-expand {
+  margin: 9px 0 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--sg-text-3);
+  font-size: 10.5px;
+  font-weight: 650;
+}
+.sg-news-expand:hover { color: var(--sg-text); }
+.sg-news-original {
+  margin-top: 12px;
+  padding-left: 12px;
+  border-left: 2px solid var(--sg-border);
+  color: var(--sg-text-2);
+  font-size: 12.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Urgency is visible but deliberately quiet. */
+.sg-priority-badge {
+  padding: 4px 7px;
+  border: 1px solid color-mix(in srgb, var(--sg-danger) 34%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--sg-danger) 8%, transparent);
+  color: var(--sg-danger);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .035em;
+  text-transform: uppercase;
+}
+.sg-post.is-priority::after {
+  content: "";
+  position: absolute;
+  inset: 21px auto auto -1px;
+  width: 2px;
+  height: 42px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--sg-danger) 72%, transparent);
+}
+
+/* Reduce visual chrome so content and media carry the interface. */
+.sg-app .sg-post-head { margin-bottom: 9px; }
+.sg-app .sg-post-actions { opacity: .78; }
+.sg-app .sg-post:hover .sg-post-actions { opacity: 1; }
+.sg-app .sg-engagement { opacity: .82; }
+
+@media (max-width: 720px) {
+  .sg-news-brief > strong { font-size: 19px; }
+  .sg-news-brief > p { font-size: 12.5px; }
+  .sg-priority-badge { display: none; }
+}
