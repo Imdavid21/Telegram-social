@@ -63,6 +63,15 @@ function isHeart(value?: string) {
   return value === '❤' || value === '❤️' || value === '♥' || value === '♥️'
 }
 
+function sourceDescriptor(channel: Channel) {
+  if (channel.scam) return 'Telegram marks this source as scam'
+  if (channel.fake) return 'Telegram marks this source as fake'
+  if (channel.bot) return 'Bot'
+  if (channel.type === 'person') return 'Private chat'
+  if (channel.type === 'group') return 'Group'
+  return 'Telegram source'
+}
+
 function SourceAvatar({ channel }: { channel: Channel }) {
   const [failed, setFailed] = useState(false)
   const initials = String(channel.initials || channel.title?.slice(0, 2) || 'SG').toUpperCase()
@@ -113,6 +122,7 @@ export function FeedCard({
   const [moreOpen, setMoreOpen] = useState(false)
   const initialHeart = isHeart(item.myReaction) || item.reactions?.some(reaction => reaction.chosen && isHeart(reaction.emoji)) || false
   const [liked, setLiked] = useState(initialHeart)
+  const [reactionRows, setReactionRows] = useState<FeedItem['reactions']>(() => Array.isArray(item.reactions) ? item.reactions : [])
   const [likeBusy, setLikeBusy] = useState(false)
   const [replyOpen, setReplyOpen] = useState(false)
   const [replyText, setReplyText] = useState('')
@@ -128,7 +138,7 @@ export function FeedCard({
   const [brief, setBrief] = useState<Brief | null>(null)
   const [briefState, setBriefState] = useState<BriefState>('idle')
   const original = originalPostUrl(item, channel)
-  const reactions = useMemo(() => Array.isArray(item.reactions) ? item.reactions.filter(Boolean).slice(0, 6) : [], [item.reactions])
+  const reactions = useMemo(() => Array.isArray(reactionRows) ? reactionRows.filter(Boolean).slice(0, 6) : [], [reactionRows])
   const media = item.media && typeof item.media === 'object' ? item.media : undefined
   const text = String(item.text || '')
   const ageHours = Math.max(0, (Date.now() - Number(item.timestamp || 0)) / HOUR)
@@ -157,7 +167,9 @@ export function FeedCard({
   }, [shareQuery, shareTargets])
 
   useEffect(() => {
-    const selected = isHeart(item.myReaction) || item.reactions?.some(reaction => reaction.chosen && isHeart(reaction.emoji)) || false
+    const rows = Array.isArray(item.reactions) ? item.reactions : []
+    const selected = isHeart(item.myReaction) || rows.some(reaction => reaction.chosen && isHeart(reaction.emoji)) || false
+    setReactionRows(rows)
     setLiked(selected)
   }, [item.id, item.myReaction, item.reactions])
 
@@ -222,7 +234,9 @@ export function FeedCard({
     setInteractionError('')
     haptics.light()
     try {
-      await setTelegramReaction(item, next)
+      const result = await setTelegramReaction(item, next)
+      setLiked(Boolean(result.liked))
+      if (Array.isArray(result.reactions)) setReactionRows(result.reactions)
     } catch (error) {
       setLiked(!next)
       setInteractionError(String((error as Error)?.message || 'Could not update reaction.'))
@@ -314,7 +328,10 @@ export function FeedCard({
         <div className="sg-source-line">
           <button type="button" onClick={() => onSourceOpen?.(channel)}>{String(channel.title || 'Telegram')}</button>
           {privateSource && <LockIcon className="sg-private-icon" />}
-          {channel.verified && <span className="sg-verified" title="Verified Telegram source">✓</span>}
+          {channel.verified && <span className="sg-verified" title="Verified by Telegram" aria-label="Verified by Telegram">✓</span>}
+          {channel.scam && <span className="sg-trust-warning" title="Telegram marks this source as scam">Scam</span>}
+          {channel.fake && <span className="sg-trust-warning" title="Telegram marks this source as fake">Fake</span>}
+          {channel.bot && <span className="sg-source-kind" title="Telegram bot">Bot</span>}
         </div>
         <span>{channel.username ? `@${channel.username}` : channel.type === 'group' ? 'Group' : channel.type === 'person' ? 'Private chat' : 'Telegram'} · <time dateTime={new Date(item.timestamp).toISOString()} title={new Date(item.timestamp).toLocaleString()}>{timeAgo(item.timestamp)}</time>{item.outgoing ? ' · sent by you' : ''}{storySources > 1 ? ` · ${storySources} sources` : ''}{item.edited ? ' · edited' : ''}</span>
       </div>
@@ -349,7 +366,7 @@ export function FeedCard({
     {interactionError && <div className="sg-interaction-error" role="status">{interactionError}</div>}
 
     {(reactions.length > 0 || item.views || item.comments) && <div className="sg-engagement">
-      {reactions.length > 0 && <span className="sg-reaction-summary">{reactions.map((reaction, i) => <span key={`${String(reaction?.emoji || '♥')}-${i}`}>{String(reaction?.emoji || '♥')} {Number(reaction?.count || 0)}</span>)}</span>}
+      {reactions.length > 0 && <span className="sg-reaction-summary">{reactions.map((reaction, i) => <span className={reaction.chosen ? 'is-chosen' : undefined} key={`${String(reaction?.emoji || '♥')}-${i}`}>{String(reaction?.emoji || '♥')} {Number(reaction?.count || 0)}</span>)}</span>}
       <span className="sg-stats">{item.views && <span><EyeIcon />{String(item.views)}</span>}{!!Number(item.comments || 0) && <span><MessageIcon />{Number(item.comments || 0)}</span>}</span>
     </div>}
 
@@ -379,7 +396,7 @@ export function FeedCard({
           return <article key={`${member.channelId}:${member.messageId}`} className="sg-story-source-row">
             <SourceAvatar channel={source} />
             <div className="sg-story-source-copy">
-              <strong>{source.title}</strong>
+              <strong>{source.title}{source.verified ? ' ✓' : ''}</strong>
               <span>{source.username ? `@${source.username}` : source.type === 'group' ? 'Group' : source.type === 'person' ? 'Private chat' : 'Telegram'} · <time dateTime={new Date(member.timestamp).toISOString()}>{timeAgo(member.timestamp)}</time></span>
               <p>{clipAtWord(cleanText(member.text) || 'Telegram post', 180)}</p>
             </div>
@@ -391,7 +408,7 @@ export function FeedCard({
     </BottomSheet>
 
     <BottomSheet open={moreOpen} onClose={() => setMoreOpen(false)} title={channel.title || 'Post options'}>
-      <div className="sg-sheet-source"><SourceAvatar channel={channel} /><div><strong>{channel.title}</strong><span>{channel.username ? `@${channel.username}` : channel.type === 'person' ? 'Private chat' : channel.type === 'group' ? 'Group' : 'Telegram source'}</span></div></div>
+      <div className="sg-sheet-source"><SourceAvatar channel={channel} /><div><strong>{channel.title}{channel.verified ? ' ✓' : ''}</strong><span>{channel.username ? `@${channel.username}` : sourceDescriptor(channel)}</span>{channel.scam || channel.fake ? <small className="sg-sheet-trust-warning">{sourceDescriptor(channel)}</small> : null}</div></div>
       <div className="sg-sheet-actions">
         <button type="button" className="pressable" onClick={() => { setMoreOpen(false); setWhyOpen(true) }}><EyeIcon /><span><strong>Why this post?</strong><small>{feedMode === 'latest' ? 'Latest is ordered chronologically' : 'See what influenced its position'}</small></span></button>
         {hasStoryEvidence ? <button type="button" className="pressable" onClick={() => { setMoreOpen(false); setStoryOpen(true) }}><MessageIcon /><span><strong>View {storySources} sources</strong><small>Inspect the Telegram posts grouped into this story</small></span></button> : null}

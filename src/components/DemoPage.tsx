@@ -57,9 +57,10 @@ export function DemoPage({ onConnect }: { onConnect: () => void }) {
       <section className="demo-feed">
         {visible.map(item => {
           const channel = demoChannels.find(source => source.id === item.channelId)!
+          const demoMedia = item.media && item.media.kind !== 'album' ? item.media : null
           return <article className="demo-post" key={item.id}>
             <header><span className="demo-post-avatar" style={{ background: channel.accent }}>{channel.initials}</span><div><strong>{channel.title}</strong><span>{channel.username ? `@${channel.username}` : 'Telegram source'} · {timeAgo(item.timestamp)}</span></div></header>
-            {item.media ? <div className="demo-media" style={{ background: item.media.gradient }}><span>{item.media.label}</span></div> : null}
+            {demoMedia ? <div className="demo-media" style={{ background: demoMedia.gradient }}><span>{demoMedia.label}</span></div> : null}
             <div className="demo-actions"><span><button className="pressable" aria-label="Like"><HeartIcon /></button><button className="pressable" aria-label="Comment"><MessageIcon /></button><button className="pressable" aria-label="Share"><SendIcon /></button></span><button className={`pressable ${saved.has(item.id) ? 'is-saved' : ''}`} onClick={() => toggleSaved(item.id)} aria-label="Save"><BookmarkIcon /></button></div>
             <p><strong>{channel.title}</strong> {item.text}</p>
             <div className="demo-meta"><span>{item.reactions.map(reaction => `${reaction.emoji} ${reaction.count}`).join('  ')}</span><span>{item.views ? `${item.views} views` : ''}</span></div>
