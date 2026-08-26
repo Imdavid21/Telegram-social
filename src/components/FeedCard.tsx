@@ -91,6 +91,9 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
   const isNewsBrief = !media && ageHours >= 24 && ageHours <= 168 && text.trim().length > 80
   const newsBrief = useMemo(() => makeNewsBrief(text), [text])
   const isUrgent = URGENT_TERMS.test(text)
+  const storySources = Math.max(0, Number(item.storySources || 0))
+  const storyVelocity = Math.max(0, Number(item.storyVelocity || 0))
+  const isTrending = Boolean(item.storyClustered && (storySources >= 3 || storyVelocity >= 1.25))
   const isLong = text.length > 650
   const visibleText = !expanded && isLong ? `${text.slice(0, 650).trimEnd()}…` : text
   const privateSource = Boolean(channel.private || (!channel.username && (channel.type === 'person' || item.sourceType === 'person')))
@@ -140,7 +143,7 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
     setMoreOpen(true)
   }
 
-  return <article ref={root} className={`sg-post ${item.unread ? 'is-unread' : ''} ${media ? 'has-media' : 'text-only'} ${isNewsBrief ? 'is-news-brief' : ''} ${isUrgent ? 'is-priority' : ''} ${saveConfirm ? 'is-confirming' : ''}`} data-feed-index={index}>
+  return <article ref={root} className={`sg-post ${item.unread ? 'is-unread' : ''} ${media ? 'has-media' : 'text-only'} ${isNewsBrief ? 'is-news-brief' : ''} ${isUrgent ? 'is-priority' : ''} ${isTrending ? 'is-trending' : ''} ${saveConfirm ? 'is-confirming' : ''}`} data-feed-index={index}>
     <header className="sg-post-head">
       <SourceAvatar channel={channel} />
       <div className="sg-post-who">
@@ -149,9 +152,9 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
           {privateSource && <LockIcon className="sg-private-icon" />}
           {channel.username && <span className="sg-verified">✓</span>}
         </div>
-        <span>{channel.username ? `@${channel.username}` : channel.type === 'group' ? 'Group' : channel.type === 'person' ? 'Private chat' : 'Telegram'} · {timeAgo(item.timestamp)}{item.edited ? ' · edited' : ''}</span>
+        <span>{channel.username ? `@${channel.username}` : channel.type === 'group' ? 'Group' : channel.type === 'person' ? 'Private chat' : 'Telegram'} · {timeAgo(item.timestamp)}{storySources > 1 ? ` · ${storySources} sources` : ''}{item.edited ? ' · edited' : ''}</span>
       </div>
-      {isUrgent && <span className="sg-priority-badge">Priority</span>}
+      {isUrgent ? <span className="sg-priority-badge">Priority</span> : isTrending ? <span className="sg-trending-badge">Trending</span> : null}
       {item.unread && <span className="sg-unread-dot" title="Unread" />}
       <button className="sg-icon-button sg-more pressable" onClick={openMore} aria-label="Post options"><MoreIcon /></button>
     </header>
@@ -159,7 +162,7 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
     {media && <div className={`sg-media sg-media-${media.kind}`}><MediaRenderer media={media} /></div>}
 
     {isNewsBrief ? <div className="sg-news-brief">
-      <span className="sg-news-kicker">Brief · {timeAgo(item.timestamp)}</span>
+      <span className="sg-news-kicker">{storySources > 1 ? `${storySources} sources · ` : ''}Brief · {timeAgo(item.timestamp)}</span>
       <strong>{newsBrief.headline}</strong>
       {newsBrief.brief && <p>{newsBrief.brief}</p>}
       <button type="button" className="sg-news-expand pressable" onClick={() => setExpanded(value => !value)}>{expanded ? 'Hide original' : 'Read original'}</button>
