@@ -1,5 +1,6 @@
 import { Component, StrictMode, type ErrorInfo, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { CssBaseline, ThemeProvider, createTheme } from '@mui/material'
 import App from './App'
 import { initInteractionEnvironment } from './lib/interaction'
 import './styles.css'
@@ -9,6 +10,18 @@ import './feed-engine.css'
 import './landing.css'
 import './demo.css'
 import './identity.css'
+
+const muiTheme = createTheme({
+  typography: {
+    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    button: { textTransform: 'none' }
+  },
+  shape: { borderRadius: 10 },
+  components: {
+    MuiButton: { defaultProps: { disableRipple: true, disableElevation: true } },
+    MuiIconButton: { defaultProps: { disableRipple: true } }
+  }
+})
 
 async function clearLegacyPwa() {
   if ('serviceWorker' in navigator) {
@@ -74,4 +87,11 @@ initInteractionEnvironment()
 const root = document.getElementById('root')
 if (!root) throw new Error('App root not found')
 root.innerHTML = '<div style="min-height:var(--tg-viewport-height,100vh);display:grid;place-items:center;background:#0e1114;color:#8e9caa;font:14px system-ui">Loading Supergram…</div>'
-createRoot(root).render(<StrictMode><RenderBoundary><App /></RenderBoundary></StrictMode>)
+createRoot(root).render(
+  <StrictMode>
+    <ThemeProvider theme={muiTheme}>
+      <CssBaseline />
+      <RenderBoundary><App /></RenderBoundary>
+    </ThemeProvider>
+  </StrictMode>
+)
