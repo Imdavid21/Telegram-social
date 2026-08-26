@@ -89,8 +89,10 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
   const media = item.media && typeof item.media === 'object' ? item.media : undefined
   const text = String(item.text || '')
   const ageHours = Math.max(0, (Date.now() - Number(item.timestamp || 0)) / HOUR)
-  const minimumBriefLength = item.sourceType === 'person' || channel.type === 'person' ? 48 : 80
-  const isNewsBrief = !media && ageHours <= 168 && text.trim().length >= minimumBriefLength
+  const privateConversation = item.sourceType === 'person' || channel.type === 'person'
+  const minimumBriefLength = privateConversation ? 24 : 56
+  const meaningfulWords = cleanText(text).split(/\s+/).filter(Boolean).length
+  const isNewsBrief = ageHours <= 168 && text.trim().length >= minimumBriefLength && meaningfulWords >= (privateConversation ? 5 : 8)
   const isUrgent = URGENT_TERMS.test(text)
   const storySources = Math.max(0, Number(item.storySources || 0))
   const storyVelocity = Math.max(0, Number(item.storyVelocity || 0))
@@ -106,8 +108,9 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
       return
     }
     const controller = new AbortController()
-    setBrief(localBrief(text))
-    setBriefState('loading')
+    const immediate = localBrief(text)
+    setBrief(immediate)
+    setBriefState('local')
     void summarizeMessage(text, {
       outgoing: Boolean(item.outgoing),
       sourceType: item.sourceType || channel.type,
@@ -208,7 +211,7 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
     recordViewerAction({ type: 'open', itemId: item.id, channelId: item.channelId, timestamp: Date.now(), media: Boolean(media) })
   }
 
-  const briefLabel = briefState === 'ai' ? 'AI brief' : briefState === 'loading' ? 'Summarizing' : 'Local brief'
+  const briefLabel = briefState === 'ai' ? 'AI brief' : 'Smart brief'
 
   return <article ref={root} className={`sg-post ${item.unread ? 'is-unread' : ''} ${media ? 'has-media' : 'text-only'} ${isNewsBrief ? 'is-news-brief' : ''} ${isUrgent ? 'is-priority' : ''} ${isTrending ? 'is-trending' : ''} ${saveConfirm ? 'is-confirming' : ''}`} data-feed-index={index}>
     <header className="sg-post-head">
