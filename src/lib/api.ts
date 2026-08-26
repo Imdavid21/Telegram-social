@@ -1,4 +1,4 @@
-import type { Channel, FeedDiagnostics, FeedItem, FeedPage, FeedUpdate, TelegramAccount } from '../types'
+import type { Channel, FeedDiagnostics, FeedItem, FeedPage, FeedUpdate, TelegramAccount, TelegramSearchResponse } from '../types'
 
 type FlowState = { step: 'starting'|'processing'|'phone'|'code'|'password'|'done'|'error'; error?: string | null; meta?: Record<string, unknown> }
 type HealthState = { ok: boolean; configured: boolean; runtime?: string; version?: string }
@@ -95,6 +95,12 @@ export function fetchFeedDiagnostics() {
   return request<FeedDiagnostics>('/api/feed/diagnostics')
 }
 
+export function searchTelegram(query: string, options: { sourceId?: string; limit?: number } = {}, signal?: AbortSignal) {
+  const params = new URLSearchParams({ q: query.trim(), limit: String(Math.min(80, Math.max(1, options.limit || 50))) })
+  if (options.sourceId) params.set('sourceId', options.sourceId)
+  return request<TelegramSearchResponse>(`/api/search?${params}`, { signal })
+}
+
 export function fetchMediaTicket(endpoint: string, signal?: AbortSignal) {
   if (!endpoint.startsWith('/api/media/ticket/')) throw new Error('Invalid media ticket endpoint.')
   return request<{ url: string; expiresAt: number }>(endpoint, { signal })
@@ -102,9 +108,18 @@ export function fetchMediaTicket(endpoint: string, signal?: AbortSignal) {
 
 export { buildTelegramSummary as buildContextualBrief, summarizeTelegramMessage as summarizeMessage } from './telegramSummary'
 
+function isHeartEmoji(value?: string) {
+  return value === '❤' || value === '❤️' || value === '♥' || value === '♥️'
+}
 
 export type ShareTarget = { id: string; title: string; username?: string; initials?: string; accent?: string; avatar?: string }
-export function setTelegramReaction(item: FeedItem, liked: boolean) { return request<{ ok: boolean; liked: boolean }>('/api/reaction', { method: 'POST', body: JSON.stringify({ channelId: item.channelId, messageId: item.messageId, liked }) }) }
+export async function setTelegramReaction(item: FeedItem, liked: boolean) {
+  const result = await request<{ ok: boolean; liked: boolean; reactions?: FeedItem['reactions']; myReaction?: string }>('/api/reaction', { method: 'POST', body: JSON.stringify({ channelId: item.channelId, messageId: item.messageId, liked }) })
+  const chosenHeart = Array.isArray(result.reactions)
+    ? result.reactions.some(reaction => Boolean(reaction?.chosen) && isHeartEmoji(reaction?.emoji))
+    : result.liked
+  return { ...result, liked: chosenHeart }
+}
 export function replyToTelegramPost(item: FeedItem, text: string) { return request<{ ok: boolean; messageId?: number }>('/api/reply', { method: 'POST', body: JSON.stringify({ channelId: item.channelId, messageId: item.messageId, text }) }) }
 export function fetchShareTargets() { return request<{ targets: ShareTarget[] }>('/api/share-targets') }
 export function forwardTelegramPost(item: FeedItem, targetId: string) { return request<{ ok: boolean }>('/api/forward', { method: 'POST', body: JSON.stringify({ channelId: item.channelId, messageId: item.messageId, targetId }) }) }
