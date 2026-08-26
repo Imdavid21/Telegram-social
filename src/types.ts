@@ -104,5 +104,5 @@ export interface TelegramCredentials {
 
 export type AuthPrompt =
   | { type: 'phone'; title: string; hint: string }
-  | { type: 'code'; title: 'Verification code'; hint: string }
+  | { type: 'code'; title: string; hint: string }
   | { type: 'password'; title: string; hint: string }
