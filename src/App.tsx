@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Button } from '@mui/material'
+import { Button, Skeleton } from '@mui/material'
 import ProductApp from './ProductApp'
 import { LandingPage } from './components/LandingPage'
 import { DemoPage } from './components/DemoPage'
@@ -18,6 +18,23 @@ function promptFromFlow(flow: Flow): AuthPrompt | null {
   if (flow.step === 'code') return { type: 'code', title: 'Verification code', hint: flow.meta?.viaApp ? 'Telegram sent the code to another signed-in device.' : 'Enter the code Telegram sent you.' }
   if (flow.step === 'password') return { type: 'password', title: 'Two-step verification', hint: String(flow.meta?.hint || 'Enter your Telegram password.') }
   return null
+}
+
+function SessionBoot() {
+  return <main className="sg-session-boot" aria-label="Restoring Supergram session">
+    <aside className="sg-session-boot-rail">
+      <div className="sg-session-boot-brand"><span>S</span><strong>Supergram</strong></div>
+      {[0,1,2,3,4].map(i => <div className="sg-session-boot-nav" key={i}><Skeleton variant="circular" width={22} height={22} /><Skeleton width={82} height={18} /></div>)}
+    </aside>
+    <section className="sg-session-boot-feed">
+      <div className="sg-session-boot-stories">{[0,1,2,3,4,5].map(i => <Skeleton key={i} variant="circular" width={52} height={52} />)}</div>
+      {[0,1,2].map(i => <div className="sg-session-boot-card" key={i}>
+        <div><Skeleton variant="circular" width={36} height={36} /><span><Skeleton width={112} height={17} /><Skeleton width={72} height={13} /></span></div>
+        <Skeleton variant="rectangular" width="100%" height={i === 0 ? 340 : 180} />
+        <Skeleton width="74%" height={16} /><Skeleton width="54%" height={16} />
+      </div>)}
+    </section>
+  </main>
 }
 
 export default function App() {
@@ -126,6 +143,8 @@ export default function App() {
     window.location.href = '/'
   }
 
+  if (connected === null) return <SessionBoot />
+
   if (demoMode && !connected) return <><DemoPage onConnect={connect} /><PromptModal prompt={authPrompt} onSubmit={submitPrompt} onCancel={() => { setAuthPrompt(null); setConnecting(false) }} /></>
   if (connected) return <>
     <ScrollAnchorBridge><ProductApp /></ScrollAnchorBridge>
@@ -136,6 +155,7 @@ export default function App() {
       startIcon={<LogOutIcon />}
       disabled={loggingOut}
       onClick={() => void logout()}
+      className="sg-global-logout"
       sx={{
         position: 'fixed',
         top: 14,
@@ -143,22 +163,21 @@ export default function App() {
         zIndex: 1400,
         minWidth: 0,
         px: 1.25,
-        color: 'text.secondary',
-        bgcolor: 'background.default',
-        border: '1px solid',
-        borderColor: 'divider',
-        borderRadius: 2,
+        color: 'var(--app-secondary)',
+        bgcolor: 'var(--app-surface)',
+        border: '1px solid var(--app-border)',
+        borderRadius: '10px',
         fontSize: 12,
         fontWeight: 600,
         textTransform: 'none',
         boxShadow: 'none',
-        '&:hover': { bgcolor: 'action.hover', boxShadow: 'none' }
+        '&:hover': { bgcolor: 'var(--app-hover)', boxShadow: 'none' }
       }}
     >{loggingOut ? 'Logging out' : 'Logout'}</Button>
   </>
 
   return <>
-    <LandingPage onConnect={connect} onDemo={() => { window.location.href = '/?demo=1' }} connecting={connecting} backendReady={backendReady} booting={connected === null} error={error} />
+    <LandingPage onConnect={connect} onDemo={() => { window.location.href = '/?demo=1' }} connecting={connecting} backendReady={backendReady} booting={false} error={error} />
     <PromptModal prompt={authPrompt} onSubmit={submitPrompt} onCancel={() => { setAuthPrompt(null); setConnecting(false) }} />
   </>
 }
