@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
-import type { AlbumMedia, MediaAsset } from '../types'
+import type { AlbumMedia, MediaAsset, UserSettings } from '../types'
 import { fetchMediaTicket } from '../lib/api'
+import { loadSettings } from '../lib/storage'
 import { persistVideoMuted, storedVideoMuted, videoRegistry } from '../lib/videoRegistry'
 import { MediaLightbox, type FlipRect } from './MediaLightbox'
 
@@ -27,6 +28,11 @@ function aspect(asset: MediaAsset) {
   return `${ratio}`
 }
 
+function shouldAutoplay(settings = loadSettings()) {
+  const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+  return settings.autoplay === 'on' && !reduceMotion
+}
+
 function TicketAsset({ asset, compact = false }: { asset: MediaAsset; compact?: boolean }) {
   const root = useRef<HTMLDivElement>(null)
   const video = useRef<HTMLVideoElement>(null)
@@ -36,10 +42,24 @@ function TicketAsset({ asset, compact = false }: { asset: MediaAsset; compact?: 
   const [loaded, setLoaded] = useState(false)
   const [preload, setPreload] = useState<'metadata' | 'auto'>('metadata')
   const [muted, setMuted] = useState(() => asset.kind === 'gif' ? true : storedVideoMuted())
+  const [autoplay, setAutoplay] = useState(() => shouldAutoplay())
   const [lightboxRect, setLightboxRect] = useState<FlipRect | null>(null)
   const needsTicket = Boolean(asset.ticketEndpoint && !asset.src)
 
   useEffect(() => { setLoaded(false) }, [url])
+
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const update = (settings?: UserSettings) => setAutoplay(shouldAutoplay(settings || loadSettings()))
+    const onSettings = (event: Event) => update((event as CustomEvent<UserSettings>).detail)
+    const onMotion = () => update()
+    window.addEventListener('supergram:settings-changed', onSettings)
+    media.addEventListener?.('change', onMotion)
+    return () => {
+      window.removeEventListener('supergram:settings-changed', onSettings)
+      media.removeEventListener?.('change', onMotion)
+    }
+  }, [])
 
   useEffect(() => {
     if (!needsTicket || url) return
@@ -70,18 +90,19 @@ function TicketAsset({ asset, compact = false }: { asset: MediaAsset; compact?: 
     }, { rootMargin: '200% 0px' })
     const playbackObserver = new IntersectionObserver(entries => {
       const visible = entries.some(entry => entry.isIntersecting && entry.intersectionRatio >= .7)
-      if (visible) void videoRegistry.requestPlay(node)
+      if (visible && autoplay) void videoRegistry.requestPlay(node)
       else videoRegistry.requestPause(node)
     }, { threshold: [.2, .7] })
     preloadObserver.observe(host)
     playbackObserver.observe(node)
+    if (!autoplay) videoRegistry.requestPause(node)
     return () => {
       preloadObserver.disconnect()
       playbackObserver.disconnect()
       videoRegistry.clear(node)
       node.pause()
     }
-  }, [url, asset.kind])
+  }, [url, asset.kind, autoplay])
 
   function retry() {
     if (!asset.ticketEndpoint || attempt >= 1) return setError('Media unavailable')
@@ -102,7 +123,7 @@ function TicketAsset({ asset, compact = false }: { asset: MediaAsset; compact?: 
   if (asset.kind === 'poll' || asset.kind === 'location' || asset.kind === 'contact') {
     return <div ref={root} className={`sg-media-meta sg-media-${asset.kind}`}>
       <strong>{asset.kind === 'poll' ? 'Telegram poll' : asset.kind === 'location' ? 'Location' : 'Contact'}</strong>
-      <span>Open the original Telegram post to use the interactive version.</span>
+      <span>{asset.kind === 'poll' ? 'Open in Telegram to vote.' : asset.kind === 'location' ? 'Open in Telegram to view this location.' : 'Open in Telegram to use this contact.'}</span>
     </div>
   }
 
@@ -122,7 +143,7 @@ function TicketAsset({ asset, compact = false }: { asset: MediaAsset; compact?: 
   }
 
   if (animatedSticker) {
-    return <div ref={root} className="sg-media-meta"><strong>Animated sticker</strong><span>This Telegram sticker format needs a dedicated browser renderer before it can play here.</span></div>
+    return <div ref={root} className="sg-media-meta"><strong>Animated sticker</strong><span>Open the original post in Telegram to view this sticker.</span></div>
   }
 
   if (!url) {
@@ -138,9 +159,9 @@ function TicketAsset({ asset, compact = false }: { asset: MediaAsset; compact?: 
         ref={video}
         className={`media-reveal ${loaded ? 'loaded' : ''}`}
         src={url}
-        controls={!gif}
+        controls={!gif || !autoplay}
         muted={gif ? true : muted}
-        loop={gif}
+        loop={gif && autoplay}
         playsInline
         preload={preload}
         onLoadedData={() => setLoaded(true)}
@@ -158,7 +179,7 @@ function TicketAsset({ asset, compact = false }: { asset: MediaAsset; compact?: 
 
   return <>
     <div ref={root} className={`sg-media-asset ${asset.kind === 'sticker' ? 'is-sticker' : ''} ${compact ? 'is-compact' : ''}`} style={style}>
-      <img className={`media-reveal sg-lightbox-trigger ${loaded ? 'loaded' : ''}`} src={url} alt="Telegram media" loading="lazy" decoding="async" onLoad={() => setLoaded(true)} onError={retry} onClick={openLightbox} />
+      <img className={`media-reveal sg-lightbox-trigger ${loaded ? 'loaded' : ''}`} src={url} alt={asset.label || 'Image from Telegram'} loading="lazy" decoding="async" onLoad={() => setLoaded(true)} onError={retry} onClick={openLightbox} />
     </div>
     {lightboxRect ? <MediaLightbox src={url} sourceRect={lightboxRect} onClose={() => setLightboxRect(null)} /> : null}
   </>
