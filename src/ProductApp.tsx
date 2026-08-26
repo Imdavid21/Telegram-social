@@ -1,16 +1,32 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Skeleton } from '@mui/material'
-import type { AlbumMedia, AuthPrompt, Channel, FeedDiagnostics, FeedFilter, FeedItem, FeedPage, FeedUpdate, MediaAsset } from './types'
-import { loadSet, saveSet } from './lib/storage'
-import { ApiError, authFlow, authStatus, beginAuth, fetchFeed, fetchFeedUpdates, healthStatus, logoutTelegram, saveTelegramPost, submitAuth } from './lib/api'
-import { PromptModal } from './components/AuthModal'
+import type { AlbumMedia, Channel, FeedDiagnostics, FeedFilter, FeedItem, FeedPage, FeedUpdate, MediaAsset, UserSettings } from './types'
+import {
+  loadFavorites,
+  loadHiddenPosts,
+  loadHiddenSources,
+  loadSet,
+  loadSettings,
+  recordViewerAction,
+  resetViewerPersonalization,
+  saveFavorites,
+  saveHiddenPosts,
+  saveHiddenSources,
+  saveSet,
+  saveSettings
+} from './lib/storage'
+import { ApiError, authStatus, fetchFeed, fetchFeedUpdates, healthStatus, logoutTelegram, saveTelegramPost } from './lib/api'
 import { FeedCard } from './components/FeedCard'
 import { SponsoredCard } from './components/SponsoredCard'
 import { VirtualFeed } from './components/VirtualFeed'
-import { BellIcon, BookmarkIcon, CloseIcon, HomeIcon, ImageIcon, MoonIcon, RefreshIcon, SearchIcon, SettingsIcon, SunIcon } from './components/Icons'
+import { SettingsDialog } from './components/SettingsDialog'
+import { SourceBrowser } from './components/SourceBrowser'
+import { BrandMark } from './components/BrandMark'
+import { BellIcon, BookmarkIcon, CloseIcon, HomeIcon, ImageIcon, SearchIcon, SettingsIcon } from './components/Icons'
 
 const APP_NAME = 'Supergram'
 const API_PAGE_SIZE = 40
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 const nav: Array<{ id: FeedFilter; label: string; icon: typeof HomeIcon }> = [
   { id: 'all', label: 'Home', icon: HomeIcon },
   { id: 'unread', label: 'Unread', icon: BellIcon },
@@ -18,25 +34,7 @@ const nav: Array<{ id: FeedFilter; label: string; icon: typeof HomeIcon }> = [
   { id: 'saved', label: 'Saved', icon: BookmarkIcon }
 ]
 
-type Flow = { step: string; error?: string | null; meta?: Record<string, unknown> }
 type Me = { id: string; firstName: string; username?: string }
-type Theme = 'dark' | 'light'
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
-
-function promptFromFlow(flow: Flow): AuthPrompt | null {
-  if (flow.step === 'phone') return { type: 'phone', title: 'Your phone number', hint: 'Enter your Telegram number with country code.' }
-  if (flow.step === 'code') return { type: 'code', title: 'Verification code', hint: flow.meta?.viaApp ? 'We sent the code to Telegram on your other device.' : 'Enter the code Telegram sent you.' }
-  if (flow.step === 'password') return { type: 'password', title: 'Two-step verification', hint: String(flow.meta?.hint || 'Enter your Telegram password.') }
-  return null
-}
-
-function safeTheme(): Theme {
-  try {
-    const stored = localStorage.getItem('supergram-theme')
-    if (stored === 'light' || stored === 'dark') return stored
-  } catch {}
-  return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
-}
 
 function initials(value?: string) {
   return String(value || 'SG').split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]?.toUpperCase()).join('') || 'SG'
@@ -97,7 +95,6 @@ function collapseAlbums(feed: FeedItem[]) {
       output.push(item)
       continue
     }
-
     const first = members[0]
     const assets = members
       .map(member => member.media && member.media.kind !== 'album' ? { ...member.media, messageId: member.messageId } as MediaAsset : null)
@@ -117,9 +114,9 @@ function collapseAlbums(feed: FeedItem[]) {
   return output
 }
 
-function SourceBubble({ channel, active, onClick }: { channel: Channel; active: boolean; onClick: () => void }) {
+function SourceBubble({ channel, active, favorite, onClick }: { channel: Channel; active: boolean; favorite: boolean; onClick: () => void }) {
   const [failed, setFailed] = useState(false)
-  return <button type="button" className={`sg-source-bubble ${active ? 'is-active' : ''}`} onClick={onClick} title={channel.title}>
+  return <button type="button" className={`sg-source-bubble ${active ? 'is-active' : ''} ${favorite ? 'is-favorite' : ''}`} onClick={onClick} title={channel.title}>
     <span className="sg-source-ring">
       <span className="sg-source-avatar" style={{ background: channel.accent || '#242426' }}>
         {channel.avatar && !failed ? <img src={channel.avatar} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)} /> : channel.initials || initials(channel.title)}
@@ -129,30 +126,37 @@ function SourceBubble({ channel, active, onClick }: { channel: Channel; active: 
   </button>
 }
 
-export default function App() {
+function resolvedTheme(settings: UserSettings) {
+  if (settings.themeMode === 'light' || settings.themeMode === 'dark') return settings.themeMode
+  return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
+}
+
+export default function ProductApp() {
   const [filter, setFilter] = useState<FeedFilter>('all')
   const [query, setQuery] = useState('')
   const [sourceFilter, setSourceFilter] = useState<string | null>(null)
   const [channels, setChannels] = useState<Channel[]>([])
   const [feed, setFeed] = useState<FeedItem[]>([])
-  const [mode, setMode] = useState<'demo' | 'live'>('demo')
-  const [connection, setConnection] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle')
+  const [connection, setConnection] = useState<'connecting' | 'connected' | 'error'>('connecting')
   const [error, setError] = useState('')
-  const [authPrompt, setAuthPrompt] = useState<AuthPrompt | null>(null)
-  const [backendReady, setBackendReady] = useState(false)
   const [booting, setBooting] = useState(true)
   const [me, setMe] = useState<Me | null>(null)
-  const [theme, setTheme] = useState<Theme>(() => safeTheme())
+  const [settings, setSettings] = useState<UserSettings>(() => loadSettings())
+  const [favorites, setFavorites] = useState<Set<string>>(() => loadFavorites())
+  const [hiddenSources, setHiddenSources] = useState<Set<string>>(() => loadHiddenSources())
+  const [hiddenPosts, setHiddenPosts] = useState<Set<string>>(() => loadHiddenPosts())
+  const [rankingRevision, setRankingRevision] = useState(0)
   const [searchOpen, setSearchOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [sourceBrowserOpen, setSourceBrowserOpen] = useState(false)
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [hasMore, setHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [queuedPosts, setQueuedPosts] = useState<FeedItem[]>([])
-  const [lastRefresh, setLastRefresh] = useState<number | null>(null)
   const [diagnostics, setDiagnostics] = useState<FeedDiagnostics | null>(null)
   const endRef = useRef<HTMLDivElement>(null)
   const searchInput = useRef<HTMLInputElement>(null)
-  const scrollPositions = useRef<Record<FeedFilter, number>>({ all: 0, unread: 0, saved: 0, media: 0 })
+  const scrollPositions = useRef<Record<string, number>>({})
   const keyboardIndex = useRef(0)
   const syncTokenRef = useRef(0)
   const loadingMoreRef = useRef(false)
@@ -162,15 +166,23 @@ export default function App() {
   const safeFeed = Array.isArray(feed) ? feed : []
   const newCount = queuedPosts.length
   const savedMessagesSourceId = me?.id ? `user:${me.id}` : null
+  const channelMap = useMemo(() => new Map(safeChannels.map(channel => [channel.id, channel])), [safeChannels])
 
   useEffect(() => { feedRef.current = safeFeed }, [safeFeed])
   useEffect(() => { void bootstrap() }, [])
 
   useEffect(() => {
-    document.documentElement.dataset.theme = theme
-    document.documentElement.style.colorScheme = theme
-    try { localStorage.setItem('supergram-theme', theme) } catch {}
-  }, [theme])
+    const apply = () => {
+      const theme = resolvedTheme(settings)
+      document.documentElement.dataset.theme = theme
+      document.documentElement.style.colorScheme = theme
+    }
+    apply()
+    if (settings.themeMode !== 'system') return
+    const media = window.matchMedia('(prefers-color-scheme: light)')
+    media.addEventListener?.('change', apply)
+    return () => media.removeEventListener?.('change', apply)
+  }, [settings])
 
   useEffect(() => {
     if (!searchOpen) return
@@ -186,27 +198,23 @@ export default function App() {
     setHasMore(page.hasMore)
     syncTokenRef.current = Math.max(syncTokenRef.current, page.syncToken)
     if (page.diagnostics) setDiagnostics(page.diagnostics)
-    setLastRefresh(Date.now())
   }
 
   async function bootstrap() {
     setBooting(true)
+    setConnection('connecting')
     try {
       const health = await healthStatus()
-      if (!health.ok || !health.configured) {
-        setBackendReady(false)
-        setError('Telegram backend is online but not fully configured.')
+      if (!health.ok || !health.configured) throw new Error('Can’t connect to Telegram right now.')
+      const status = await authStatus()
+      if (!status.connected) {
+        window.location.href = '/'
         return
       }
-      setBackendReady(true)
-      const status = await authStatus()
       setMe(status.user || null)
-      if (!status.connected) return
-
       const page = await fetchFeed(null, API_PAGE_SIZE)
       applyPage(page, true)
       setConnection('connected')
-      setMode('live')
     } catch (e) {
       setConnection('error')
       setError(String((e as Error)?.message || 'Could not load Supergram.'))
@@ -215,64 +223,7 @@ export default function App() {
     }
   }
 
-  async function settleFlow(initial: Flow): Promise<Flow> {
-    let flow = initial
-    for (let i = 0; i < 25 && (flow.step === 'starting' || flow.step === 'processing'); i++) {
-      await delay(400)
-      flow = await authFlow()
-    }
-    return flow
-  }
-
-  async function finishConnection() {
-    const status = await authStatus()
-    if (!status.connected) throw new Error('Telegram authorization did not complete.')
-    const page = await fetchFeed(null, API_PAGE_SIZE)
-    applyPage(page, true)
-    setMe(status.user || null)
-    setMode('live')
-    setConnection('connected')
-    setAuthPrompt(null)
-    setError('')
-  }
-
-  async function connect() {
-    setError('')
-    setConnection('connecting')
-    try {
-      const health = await healthStatus()
-      if (!health.ok || !health.configured) throw new Error('Telegram backend is not fully configured yet.')
-      setBackendReady(true)
-      const flow = await settleFlow(await beginAuth())
-      if (flow.error) setError(flow.error)
-      if (flow.step === 'done') return void await finishConnection()
-      const prompt = promptFromFlow(flow)
-      if (!prompt) throw new Error(flow.error || 'Telegram login could not start.')
-      setAuthPrompt(prompt)
-    } catch (e) {
-      setConnection('error')
-      setError(String((e as Error)?.message || e))
-    }
-  }
-
-  async function submitPrompt(value: string) {
-    setError('')
-    try {
-      const flow = await settleFlow(await submitAuth(value))
-      if (flow.error) setError(flow.error)
-      if (flow.step === 'done') return void await finishConnection()
-      if (flow.step === 'error') throw new Error(flow.error || 'Telegram login failed.')
-      const prompt = promptFromFlow(flow)
-      if (prompt) setAuthPrompt(prompt)
-    } catch (e) {
-      setConnection('error')
-      setAuthPrompt(null)
-      setError(String((e as Error)?.message || e))
-    }
-  }
-
   async function refresh(quiet = false) {
-    if (mode !== 'live') return
     if (!quiet) setConnection('connecting')
     try {
       const page = await fetchFeed(null, API_PAGE_SIZE)
@@ -281,27 +232,21 @@ export default function App() {
       const newRows = page.feed.filter(item => !currentIds.has(item.id)).map(item => normalizeItem(item))
       const existingRows = page.feed.filter(item => currentIds.has(item.id)).map(item => normalizeItem(item))
       setFeed(current => mergeFeed(current, existingRows))
-
-      if (newRows.length && window.scrollY > 420) {
-        setQueuedPosts(current => mergeFeed(current, newRows))
-      } else if (newRows.length) {
-        setFeed(current => mergeFeed(current, newRows))
-      }
-
+      if (newRows.length && window.scrollY > 420) setQueuedPosts(current => mergeFeed(current, newRows))
+      else if (newRows.length) setFeed(current => mergeFeed(current, newRows))
       setNextCursor(page.nextCursor)
       setHasMore(page.hasMore)
       syncTokenRef.current = Math.max(syncTokenRef.current, page.syncToken)
       if (page.diagnostics) setDiagnostics(page.diagnostics)
-      setLastRefresh(Date.now())
       setConnection('connected')
     } catch (e) {
       setConnection('error')
-      if (!quiet) setError(String((e as Error)?.message || e))
+      if (!quiet) setError(String((e as Error)?.message || 'Could not refresh the feed.'))
     }
   }
 
   const loadMore = useCallback(async () => {
-    if (mode !== 'live' || !hasMore || !nextCursor || loadingMoreRef.current) return
+    if (!hasMore || !nextCursor || loadingMoreRef.current) return
     loadingMoreRef.current = true
     setLoadingMore(true)
     try {
@@ -312,46 +257,38 @@ export default function App() {
         try {
           const fresh = await fetchFeed(null, API_PAGE_SIZE)
           applyPage(fresh, false)
-        } catch (restartError) {
-          setError(`Could not restore infinite scroll: ${String((restartError as Error)?.message || restartError)}`)
+        } catch {
+          setError('Couldn’t restore older posts. Try again.')
         }
       } else {
-        setError(`Could not load older posts: ${String((e as Error)?.message || e)}`)
+        setError('Couldn’t load older posts. Try again.')
       }
     } finally {
       loadingMoreRef.current = false
       setLoadingMore(false)
     }
-  }, [mode, hasMore, nextCursor])
+  }, [hasMore, nextCursor])
 
   useEffect(() => {
     const el = endRef.current
-    if (!el || mode !== 'live' || !hasMore || typeof IntersectionObserver === 'undefined') return
+    if (!el || !hasMore || typeof IntersectionObserver === 'undefined') return
     const observer = new IntersectionObserver(entries => {
       if (entries.some(entry => entry.isIntersecting)) void loadMore()
     }, { rootMargin: '1800px 0px' })
     observer.observe(el)
     return () => observer.disconnect()
-  }, [loadMore, mode, hasMore])
+  }, [loadMore, hasMore])
 
   function applyIncrementalUpdates(updates: FeedUpdate[]) {
     const sourceUpdates = updates.flatMap(update => update.type === 'source' ? [update.source] : update.type === 'upsert' && update.source ? [update.source] : [])
     if (sourceUpdates.length) setChannels(current => mergeChannels(current, sourceUpdates))
-
     const upserts = updates.filter((update): update is Extract<FeedUpdate, { type: 'upsert' }> => update.type === 'upsert')
     const deletions = updates.filter((update): update is Extract<FeedUpdate, { type: 'delete' }> => update.type === 'delete')
-
     if (deletions.length) {
-      setFeed(current => current.filter(item => !deletions.some(update => {
-        if (!update.messageIds.includes(item.messageId)) return false
-        return update.sourceId ? item.channelId === update.sourceId : true
-      })))
-      setQueuedPosts(current => current.filter(item => !deletions.some(update => {
-        if (!update.messageIds.includes(item.messageId)) return false
-        return update.sourceId ? item.channelId === update.sourceId : true
-      })))
+      const deleted = (row: FeedItem) => deletions.some(update => update.messageIds.includes(row.messageId) && (!update.sourceId || row.channelId === update.sourceId))
+      setFeed(current => current.filter(row => !deleted(row)))
+      setQueuedPosts(current => current.filter(row => !deleted(row)))
     }
-
     if (!upserts.length) return
     const existingIds = new Set(feedRef.current.map(item => item.id))
     const changedExisting = upserts.filter(update => existingIds.has(update.post.id)).map(update => normalizeItem(update.post))
@@ -361,14 +298,11 @@ export default function App() {
       if (window.scrollY > 420) setQueuedPosts(current => mergeFeed(current, brandNew))
       else setFeed(current => mergeFeed(current, brandNew))
     }
-    setLastRefresh(Date.now())
   }
 
   useEffect(() => {
-    if (mode !== 'live') return
     const controller = new AbortController()
     let active = true
-
     const loop = async () => {
       while (active && !controller.signal.aborted) {
         try {
@@ -386,29 +320,19 @@ export default function App() {
     }
     void loop()
     return () => { active = false; controller.abort() }
-  }, [mode])
+  }, [])
 
   function applyQueuedFeed() {
     if (!queuedPosts.length) return
     setFeed(current => mergeFeed(current, queuedPosts))
     setQueuedPosts([])
+    setRankingRevision(value => value + 1)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   async function logout() {
     await logoutTelegram().catch(() => {})
-    setMode('demo')
-    setConnection('idle')
-    setChannels([])
-    setFeed([])
-    setMe(null)
-    setSourceFilter(null)
-    setQuery('')
-    setQueuedPosts([])
-    setNextCursor(null)
-    setHasMore(false)
-    setDiagnostics(null)
-    syncTokenRef.current = 0
+    window.location.href = '/'
   }
 
   function groupMembers(item: FeedItem, rows: FeedItem[]) {
@@ -428,9 +352,9 @@ export default function App() {
       if (willSave) saved.add(member.id); else saved.delete(member.id)
     }
     saveSet('saved', saved)
-    if (willSave && mode === 'live') {
+    if (willSave) {
       try { await saveTelegramPost(item) }
-      catch (e) { setError(`Saved in Supergram. Telegram forward failed: ${String((e as Error)?.message || e)}`) }
+      catch { setError('Saved in Supergram. Couldn’t copy it to Telegram Saved Messages.') }
     }
   }
 
@@ -445,28 +369,95 @@ export default function App() {
     saveSet('read', read)
   }
 
+  function scrollKey(nextFilter = filter, nextMode = settings.feedMode) {
+    return `${nextMode}:${nextFilter}:${sourceFilter || 'all'}`
+  }
+
   function changeFilter(next: FeedFilter) {
-    scrollPositions.current[filter] = window.scrollY
+    scrollPositions.current[scrollKey()] = window.scrollY
     setFilter(next)
-    setSourceFilter(null)
     keyboardIndex.current = 0
-    requestAnimationFrame(() => window.scrollTo({ top: scrollPositions.current[next] || 0 }))
+    requestAnimationFrame(() => window.scrollTo({ top: scrollPositions.current[scrollKey(next, settings.feedMode)] || 0 }))
+  }
+
+  function changeFeedMode(next: UserSettings['feedMode']) {
+    if (next === settings.feedMode) return
+    scrollPositions.current[scrollKey()] = window.scrollY
+    const nextSettings = { ...settings, feedMode: next }
+    setSettings(nextSettings)
+    saveSettings(nextSettings)
+    keyboardIndex.current = 0
+    requestAnimationFrame(() => window.scrollTo({ top: scrollPositions.current[scrollKey(filter, next)] || 0 }))
   }
 
   function selectSource(id: string | null) {
-    setSourceFilter(current => current === id ? null : id)
-    setFilter('all')
+    scrollPositions.current[scrollKey()] = window.scrollY
+    setSourceFilter(id)
     keyboardIndex.current = 0
     window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function toggleFavorite(channel: Channel) {
+    setFavorites(current => {
+      const next = new Set(current)
+      const removing = next.has(channel.id)
+      if (removing) next.delete(channel.id); else next.add(channel.id)
+      saveFavorites(next)
+      recordViewerAction({ type: removing ? 'unfavorite_source' : 'favorite_source', itemId: `source:${channel.id}`, channelId: channel.id, timestamp: Date.now() })
+      return next
+    })
+  }
+
+  function hideSource(channel: Channel) {
+    setHiddenSources(current => {
+      const next = new Set(current)
+      next.add(channel.id)
+      saveHiddenSources(next)
+      return next
+    })
+    recordViewerAction({ type: 'hide_source', itemId: `source:${channel.id}`, channelId: channel.id, timestamp: Date.now() })
+  }
+
+  function hidePost(item: FeedItem) {
+    setHiddenPosts(current => {
+      const next = new Set(current)
+      next.add(item.id)
+      saveHiddenPosts(next)
+      return next
+    })
+    recordViewerAction({ type: 'hide_post', itemId: item.id, channelId: item.channelId, timestamp: Date.now(), media: Boolean(item.media) })
+  }
+
+  function feedback(item: FeedItem, type: 'more_like_this' | 'less_like_this') {
+    recordViewerAction({ type, itemId: item.id, channelId: item.channelId, timestamp: Date.now(), media: Boolean(item.media) })
+  }
+
+  function updateSettings(next: UserSettings) {
+    setSettings(next)
+    saveSettings(next)
+    setRankingRevision(value => value + 1)
+  }
+
+  function resetPersonalization() {
+    resetViewerPersonalization()
+    setHiddenSources(new Set())
+    setHiddenPosts(new Set())
+    saveHiddenSources(new Set())
+    saveHiddenPosts(new Set())
+    setRankingRevision(value => value + 1)
   }
 
   const collapsedFeed = useMemo(() => collapseAlbums(safeFeed), [safeFeed])
   const visibleFeed = useMemo(() => {
     const q = query.trim().toLowerCase()
     return collapsedFeed.filter(item => {
-      const channel = safeChannels.find(source => source.id === item.channelId)
-      if (!channel) return false
+      const channel = channelMap.get(item.channelId)
+      if (!channel || hiddenPosts.has(item.id)) return false
       if (sourceFilter && channel.id !== sourceFilter) return false
+      if (!sourceFilter && settings.feedMode === 'for-you') {
+        if (hiddenSources.has(channel.id)) return false
+        if (!settings.includePrivateChatsInForYou && channel.type === 'person') return false
+      }
       if (filter === 'unread' && !item.unread) return false
       if (filter === 'saved') {
         const isTelegramSavedMessage = Boolean(savedMessagesSourceId && item.channelId === savedMessagesSourceId)
@@ -476,15 +467,10 @@ export default function App() {
       if (q && !`${item.text || ''} ${channel.title || ''} ${channel.username || ''}`.toLowerCase().includes(q)) return false
       return true
     })
-  }, [collapsedFeed, safeChannels, filter, query, sourceFilter, savedMessagesSourceId])
-
-  useEffect(() => {
-    if (filter !== 'saved' || visibleFeed.length || mode !== 'live' || !hasMore || loadingMore) return
-    void loadMore()
-  }, [filter, visibleFeed.length, mode, hasMore, loadingMore, loadMore])
+  }, [channelMap, collapsedFeed, filter, hiddenPosts, hiddenSources, query, savedMessagesSourceId, settings.feedMode, settings.includePrivateChatsInForYou, sourceFilter])
 
   const unreadTotal = safeFeed.reduce((total, item) => total + (item.unread ? 1 : 0), 0)
-  const topSources = useMemo(() => [...safeChannels].sort((a, b) => Number(b.unread || 0) - Number(a.unread || 0)).slice(0, 12), [safeChannels])
+  const topSources = useMemo(() => [...safeChannels].sort((a, b) => Number(favorites.has(b.id)) - Number(favorites.has(a.id)) || Number(b.unread || 0) - Number(a.unread || 0) || a.title.localeCompare(b.title)).slice(0, 10), [favorites, safeChannels])
   const searchSources = useMemo(() => {
     const q = query.trim().toLowerCase()
     return (q ? safeChannels.filter(channel => `${channel.title} ${channel.username || ''}`.toLowerCase().includes(q)) : topSources).slice(0, 8)
@@ -522,154 +508,106 @@ export default function App() {
     return () => window.removeEventListener('keydown', handler)
   }, [visibleFeed])
 
-  if (booting) {
-  return <div className="sg-app sg-app-loading" aria-busy="true" aria-label="Loading your Telegram feed">
-    <aside className="sg-left-rail sg-skeleton-rail">
-      <Skeleton variant="rounded" width={132} height={34} />
-      <div className="sg-skeleton-nav">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} variant="rounded" height={46} />)}</div>
-    </aside>
-    <main className="sg-main"><div className="sg-feed-column">
-      <section className="sg-source-strip sg-skeleton-sources">{Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} variant="circular" width={54} height={54} />)}</section>
-      <section className="sg-feed sg-feed-skeleton">{Array.from({ length: 3 }).map((_, i) => <article className="sg-post sg-skeleton-post" key={i}>
-        <div className="sg-skeleton-head"><Skeleton variant="circular" width={38} height={38} /><div><Skeleton width={120} /><Skeleton width={76} height={16} /></div></div>
-        <Skeleton variant="rounded" width="100%" height={i === 0 ? 320 : 180} />
-        <Skeleton width="88%" /><Skeleton width="62%" />
-      </article>)}</section>
-    </div></main>
+  if (booting) return <div className="sg-app sg-app-loading" aria-busy="true" aria-label="Loading your Telegram feed">
+    <aside className="sg-left-rail sg-skeleton-rail"><Skeleton variant="rounded" width={132} height={34} /><div className="sg-skeleton-nav">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} variant="rounded" height={46} />)}</div></aside>
+    <main className="sg-main"><div className="sg-feed-column"><section className="sg-source-strip sg-skeleton-sources">{Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} variant="circular" width={54} height={54} />)}</section><section className="sg-feed sg-feed-skeleton">{Array.from({ length: 3 }).map((_, i) => <article className="sg-post sg-skeleton-post" key={i}><div className="sg-skeleton-head"><Skeleton variant="circular" width={38} height={38} /><div><Skeleton width={120} /><Skeleton width={76} height={16} /></div></div><Skeleton variant="rounded" width="100%" height={i === 0 ? 320 : 180} /><Skeleton width="88%" /><Skeleton width="62%" /></article>)}</section></div></main>
   </div>
-}
-
-if (mode !== 'live') {
-  return <div className="sg-auth-shell">
-      <div className="sg-auth-card">
-        <div className="sg-mark sg-mark-large" aria-hidden="true"><span>S</span></div>
-        <h1>Supergram</h1>
-        <p className="sg-auth-lead">Your Telegram. One endless feed.</p>
-        <p className="sg-auth-copy">Turn the conversations, groups, and channels you already follow into a media-first scroll.</p>
-        {error && <div className="sg-inline-error">{error}</div>}
-        <button type="button" className="sg-connect-button" onClick={connect} disabled={booting || connection === 'connecting' || !backendReady}>
-          {booting ? 'Checking backend…' : connection === 'connecting' ? 'Connecting…' : 'Continue with Telegram'}
-        </button>
-        <div className="sg-auth-status"><span className={backendReady ? 'is-online' : ''} />{backendReady ? 'Telegram API ready' : booting ? 'Checking connection' : 'Backend unavailable'}</div>
-        <small>Supergram is an unofficial client using the Telegram API and is not affiliated with Telegram.</small>
-        <div className="sg-auth-links"><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a></div>
-      </div>
-      <PromptModal prompt={authPrompt} onSubmit={submitPrompt} onCancel={() => { setAuthPrompt(null); setConnection('idle') }} />
-    </div>
-  }
 
   return <div className="sg-app">
     <aside className="sg-left-rail">
-      <a className="sg-brand" href="/" aria-label={APP_NAME}><span className="sg-mark"><span>S</span></span><strong>Supergram</strong></a>
-      <nav className="sg-primary-nav">
+      <a className="sg-brand" href="/" aria-label={APP_NAME}><span className="sg-brand-svg"><BrandMark /></span><strong>Supergram</strong></a>
+      <nav className="sg-primary-nav" aria-label="Primary">
         {nav.map(entry => {
           const Icon = entry.icon
           const count = entry.id === 'unread' ? unreadTotal : 0
-          return <button type="button" key={entry.id} className={filter === entry.id && !sourceFilter ? 'is-active' : ''} onClick={() => changeFilter(entry.id)}>
-            <span className="sg-nav-icon"><Icon />{count > 0 && <b>{count > 99 ? '99+' : count}</b>}</span><span>{entry.label}</span>
-          </button>
+          return <button type="button" key={entry.id} className={filter === entry.id ? 'is-active' : ''} onClick={() => changeFilter(entry.id)}><span className="sg-nav-icon"><Icon />{count > 0 && <b>{count > 99 ? '99+' : count}</b>}</span><span>{entry.label}</span></button>
         })}
         <button type="button" className={searchOpen || query ? 'is-active' : ''} onClick={() => setSearchOpen(true)}><span className="sg-nav-icon"><SearchIcon /></span><span>Search</span></button>
       </nav>
-
       <div className="sg-rail-bottom">
-        <button type="button" onClick={() => setTheme(value => value === 'dark' ? 'light' : 'dark')}><span className="sg-nav-icon">{theme === 'dark' ? <SunIcon /> : <MoonIcon />}</span><span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span></button>
-        <button type="button"><span className="sg-nav-icon"><SettingsIcon /></span><span>Settings</span></button>
-        <button type="button" className="sg-account-button" title={me?.username ? `@${me.username}` : me?.firstName || 'Account'}>
-          <span className="sg-account-avatar">{initials(me?.firstName)}</span><span>{me?.firstName || 'You'}</span>
-        </button>
+        <button type="button" onClick={() => setSourceBrowserOpen(true)}><span className="sg-nav-icon"><HomeIcon /></span><span>All sources</span></button>
+        <button type="button" onClick={() => setSettingsOpen(true)}><span className="sg-nav-icon"><SettingsIcon /></span><span>Settings</span></button>
+        <button type="button" className="sg-account-button" onClick={() => setSettingsOpen(true)} title={me?.username ? `@${me.username}` : me?.firstName || 'Account'}><span className="sg-account-avatar">{initials(me?.firstName)}</span><span>{me?.firstName || 'You'}</span></button>
       </div>
     </aside>
 
     <main className="sg-main">
       <div className="sg-feed-column">
         <header className="sg-mobile-header">
-          <a className="sg-brand" href="/"><span className="sg-mark"><span>S</span></span><strong>Supergram</strong></a>
-          <div><button type="button" className="sg-icon-button" onClick={() => setSearchOpen(true)} aria-label="Search"><SearchIcon /></button><button type="button" className="sg-icon-button" onClick={() => void refresh()} aria-label="Refresh"><RefreshIcon /></button></div>
+          <a className="sg-brand" href="/"><span className="sg-brand-svg"><BrandMark /></span><strong>Supergram</strong></a>
+          <div><button type="button" className="sg-icon-button" onClick={() => setSearchOpen(true)} aria-label="Search"><SearchIcon /></button><button type="button" className="sg-account-button-mobile" onClick={() => setSettingsOpen(true)} aria-label="Account and settings"><span className="sg-account-avatar">{initials(me?.firstName)}</span></button></div>
         </header>
 
-        <section className="sg-source-strip" aria-label="Telegram sources">
-          <button type="button" className={`sg-source-bubble sg-all-source ${sourceFilter === null ? 'is-active' : ''}`} onClick={() => selectSource(null)}>
-            <span className="sg-source-ring"><span className="sg-source-avatar sg-all-avatar">∞</span></span><span>All</span>
-          </button>
-          {topSources.map(channel => <SourceBubble key={channel.id} channel={channel} active={sourceFilter === channel.id} onClick={() => selectSource(channel.id)} />)}
+        <section className="sg-feed-toolbar" aria-label="Feed controls">
+          <div className="sg-feed-mode" role="group" aria-label="Feed order">
+            <button type="button" className={settings.feedMode === 'for-you' ? 'is-active' : ''} onClick={() => changeFeedMode('for-you')}>For You</button>
+            <button type="button" className={settings.feedMode === 'latest' ? 'is-active' : ''} onClick={() => changeFeedMode('latest')}>Latest</button>
+          </div>
+          <button type="button" className="sg-all-sources-button" onClick={() => setSourceBrowserOpen(true)}>{sourceFilter ? channelMap.get(sourceFilter)?.title || 'Source' : 'All sources'}</button>
         </section>
 
-        {newCount > 0 && <button type="button" className="sg-new-posts" onClick={applyQueuedFeed}>↑ {newCount} new {newCount === 1 ? 'post' : 'posts'}</button>}
-        {error && <div className="sg-feed-error"><span>{error}</span><button type="button" onClick={() => setError('')}><CloseIcon /></button></div>}
+        <section className="sg-source-strip" aria-label="Telegram sources">
+          <button type="button" className={`sg-source-bubble sg-all-source ${sourceFilter === null ? 'is-active' : ''}`} onClick={() => selectSource(null)}><span className="sg-source-ring"><span className="sg-source-avatar sg-all-avatar">∞</span></span><span>All</span></button>
+          {topSources.map(channel => <SourceBubble key={channel.id} channel={channel} favorite={favorites.has(channel.id)} active={sourceFilter === channel.id} onClick={() => selectSource(channel.id)} />)}
+          {safeChannels.length > topSources.length && <button type="button" className="sg-source-bubble sg-more-sources" onClick={() => setSourceBrowserOpen(true)}><span className="sg-source-ring"><span className="sg-source-avatar sg-all-avatar">+</span></span><span>See all</span></button>}
+        </section>
 
-        <section className="sg-feed" aria-live="polite">
-          {visibleFeed.length ? <VirtualFeed items={visibleFeed} renderItem={(item, index) => {
-            const channel = safeChannels.find(source => source.id === item.channelId)
+        {connection === 'error' && !error && <div className="sg-connection-banner" role="status">Reconnecting…</div>}
+        {newCount > 0 && <button type="button" className="sg-new-posts" onClick={applyQueuedFeed}>↑ {newCount} new {newCount === 1 ? 'post' : 'posts'}</button>}
+        {error && <div className="sg-feed-error" role="alert"><span>{error}</span><div><button type="button" onClick={() => void refresh()} className="sg-error-retry">Retry</button><button type="button" onClick={() => setError('')} aria-label="Dismiss error"><CloseIcon /></button></div></div>}
+
+        <section className="sg-feed">
+          {visibleFeed.length ? <VirtualFeed items={visibleFeed} mode={settings.feedMode} favoriteSources={favorites} rankingRevision={rankingRevision} renderItem={(item, index) => {
+            const channel = channelMap.get(item.channelId)
             if (!channel) return null
-            const displayChannel = savedMessagesSourceId && channel.id === savedMessagesSourceId
-              ? { ...channel, title: 'Saved Messages', initials: 'SM' }
-              : channel
+            const displayChannel = savedMessagesSourceId && channel.id === savedMessagesSourceId ? { ...channel, title: 'Saved Messages', initials: 'SM' } : channel
             return item.sponsored
               ? <SponsoredCard item={item} channel={displayChannel} index={index} />
-              : <FeedCard item={item} channel={displayChannel} live onSave={toggleSave} onRead={markRead} index={index} />
+              : <FeedCard
+                  item={item}
+                  channel={displayChannel}
+                  feedMode={settings.feedMode}
+                  favoriteSource={favorites.has(channel.id)}
+                  summarizePrivateChats={settings.summarizePrivateChats}
+                  onSave={toggleSave}
+                  onRead={markRead}
+                  onFavoriteSource={toggleFavorite}
+                  onHideSource={hideSource}
+                  onHidePost={hidePost}
+                  onFeedback={feedback}
+                  onSourceOpen={source => { setSourceFilter(source.id); setSourceBrowserOpen(true) }}
+                  index={index}
+                />
           }} /> : <div className="sg-empty">
-            <div className="sg-empty-icon">S</div>
-            <strong>{query ? 'Nothing matched your search' : filter === 'unread' ? 'You’re caught up' : filter === 'saved' ? (hasMore ? 'Looking through Saved Messages' : 'No saved messages yet') : 'No posts here yet'}</strong>
-            <span>{query ? 'Try a source name, username, or message text.' : filter === 'saved' && hasMore ? 'Loading older Telegram history until Saved Messages are found.' : hasMore ? 'Loading older Telegram history…' : 'Refresh the feed or switch sources.'}</span>
-            <button type="button" onClick={() => void refresh()}>Refresh</button>
+            <div className="sg-empty-icon">∞</div>
+            <strong>{query ? 'No results in the loaded feed' : filter === 'unread' ? 'You’re caught up' : filter === 'saved' ? 'No saved posts yet' : filter === 'media' ? 'No media found' : 'No posts here yet'}</strong>
+            <span>{query ? 'Search currently loaded posts and sources, or clear the query.' : sourceFilter || filter !== 'all' ? 'Clear the active filter or choose another source.' : 'Refresh the feed to try again.'}</span>
+            {(query || sourceFilter || filter !== 'all') ? <button type="button" onClick={() => { setQuery(''); setSourceFilter(null); setFilter('all') }}>Clear filters</button> : <button type="button" onClick={() => void refresh()}>Refresh</button>}
           </div>}
           <div ref={endRef} className="sg-feed-sentinel" aria-hidden="true" />
-          {loadingMore && <div className="sg-feed-loading"><span /></div>}
-          {!hasMore && safeFeed.length > API_PAGE_SIZE && <div className="sg-feed-end">You reached the beginning of this Telegram history.</div>}
+          {loadingMore && <div className="sg-feed-loading" role="status"><span />Loading older posts…</div>}
+          {!hasMore && safeFeed.length > API_PAGE_SIZE && <div className="sg-feed-end">You’ve reached the beginning of this Telegram history.</div>}
         </section>
       </div>
-
-      <aside className="sg-right-rail">
-        <div className="sg-profile-row">
-          <span className="sg-account-avatar sg-account-avatar-large">{initials(me?.firstName)}</span>
-          <div><strong>{me?.username ? `@${me.username}` : me?.firstName || 'Telegram account'}</strong><span>{me?.firstName || 'Connected to Telegram'}</span></div>
-          <button type="button" onClick={logout}>Switch</button>
-        </div>
-
-        <section className="sg-side-section">
-          <div className="sg-side-title"><strong>Sources for you</strong><span>{diagnostics?.telegramTotal ?? safeChannels.length}</span></div>
-          <div className="sg-suggestions">
-            {topSources.slice(0, 5).map(channel => <button type="button" key={channel.id} onClick={() => selectSource(channel.id)}>
-              <span className="sg-mini-avatar" style={{ background: channel.accent || '#242426' }}>{channel.initials || initials(channel.title)}</span>
-              <span><strong>{channel.title}</strong><small>{channel.username ? `@${channel.username}` : channel.type === 'person' ? 'Private chat' : channel.type === 'group' ? 'Group' : 'Telegram'}</small></span>
-              {channel.unread > 0 && <b>{channel.unread}</b>}
-            </button>)}
-          </div>
-        </section>
-
-        <section className="sg-side-section sg-scroll-notes">
-          <strong>Scroll status</strong>
-          <p>{safeFeed.length} messages loaded · {diagnostics?.archivedTotal ?? 0} archived sources</p>
-          <p><kbd>J</kbd> next <kbd>K</kbd> previous <kbd>S</kbd> save <kbd>/</kbd> search</p>
-          {lastRefresh && <span>Live sync {connection === 'connected' ? 'active' : 'reconnecting'} · {new Date(lastRefresh).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
-        </section>
-
-        <footer className="sg-footer-copy">Unofficial client using the Telegram API. Not affiliated with Telegram.<div><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a></div></footer>
-      </aside>
     </main>
 
-    {searchOpen && <div className="sg-search-layer" role="dialog" aria-label="Search Supergram">
+    {searchOpen && <div className="sg-search-layer" role="dialog" aria-modal="true" aria-label="Search Supergram">
       <button type="button" className="sg-search-scrim" aria-label="Close search" onClick={() => setSearchOpen(false)} />
       <section className="sg-search-panel">
-        <div className="sg-search-head"><strong>Search</strong><button type="button" className="sg-icon-button" onClick={() => setSearchOpen(false)}><CloseIcon /></button></div>
+        <div className="sg-search-head"><strong>Search loaded Telegram</strong><button type="button" className="sg-icon-button" onClick={() => setSearchOpen(false)} aria-label="Close search"><CloseIcon /></button></div>
         <label className="sg-search-field"><SearchIcon /><input ref={searchInput} value={query} onChange={event => setQuery(event.target.value)} placeholder="Search loaded sources and messages" /><kbd>Esc</kbd></label>
-        <div className="sg-search-results">
-          <span>{query ? 'Sources' : 'Recent sources'}</span>
-          {searchSources.map(channel => <button type="button" key={channel.id} onClick={() => { selectSource(channel.id); setSearchOpen(false) }}>
-            <span className="sg-mini-avatar" style={{ background: channel.accent || '#242426' }}>{channel.initials || initials(channel.title)}</span>
-            <span><strong>{channel.title}</strong><small>{channel.username ? `@${channel.username}` : channel.type || 'Telegram'}</small></span>
-          </button>)}
-          {query && visibleFeed.length > 0 && <div className="sg-search-count">{visibleFeed.length} matching {visibleFeed.length === 1 ? 'post' : 'posts'} currently loaded</div>}
-        </div>
+        <div className="sg-search-results"><span>{query ? 'Sources' : 'Recent sources'}</span>{searchSources.map(channel => <button type="button" key={channel.id} onClick={() => { selectSource(channel.id); setSearchOpen(false) }}><span className="sg-mini-avatar" style={{ background: channel.accent || '#242426' }}>{channel.initials || initials(channel.title)}</span><span><strong>{channel.title}</strong><small>{channel.username ? `@${channel.username}` : channel.type || 'Telegram'}</small></span></button>)}{query && visibleFeed.length > 0 && <div className="sg-search-count">{visibleFeed.length} matching {visibleFeed.length === 1 ? 'post' : 'posts'} currently loaded</div>}<button type="button" className="sg-search-all" disabled title="Full Telegram search is the next backend-backed search pass">Full-history Telegram search coming next</button></div>
       </section>
     </div>}
 
-    <nav className="sg-mobile-nav">
-      {nav.map(entry => { const Icon = entry.icon; return <button type="button" key={entry.id} className={filter === entry.id ? 'is-active' : ''} onClick={() => changeFilter(entry.id)} aria-label={entry.label}><Icon />{entry.id === 'unread' && unreadTotal > 0 && <b>{unreadTotal > 99 ? '99+' : unreadTotal}</b>}</button> })}
-      <button type="button" onClick={() => setSearchOpen(true)} aria-label="Search"><SearchIcon /></button>
+    <nav className="sg-mobile-nav" aria-label="Primary mobile navigation">
+      {nav.map(entry => { const Icon = entry.icon; return <button type="button" key={entry.id} className={filter === entry.id ? 'is-active' : ''} onClick={() => changeFilter(entry.id)} aria-label={entry.label}><Icon />{entry.id === 'unread' && unreadTotal > 0 && <b>{unreadTotal > 99 ? '99+' : unreadTotal}</b>}<span>{filter === entry.id ? entry.label : ''}</span></button> })}
+      <button type="button" onClick={() => setSearchOpen(true)} aria-label="Search"><SearchIcon /><span>{searchOpen ? 'Search' : ''}</span></button>
     </nav>
 
-    <PromptModal prompt={authPrompt} onSubmit={submitPrompt} onCancel={() => { setAuthPrompt(null); setConnection('idle') }} />
+    <SourceBrowser open={sourceBrowserOpen} channels={safeChannels} favorites={favorites} selectedSource={sourceFilter} onClose={() => setSourceBrowserOpen(false)} onSelect={selectSource} onFavorite={toggleFavorite} />
+    <SettingsDialog open={settingsOpen} settings={settings} account={me} favoriteCount={favorites.size} hiddenSourceCount={hiddenSources.size} onClose={() => setSettingsOpen(false)} onChange={updateSettings} onResetPersonalization={resetPersonalization} onLogout={() => void logout()} />
+
+    {diagnostics && <span className="sg-sr-only" aria-hidden="true">{diagnostics.telegramTotal ?? safeChannels.length} Telegram sources available</span>}
   </div>
 }
