@@ -694,9 +694,12 @@ async function injectSponsored(entry, paginator, posts) {
 }
 
 async function nextPaginatorPage(entry, paginator, limit) {
-  await ensureCandidates(entry, paginator.states)
   const posts = []
+  let refillCursor = Number(paginator.refillCursor || 0)
+  let refillRounds = 0
 
+  // Drain already-known dialog heads first. This makes the first feed paint depend on
+  // Telegram's dialog inventory, not on N sequential message-history requests.
   while (posts.length < limit) {
     let best = null
     for (const state of paginator.states) {
@@ -706,14 +709,29 @@ async function nextPaginatorPage(entry, paginator, limit) {
         best = { state, post: candidate }
       }
     }
-    if (!best) break
 
-    best.state.buffer.shift()
-    posts.push(best.post)
-    if (!best.state.buffer.length && !best.state.exhausted) await refillSource(entry, best.state)
+    if (best) {
+      best.state.buffer.shift()
+      posts.push(best.post)
+      continue
+    }
+
+    // History is fetched in bounded parallel waves only when the visible page needs it.
+    // Rotating the starting point prevents large accounts from blocking on every dialog.
+    const refillable = paginator.states.filter(state => !state.buffer.length && !state.exhausted)
+    if (!refillable.length || refillRounds >= 4) break
+    const waveSize = Math.min(16, refillable.length)
+    const wave = []
+    for (let i = 0; i < waveSize; i++) wave.push(refillable[(refillCursor + i) % refillable.length])
+    refillCursor = (refillCursor + waveSize) % Math.max(1, refillable.length)
+    await mapLimit(wave, 16, async state => refillSource(entry, state))
+    refillRounds += 1
   }
 
-  await injectSponsored(entry, paginator, posts)
+  paginator.refillCursor = refillCursor
+  // Sponsored lookups must never hold up the user's content. They are skipped on the
+  // latency-critical first paint and can arrive naturally on later pages.
+  if (paginator.lastUsed !== paginator.createdAt) await injectSponsored(entry, paginator, posts)
   paginator.lastUsed = Date.now()
   return posts
 }

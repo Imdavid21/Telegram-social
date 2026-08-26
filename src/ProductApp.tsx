@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Skeleton } from '@mui/material'
 import type { AlbumMedia, AuthPrompt, Channel, FeedDiagnostics, FeedFilter, FeedItem, FeedPage, FeedUpdate, MediaAsset } from './types'
 import { loadSet, saveSet } from './lib/storage'
 import { ApiError, authFlow, authStatus, beginAuth, fetchFeed, fetchFeedUpdates, healthStatus, logoutTelegram, saveTelegramPost, submitAuth } from './lib/api'
@@ -521,8 +522,25 @@ export default function App() {
     return () => window.removeEventListener('keydown', handler)
   }, [visibleFeed])
 
-  if (mode !== 'live') {
-    return <div className="sg-auth-shell">
+  if (booting) {
+  return <div className="sg-app sg-app-loading" aria-busy="true" aria-label="Loading your Telegram feed">
+    <aside className="sg-left-rail sg-skeleton-rail">
+      <Skeleton variant="rounded" width={132} height={34} />
+      <div className="sg-skeleton-nav">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} variant="rounded" height={46} />)}</div>
+    </aside>
+    <main className="sg-main"><div className="sg-feed-column">
+      <section className="sg-source-strip sg-skeleton-sources">{Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} variant="circular" width={54} height={54} />)}</section>
+      <section className="sg-feed sg-feed-skeleton">{Array.from({ length: 3 }).map((_, i) => <article className="sg-post sg-skeleton-post" key={i}>
+        <div className="sg-skeleton-head"><Skeleton variant="circular" width={38} height={38} /><div><Skeleton width={120} /><Skeleton width={76} height={16} /></div></div>
+        <Skeleton variant="rounded" width="100%" height={i === 0 ? 320 : 180} />
+        <Skeleton width="88%" /><Skeleton width="62%" />
+      </article>)}</section>
+    </div></main>
+  </div>
+}
+
+if (mode !== 'live') {
+  return <div className="sg-auth-shell">
       <div className="sg-auth-card">
         <div className="sg-mark sg-mark-large" aria-hidden="true"><span>S</span></div>
         <h1>Supergram</h1>
