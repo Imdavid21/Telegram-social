@@ -99,10 +99,10 @@ export function fetchMediaTicket(endpoint: string, signal?: AbortSignal) {
   return request<{ url: string; expiresAt: number }>(endpoint, { signal })
 }
 
-export function summarizeMessage(text: string, signal?: AbortSignal) {
-  return request<{ headline: string; summary: string; model?: string; ml?: boolean }>('/api/summarize', {
+export function summarizeMessage(text: string, context: { outgoing?: boolean; sourceType?: string; sourceName?: string } = {}, signal?: AbortSignal) {
+  return request<{ headline: string; summary: string; model?: string | null; ml?: boolean; reason?: string }>('/api/summarize', {
     method: 'POST',
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text, ...context }),
     signal
   })
 }
