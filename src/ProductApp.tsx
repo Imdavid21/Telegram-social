@@ -437,14 +437,17 @@ export default function ProductApp() {
 
   const collapsedFeed = useMemo(() => collapseAlbums(safeFeed), [safeFeed])
   const summaryContextById = useMemo(() => {
-    const context = new Map<string, string[]>()
+    const context = new Map<string, Array<{ text: string; outgoing?: boolean; sourceType?: string; timestamp?: number; messageId?: number }>>()
     const historyBySource = new Map<string, FeedItem[]>()
     for (const item of [...collapsedFeed].sort((a, b) => a.timestamp - b.timestamp)) {
       const history = historyBySource.get(item.channelId) || []
       const cutoff = item.timestamp - 7 * 24 * 60 * 60 * 1000
-      context.set(item.id, history.filter(row => row.timestamp >= cutoff && String(row.text || '').trim().length >= 12).slice(-5).map(row => String(row.text || '').trim()))
+      context.set(item.id, history
+        .filter(row => row.timestamp >= cutoff && String(row.text || '').trim().length >= 8)
+        .slice(-8)
+        .map(row => ({ text: String(row.text || '').trim(), outgoing: Boolean(row.outgoing), sourceType: row.sourceType, timestamp: row.timestamp, messageId: row.messageId })))
       if (String(item.text || '').trim()) history.push(item)
-      historyBySource.set(item.channelId, history.slice(-12))
+      historyBySource.set(item.channelId, history.slice(-20))
     }
     return context
   }, [collapsedFeed])

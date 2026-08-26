@@ -6,7 +6,8 @@ import { MediaRenderer } from './MediaRenderer'
 import { SuccessConfirm } from './SuccessConfirm'
 import { BottomSheet } from './BottomSheet'
 import { haptics } from '../lib/interaction'
-import { buildContextualBrief, fetchShareTargets, forwardTelegramPost, replyToTelegramPost, setTelegramReaction, summarizeMessage, type ShareTarget } from '../lib/api'
+import { fetchShareTargets, forwardTelegramPost, replyToTelegramPost, setTelegramReaction, type ShareTarget } from '../lib/api'
+import { buildTelegramSummary, summarizeTelegramMessage, type SummaryContextMessage } from '../lib/telegramSummary'
 import { recordViewerAction, type ViewerActionType } from '../lib/storage'
 import { getRankingReasons } from '../lib/ranking'
 
@@ -54,8 +55,8 @@ function clipAtWord(value: string, limit: number) {
   return `${(cut > limit * .65 ? clipped.slice(0, cut) : clipped.slice(0, limit)).trim()}…`
 }
 
-function localBrief(text: string, previousMessages: string[] = [], sourceName = ''): Brief {
-  const result = buildContextualBrief(text, { previousMessages, sourceName })
+function localBrief(text: string, previousMessages: SummaryContextMessage[] = [], sourceName = '', sourceType = 'channel'): Brief {
+  const result = buildTelegramSummary(text, { previousMessages, sourceName, sourceType })
   return { headline: result.headline, summary: result.summary, ml: false }
 }
 
@@ -94,7 +95,7 @@ export function FeedCard({
   favoriteSource: boolean
   summarizePrivateChats: boolean
   storyEntries?: StoryEntry[]
-  summaryContext?: string[]
+  summaryContext?: SummaryContextMessage[]
   onSave: (item: FeedItem) => void
   onRead: (item: FeedItem) => void
   onFavoriteSource: (channel: Channel) => void
@@ -168,10 +169,10 @@ export function FeedCard({
       return
     }
     const controller = new AbortController()
-    const immediate = localBrief(text, summaryContext, channel.title)
+    const immediate = localBrief(text, summaryContext, channel.title, item.sourceType || channel.type)
     setBrief(immediate)
     setBriefState('local')
-    void summarizeMessage(text, {
+    void summarizeTelegramMessage(text, {
       outgoing: Boolean(item.outgoing),
       sourceType: item.sourceType || channel.type,
       sourceName: channel.title,
@@ -327,8 +328,8 @@ export function FeedCard({
 
     {isNewsBrief ? <div className="sg-news-brief">
       <span className="sg-news-kicker">{storySources > 1 ? `${storySources} sources · ` : ''}{briefLabel}</span>
-      <strong>{brief?.headline || localBrief(text, summaryContext, channel.title).headline}</strong>
-      {(brief?.summary || localBrief(text, summaryContext, channel.title).summary) && <p>{brief?.summary || localBrief(text, summaryContext, channel.title).summary}</p>}
+      <strong>{brief?.headline || localBrief(text, summaryContext, channel.title, item.sourceType || channel.type).headline}</strong>
+      {(brief?.summary || localBrief(text, summaryContext, channel.title, item.sourceType || channel.type).summary) && <p>{brief?.summary || localBrief(text, summaryContext, channel.title, item.sourceType || channel.type).summary}</p>}
       {hasStoryEvidence ? <button type="button" className="sg-story-evidence-link" onClick={() => setStoryOpen(true)}>View {storySources} sources</button> : null}
       <button type="button" className="sg-news-expand pressable" onClick={() => { if (!expanded) handleRead(); setExpanded(value => !value) }}>{expanded ? 'Hide original' : 'Read original'}</button>
       {expanded && <div className="sg-news-original">{text}</div>}
