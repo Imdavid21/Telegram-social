@@ -107,7 +107,10 @@ export function loadSettings(): UserSettings {
 }
 
 export function saveSettings(value: UserSettings) {
-  try { localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(value)) } catch {}
+  try {
+    localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(value))
+    window.dispatchEvent(new CustomEvent('supergram:settings-changed', { detail: value }))
+  } catch {}
 }
 
 export function loadViewerActions(): ViewerAction[] {
