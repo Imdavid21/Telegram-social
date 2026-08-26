@@ -42,7 +42,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
     try { data = JSON.parse(text) }
     catch { throw new ApiError(`Invalid JSON response from ${url} (${res.status}).`, res.status) }
   } else if (res.status !== 204) {
-    throw new ApiError(`Empty API response from ${url} (${res.status}).`, res.status)
+    throw new ApiError(`Empty API response from ${url} (${res.status}).`, res.status) }
   }
 
   if (!res.ok) throw new ApiError(data?.error || `Request failed (${res.status})`, res.status, data?.code)
@@ -147,9 +147,17 @@ export async function summarizeMessage(text: string, context: { outgoing?: boole
   return localExtractiveBrief(text, Boolean(context.outgoing && context.sourceType === 'person'))
 }
 
+function isHeartEmoji(value?: string) {
+  return value === '❤' || value === '❤️' || value === '♥' || value === '♥️'
+}
+
 export type ShareTarget = { id: string; title: string; username?: string; initials?: string; accent?: string; avatar?: string }
-export function setTelegramReaction(item: FeedItem, liked: boolean) {
-  return request<{ ok: boolean; liked: boolean; reactions?: FeedItem['reactions']; myReaction?: string }>('/api/reaction', { method: 'POST', body: JSON.stringify({ channelId: item.channelId, messageId: item.messageId, liked }) })
+export async function setTelegramReaction(item: FeedItem, liked: boolean) {
+  const result = await request<{ ok: boolean; liked: boolean; reactions?: FeedItem['reactions']; myReaction?: string }>('/api/reaction', { method: 'POST', body: JSON.stringify({ channelId: item.channelId, messageId: item.messageId, liked }) })
+  const chosenHeart = Array.isArray(result.reactions)
+    ? result.reactions.some(reaction => Boolean(reaction?.chosen) && isHeartEmoji(reaction?.emoji))
+    : result.liked
+  return { ...result, liked: chosenHeart }
 }
 export function replyToTelegramPost(item: FeedItem, text: string) { return request<{ ok: boolean; messageId?: number }>('/api/reply', { method: 'POST', body: JSON.stringify({ channelId: item.channelId, messageId: item.messageId, text }) }) }
 export function fetchShareTargets() { return request<{ targets: ShareTarget[] }>('/api/share-targets') }
