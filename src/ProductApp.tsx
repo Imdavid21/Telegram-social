@@ -477,6 +477,22 @@ export default function ProductApp() {
     return (q ? safeChannels.filter(channel => `${channel.title} ${channel.username || ''}`.toLowerCase().includes(q)) : topSources).slice(0, 8)
   }, [query, safeChannels, topSources])
 
+  const recentConversations = useMemo(() => {
+    const seen = new Set<string>()
+    const rows: Array<{ item: FeedItem; channel: Channel }> = []
+    for (const item of collapsedFeed) {
+      if (item.outgoing || item.sponsored) continue
+      const channel = channelMap.get(item.channelId)
+      if (!channel || (channel.type !== 'person' && channel.type !== 'group') || seen.has(channel.id)) continue
+      seen.add(channel.id)
+      rows.push({ item, channel })
+      if (rows.length >= 5) break
+    }
+    return rows
+  }, [channelMap, collapsedFeed])
+
+  const contextChannels = useMemo(() => topSources.filter(channel => channel.type === 'channel').slice(0, 4), [topSources])
+
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null
@@ -528,7 +544,7 @@ export default function ProductApp() {
       <div className="sg-rail-bottom">
         <button type="button" onClick={() => setSourceBrowserOpen(true)}><span className="sg-nav-icon"><HomeIcon /></span><span>All sources</span></button>
         <button type="button" onClick={() => setSettingsOpen(true)}><span className="sg-nav-icon"><SettingsIcon /></span><span>Settings</span></button>
-        <button type="button" className="sg-account-button" onClick={() => setSettingsOpen(true)} title={me?.username ? `@${me.username}` : me?.firstName || 'Account'}><span className="sg-account-avatar">{initials(me?.firstName)}</span><span>{me?.firstName || 'You'}</span></button>
+        <button type="button" className="sg-account-button" onClick={() => setSettingsOpen(true)} title={me?.username ? `@${me.username}` : me?.firstName || 'Account'}><span className="sg-account-avatar">{me?.avatar ? <img src={me.avatar} alt="" /> : initials(me?.firstName)}</span><span>{me?.firstName || 'You'}</span></button>
       </div>
     </aside>
 
@@ -536,7 +552,7 @@ export default function ProductApp() {
       <div className="sg-feed-column">
         <header className="sg-mobile-header">
           <a className="sg-brand" href="/"><span className="sg-brand-svg"><BrandMark /></span><strong>Supergram</strong></a>
-          <div><button type="button" className="sg-icon-button" onClick={() => setSearchOpen(true)} aria-label="Search"><SearchIcon /></button><button type="button" className="sg-account-button-mobile" onClick={() => setSettingsOpen(true)} aria-label="Account and settings"><span className="sg-account-avatar">{initials(me?.firstName)}</span></button></div>
+          <div><button type="button" className="sg-icon-button" onClick={() => setSearchOpen(true)} aria-label="Search"><SearchIcon /></button><button type="button" className="sg-account-button-mobile" onClick={() => setSettingsOpen(true)} aria-label="Account and settings"><span className="sg-account-avatar">{me?.avatar ? <img src={me.avatar} alt="" /> : initials(me?.firstName)}</span></button></div>
         </header>
 
         <section className="sg-feed-toolbar" aria-label="Feed controls">
@@ -592,6 +608,26 @@ export default function ProductApp() {
         </section>
       </div>
     </main>
+
+    <aside className="sg-context-rail" aria-label="Telegram context">
+      <section className="sg-context-section">
+        <div className="sg-context-title"><strong>Recent chats</strong><button type="button" onClick={() => setSourceBrowserOpen(true)}>See all</button></div>
+        {recentConversations.length ? recentConversations.map(({ item, channel }) => <button type="button" className="sg-context-row" key={channel.id} onClick={() => selectSource(channel.id)}>
+          <span className="sg-context-avatar" style={{ background: channel.accent || '#242426' }}>{channel.avatar ? <img src={channel.avatar} alt="" /> : initials(channel.title)}</span>
+          <span><strong>{channel.title}</strong><small>{String(item.text || '').trim().slice(0, 62) || (item.media ? 'Media' : 'Telegram update')}</small></span>
+          {item.unread && <i aria-label="Unread" />}
+        </button>) : <div className="sg-context-empty">Recent Telegram conversations will appear here.</div>}
+      </section>
+      {contextChannels.length ? <section className="sg-context-section">
+        <div className="sg-context-title"><strong>Channels</strong><button type="button" onClick={() => setSourceBrowserOpen(true)}>Browse</button></div>
+        {contextChannels.map(channel => <button type="button" className="sg-context-row" key={channel.id} onClick={() => selectSource(channel.id)}>
+          <span className="sg-context-avatar" style={{ background: channel.accent || '#242426' }}>{channel.avatar ? <img src={channel.avatar} alt="" /> : initials(channel.title)}</span>
+          <span><strong>{channel.title}</strong><small>{channel.username ? `@${channel.username}` : 'Telegram channel'}</small></span>
+          {Number(channel.unread || 0) > 0 && <em>{Number(channel.unread || 0) > 99 ? '99+' : Number(channel.unread || 0)}</em>}
+        </button>)}
+      </section> : null}
+      <p className="sg-context-note">Public content can move directly into Telegram discussion, forwarding, and Saved Messages.</p>
+    </aside>
 
     {searchOpen && <div className="sg-search-layer" role="dialog" aria-modal="true" aria-label="Search Supergram">
       <button type="button" className="sg-search-scrim" aria-label="Close search" onClick={() => setSearchOpen(false)} />

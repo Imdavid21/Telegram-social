@@ -340,11 +340,11 @@ export function FeedCard({
 
     <div className="sg-post-actions sg-post-actions-ref">
       <div className="sg-actions-left">
-        <button className={`sg-action pressable sg-like ${liked ? 'is-liked' : ''}`} disabled={likeBusy} onClick={() => void toggleLike()} aria-label={liked ? 'Unlike on Telegram' : 'Like on Telegram'}><HeartIcon /></button>
-        <button className="sg-action pressable" onClick={() => { setInteractionError(''); setReplyOpen(true) }} aria-label="Reply on Telegram"><MessageIcon /></button>
-        <button className={`sg-action pressable ${item.noForwards ? 'is-disabled' : ''}`} disabled={item.noForwards} onClick={() => void openShare()} aria-label={item.noForwards ? 'Forwarding restricted' : 'Forward to Telegram contact'}><SendIcon /></button>
+        <button className={`sg-action pressable sg-like ${liked ? 'is-liked' : ''}`} disabled={likeBusy} onClick={() => void toggleLike()} aria-label={liked ? 'Remove Telegram reaction' : 'React on Telegram'} data-label="React"><HeartIcon /></button>
+        <button className="sg-action pressable" onClick={() => { setInteractionError(''); setReplyOpen(true) }} aria-label="Open discussion" data-label="Discuss"><MessageIcon /></button>
+        <button className={`sg-action pressable ${item.noForwards ? 'is-disabled' : ''}`} disabled={item.noForwards} onClick={() => void openShare()} aria-label={item.noForwards ? 'Forwarding restricted' : 'Forward to Telegram contact'} data-label="Forward"><SendIcon /></button>
       </div>
-      <span className="sg-save-slot"><button className={`sg-action pressable ${item.saved ? 'is-active' : ''}`} onClick={handleSave} aria-label={item.saved ? 'Remove from saved' : 'Save'}><BookmarkIcon /></button>{saveConfirm ? <SuccessConfirm onComplete={() => setSaveConfirm(false)} /> : null}</span>
+      <span className="sg-save-slot"><button className={`sg-action pressable ${item.saved ? 'is-active' : ''}`} onClick={handleSave} aria-label={item.saved ? 'Remove from Saved Messages' : 'Save to Saved Messages'} data-label="Save"><BookmarkIcon /></button>{saveConfirm ? <SuccessConfirm onComplete={() => setSaveConfirm(false)} /> : null}</span>
     </div>
     {interactionError && <div className="sg-interaction-error" role="status">{interactionError}</div>}
 
@@ -353,11 +353,16 @@ export function FeedCard({
       <span className="sg-stats">{item.views && <span><EyeIcon />{String(item.views)}</span>}{!!Number(item.comments || 0) && <span><MessageIcon />{Number(item.comments || 0)}</span>}</span>
     </div>}
 
-    <BottomSheet open={replyOpen} onClose={() => setReplyOpen(false)} title="Reply">
+    <button type="button" className="sg-discussion-entry pressable" onClick={() => { setInteractionError(''); setReplyOpen(true) }}>
+      <span>{Number(item.comments || 0) > 0 ? `View discussion · ${Number(item.comments || 0)} ${Number(item.comments || 0) === 1 ? 'reply' : 'replies'}` : 'Join discussion'}</span>
+      <MessageIcon />
+    </button>
+
+    <BottomSheet open={replyOpen} onClose={() => setReplyOpen(false)} title="Discussion">
       <div className="sg-reply-box">
         <div className="sg-reply-context"><strong>{channel.title}</strong><span>{clipAtWord(cleanText(text) || 'Original post', 120)}</span></div>
-        <textarea value={replyText} onChange={event => setReplyText(event.target.value)} onKeyDown={event => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') void sendReply() }} placeholder="Write a reply…" autoFocus />
-        <button type="button" disabled={!replyText.trim() || replyBusy} onClick={() => void sendReply()}>{replyBusy ? 'Sending…' : 'Reply on Telegram'}</button>
+        <textarea value={replyText} onChange={event => setReplyText(event.target.value)} onKeyDown={event => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') void sendReply() }} placeholder="Reply to this post…" autoFocus />
+        <button type="button" disabled={!replyText.trim() || replyBusy} onClick={() => void sendReply()}>{replyBusy ? 'Sending…' : 'Send reply'}</button>
       </div>
     </BottomSheet>
 
