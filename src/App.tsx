@@ -1,14 +1,13 @@
 import { useEffect, useState } from 'react'
-import { Button, Skeleton } from '@mui/material'
+import { Skeleton } from '@mui/material'
 import ProductApp from './ProductApp'
 import { LandingPage } from './components/LandingPage'
 import { DemoPage } from './components/DemoPage'
 import { PromptModal } from './components/AuthModal'
 import { ScrollAnchorBridge } from './components/ScrollAnchorBridge'
-import { LogOutIcon } from './components/Icons'
 import { BrandMark } from './components/BrandMark'
 import type { AuthPrompt } from './types'
-import { authFlow, authStatus, beginAuth, healthStatus, logoutTelegram, submitAuth } from './lib/api'
+import { authFlow, authStatus, beginAuth, healthStatus, submitAuth } from './lib/api'
 import { haptics } from './lib/interaction'
 
 type Flow = { step: string; error?: string | null; meta?: Record<string, unknown> }
@@ -42,7 +41,6 @@ export default function App() {
   const [connected, setConnected] = useState<boolean | null>(null)
   const [backendReady, setBackendReady] = useState(false)
   const [connecting, setConnecting] = useState(false)
-  const [loggingOut, setLoggingOut] = useState(false)
   const [authPrompt, setAuthPrompt] = useState<AuthPrompt | null>(null)
   const [error, setError] = useState('')
   const demoMode = new URLSearchParams(window.location.search).get('demo') === '1'
@@ -64,7 +62,7 @@ export default function App() {
         if (!active) return
         setBackendReady(false)
         setConnected(false)
-        setError(String((e as Error)?.message || 'Could not reach the Telegram backend.'))
+        setError(String((e as Error)?.message || 'Could not reach Telegram.'))
       }
     }
     void check()
@@ -100,7 +98,7 @@ export default function App() {
     setConnecting(true)
     try {
       const health = await healthStatus()
-      if (!health.ok || !health.configured) throw new Error('The Telegram backend is not ready yet.')
+      if (!health.ok || !health.configured) throw new Error('Supergram can’t connect to Telegram right now.')
       setBackendReady(true)
       const flow = await settleFlow(await beginAuth())
       if (flow.step === 'done') return void await finishConnection()
@@ -133,49 +131,9 @@ export default function App() {
     }
   }
 
-  async function logout() {
-    if (loggingOut) return
-    setLoggingOut(true)
-    try { await logoutTelegram() } catch {}
-    setConnected(false)
-    setConnecting(false)
-    setAuthPrompt(null)
-    setError('')
-    window.location.href = '/'
-  }
-
   if (connected === null) return <SessionBoot />
-
   if (demoMode && !connected) return <><DemoPage onConnect={connect} /><PromptModal prompt={authPrompt} onSubmit={submitPrompt} onCancel={() => { setAuthPrompt(null); setConnecting(false) }} /></>
-  if (connected) return <>
-    <ScrollAnchorBridge><ProductApp /></ScrollAnchorBridge>
-    <Button
-      type="button"
-      variant="text"
-      size="small"
-      startIcon={<LogOutIcon />}
-      disabled={loggingOut}
-      onClick={() => void logout()}
-      className="sg-global-logout"
-      sx={{
-        position: 'fixed',
-        top: 14,
-        right: 16,
-        zIndex: 1400,
-        minWidth: 0,
-        px: 1.25,
-        color: 'var(--app-secondary)',
-        bgcolor: 'var(--app-surface)',
-        border: '1px solid var(--app-border)',
-        borderRadius: '10px',
-        fontSize: 12,
-        fontWeight: 600,
-        textTransform: 'none',
-        boxShadow: 'none',
-        '&:hover': { bgcolor: 'var(--app-hover)', boxShadow: 'none' }
-      }}
-    >{loggingOut ? 'Logging out' : 'Logout'}</Button>
-  </>
+  if (connected) return <ScrollAnchorBridge><ProductApp /></ScrollAnchorBridge>
 
   return <>
     <LandingPage onConnect={connect} onDemo={() => { window.location.href = '/?demo=1' }} connecting={connecting} backendReady={backendReady} booting={false} error={error} />
