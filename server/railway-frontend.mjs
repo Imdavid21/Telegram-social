@@ -1,4 +1,5 @@
 import http from 'node:http'
+import https from 'node:https'
 import { createReadStream, existsSync, statSync } from 'node:fs'
 import { extname, join, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -39,10 +40,11 @@ function proxy(req, res) {
   if (BACKEND_PROXY_SECRET) headers['x-tgs-proxy-secret'] = BACKEND_PROXY_SECRET
   delete headers['content-length']
 
-  const upstream = http.request({
+  const transport = target.protocol === 'https:' ? https : http
+  const upstream = transport.request({
     protocol: target.protocol,
     hostname: target.hostname,
-    port: target.port || 80,
+    port: target.port || (target.protocol === 'https:' ? 443 : 80),
     method: req.method,
     path: `${target.pathname}${target.search}`,
     headers
