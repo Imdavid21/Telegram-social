@@ -108,7 +108,11 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
     const controller = new AbortController()
     setBrief(localBrief(text))
     setBriefState('loading')
-    void summarizeMessage(text, controller.signal)
+    void summarizeMessage(text, {
+      outgoing: Boolean(item.outgoing),
+      sourceType: item.sourceType || channel.type,
+      sourceName: channel.title
+    }, controller.signal)
       .then(result => {
         if (!result?.headline) {
           setBriefState('local')
@@ -119,7 +123,7 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
       })
       .catch(() => setBriefState('local'))
     return () => controller.abort()
-  }, [isNewsBrief, item.id, text])
+  }, [isNewsBrief, item.id, item.outgoing, item.sourceType, text, channel.title, channel.type])
 
   useEffect(() => {
     const el = root.current
