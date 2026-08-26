@@ -14,6 +14,7 @@ import './demo.css'
 import './identity.css'
 import './app-system.css'
 import './session-boot.css'
+import './ux-overhaul.css'
 
 function resolveThemeMode(themeMode: ThemeMode) {
   if (themeMode === 'light' || themeMode === 'dark') return themeMode
