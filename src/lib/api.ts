@@ -148,7 +148,9 @@ export async function summarizeMessage(text: string, context: { outgoing?: boole
 }
 
 export type ShareTarget = { id: string; title: string; username?: string; initials?: string; accent?: string; avatar?: string }
-export function setTelegramReaction(item: FeedItem, liked: boolean) { return request<{ ok: boolean; liked: boolean }>('/api/reaction', { method: 'POST', body: JSON.stringify({ channelId: item.channelId, messageId: item.messageId, liked }) }) }
+export function setTelegramReaction(item: FeedItem, liked: boolean) {
+  return request<{ ok: boolean; liked: boolean; reactions?: FeedItem['reactions']; myReaction?: string }>('/api/reaction', { method: 'POST', body: JSON.stringify({ channelId: item.channelId, messageId: item.messageId, liked }) })
+}
 export function replyToTelegramPost(item: FeedItem, text: string) { return request<{ ok: boolean; messageId?: number }>('/api/reply', { method: 'POST', body: JSON.stringify({ channelId: item.channelId, messageId: item.messageId, text }) }) }
 export function fetchShareTargets() { return request<{ targets: ShareTarget[] }>('/api/share-targets') }
 export function forwardTelegramPost(item: FeedItem, targetId: string) { return request<{ ok: boolean }>('/api/forward', { method: 'POST', body: JSON.stringify({ channelId: item.channelId, messageId: item.messageId, targetId }) }) }
