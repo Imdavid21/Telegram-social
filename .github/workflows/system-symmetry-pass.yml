@@ -2,9 +2,11 @@ name: Backend v3 validation
 on:
   push:
     branches: [supergram-backend-final-v3]
+permissions:
+  contents: write
 jobs:
   validate:
-    if: github.event.head_commit.message == 'Run backend v3 validation'
+    if: github.event.head_commit.message == 'Commit backend v3 validated UI'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,11 +21,10 @@ jobs:
           node --check server/index.mjs
           node --check api/proxy.mjs
           npm run build
-      - name: Export patched UI files
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-v3-patched-ui
-          path: |
-            src/ProductApp.tsx
-            src/components/FeedCard.tsx
-          if-no-files-found: error
+      - name: Commit only validated UI files
+        run: |
+          git config user.name "Uddalak"
+          git config user.email "84083101+Imdavid21@users.noreply.github.com"
+          git add src/ProductApp.tsx src/components/FeedCard.tsx
+          git commit -m "Apply validated Telegram search UI"
+          git push
