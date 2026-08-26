@@ -6,6 +6,32 @@ export type AutoplayMode = 'off' | 'on'
 export type SourceType = 'person' | 'group' | 'channel' | 'conversation'
 export type MediaKind = 'photo' | 'video' | 'gif' | 'audio' | 'voice' | 'document' | 'sticker' | 'album' | 'poll' | 'location' | 'contact'
 
+export interface TelegramAccount {
+  id: string
+  firstName: string
+  lastName?: string
+  username?: string
+  usernames?: string[]
+  bio?: string
+  premium?: boolean
+  verified?: boolean
+  scam?: boolean
+  fake?: boolean
+  avatar?: string
+  commonChatsCount?: number
+  voiceMessagesForbidden?: boolean
+  translationDisabled?: boolean
+  settings?: {
+    sensitiveContentEnabled?: boolean
+    canSetContentSettings?: boolean
+    archiveAndMuteNewNoncontactPeers?: boolean
+    keepArchivedUnmuted?: boolean
+    keepArchivedFolders?: boolean
+    hideReadMarks?: boolean
+  }
+  capabilities?: Record<string, boolean>
+}
+
 export interface UserSettings {
   feedMode: FeedMode
   themeMode: ThemeMode
