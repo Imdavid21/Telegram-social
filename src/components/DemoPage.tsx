@@ -1,78 +1,18 @@
 import { useMemo, useState } from 'react'
 import { BrandMark } from './BrandMark'
 import { demoChannels, demoFeed } from '../data/demo'
-import { BookmarkIcon, HeartIcon, HomeIcon, ImageIcon, MessageIcon, SearchIcon, SendIcon } from './Icons'
+import { BellIcon, BookmarkIcon, HeartIcon, HomeIcon, MessageIcon, SearchIcon, SendIcon } from './Icons'
+import { Button } from './ui/button'
 
-function timeAgo(timestamp: number) {
-  const mins = Math.max(1, Math.floor((Date.now() - timestamp) / 60_000))
-  if (mins < 60) return `${mins}m`
-  const hours = Math.floor(mins / 60)
-  return hours < 24 ? `${hours}h` : `${Math.floor(hours / 24)}d`
-}
-
-export function DemoPage({ onConnect }: { onConnect: () => void }) {
-  const [saved, setSaved] = useState(() => new Set(demoFeed.filter(item => item.saved).map(item => item.id)))
-  const [activeSource, setActiveSource] = useState('all')
-  const [query, setQuery] = useState('')
-
-  const visible = useMemo(() => demoFeed.filter(item => {
-    const channel = demoChannels.find(source => source.id === item.channelId)
-    const sourceMatch = activeSource === 'all' || item.channelId === activeSource
-    const q = query.trim().toLowerCase()
-    const queryMatch = !q || item.text.toLowerCase().includes(q) || channel?.title.toLowerCase().includes(q) || channel?.username?.toLowerCase().includes(q)
-    return sourceMatch && queryMatch
-  }), [activeSource, query])
-
-  function toggleSaved(id: string) {
-    setSaved(current => {
-      const next = new Set(current)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
-
-  return <div className="demo-page">
-    <aside className="demo-left">
-      <a className="demo-brand" href="/"><BrandMark /><strong>Supergram</strong></a>
-      <nav className="demo-nav">
-        <button className="is-active"><HomeIcon /><span>Home</span></button>
-        <label><SearchIcon /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search demo" /></label>
-        <button><ImageIcon /><span>Media</span></button>
-        <button><BookmarkIcon /><span>Saved</span></button>
-      </nav>
-      <div className="demo-left-bottom"><button className="demo-connect pressable" onClick={onConnect}>Connect Telegram</button><a href="/">Back to homepage</a></div>
-    </aside>
-
-    <main className="demo-main">
-      <header className="demo-topbar"><div><strong>Demo feed</strong><span>Sample content, no Telegram login required</span></div><button className="demo-connect pressable" onClick={onConnect}>Use my Telegram</button></header>
-
-      <div className="demo-source-strip">
-        <button className={activeSource === 'all' ? 'is-active' : ''} onClick={() => setActiveSource('all')}><span className="demo-all-avatar"><BrandMark /></span><small>All</small></button>
-        {demoChannels.map(channel => <button key={channel.id} className={activeSource === channel.id ? 'is-active' : ''} onClick={() => setActiveSource(channel.id)}>
-          <span className="demo-source-avatar" style={{ background: channel.accent }}>{channel.initials}</span><small>{channel.title}</small>
-        </button>)}
-      </div>
-
-      <section className="demo-feed">
-        {visible.map(item => {
-          const channel = demoChannels.find(source => source.id === item.channelId)!
-          return <article className="demo-post" key={item.id}>
-            <header><span className="demo-post-avatar" style={{ background: channel.accent }}>{channel.initials}</span><div><strong>{channel.title}</strong><span>{channel.username ? `@${channel.username}` : 'Telegram source'} · {timeAgo(item.timestamp)}</span></div></header>
-            {item.media ? <div className="demo-media" style={{ background: item.media.gradient }}><span>{item.media.label}</span></div> : null}
-            <div className="demo-actions"><span><button className="pressable" aria-label="Like"><HeartIcon /></button><button className="pressable" aria-label="Comment"><MessageIcon /></button><button className="pressable" aria-label="Share"><SendIcon /></button></span><button className={`pressable ${saved.has(item.id) ? 'is-saved' : ''}`} onClick={() => toggleSaved(item.id)} aria-label="Save"><BookmarkIcon /></button></div>
-            <p><strong>{channel.title}</strong> {item.text}</p>
-            <div className="demo-meta"><span>{item.reactions.map(reaction => `${reaction.emoji} ${reaction.count}`).join('  ')}</span><span>{item.views ? `${item.views} views` : ''}</span></div>
-          </article>
-        })}
-        {!visible.length ? <div className="demo-empty"><strong>No demo posts match.</strong><span>Clear the search or choose another source.</span></div> : null}
-      </section>
-    </main>
-
-    <aside className="demo-right">
-      <section><div className="demo-profile"><BrandMark /><div><strong>Supergram demo</strong><span>Public preview</span></div></div><p>This is a front-end demonstration using sample Telegram-style sources. Nothing here reads your account.</p></section>
-      <section><strong>Try the interaction</strong><ul><li>Filter by source</li><li>Search posts</li><li>Save posts locally</li><li>Keep scrolling through the feed</li></ul></section>
-      <section className="demo-real"><strong>Want your actual feed?</strong><p>Connect Telegram to replace this sample timeline with the channels, groups, and conversations already in your account.</p><button className="demo-connect pressable" onClick={onConnect}>Connect Telegram</button></section>
-    </aside>
-  </div>
+function timeAgo(timestamp:number){const mins=Math.max(1,Math.floor((Date.now()-timestamp)/60000));if(mins<60)return `${mins}m`;const hours=Math.floor(mins/60);return hours<24?`${hours}h`:`${Math.floor(hours/24)}d`}
+export function DemoPage({onConnect}:{onConnect:()=>void}){
+ const[saved,setSaved]=useState(()=>new Set(demoFeed.filter(item=>item.saved).map(item=>item.id)));const[liked,setLiked]=useState(()=>new Set<string>());const[filter,setFilter]=useState<'all'|'media'|'saved'>('all');const[query,setQuery]=useState('');
+ const visible=useMemo(()=>demoFeed.filter(item=>{const channel=demoChannels.find(source=>source.id===item.channelId);const q=query.trim().toLowerCase();if(filter==='media'&&!item.media)return false;if(filter==='saved'&&!saved.has(item.id))return false;return !q||`${item.text} ${channel?.title||''} ${channel?.username||''}`.toLowerCase().includes(q)}),[filter,query,saved]);
+ const toggle=(setter:typeof setSaved,current:Set<string>,id:string)=>setter(()=>{const next=new Set(current);next.has(id)?next.delete(id):next.add(id);return next});
+ return <div className="demo-page-v2">
+  <aside className="demo-sidebar-v2"><a href="/" className="demo-brand-v2"><BrandMark/><strong>Supergram</strong></a><nav><button className={filter==='all'?'is-active':''} onClick={()=>setFilter('all')}><HomeIcon/><span>Home</span></button><button className={filter==='media'?'is-active':''} onClick={()=>setFilter('media')}><SearchIcon/><span>Discover</span></button><button><MessageIcon/><span>Chats</span></button><button><BellIcon/><span>Activity</span></button><button className={filter==='saved'?'is-active':''} onClick={()=>setFilter('saved')}><BookmarkIcon/><span>Saved</span></button></nav><div className="demo-sidebar-bottom"><Button onClick={onConnect}>Use my Telegram</Button><a href="/">Back to website</a></div></aside>
+  <main className="demo-content-v2"><header><div><strong>{filter==='media'?'Discover':filter==='saved'?'Saved':'For You'}</strong><span>Interactive sample feed</span></div><label><SearchIcon/><input value={query} onChange={event=>setQuery(event.target.value)} placeholder="Search demo"/></label></header><section className="demo-feed-v2">{visible.map(item=>{const channel=demoChannels.find(source=>source.id===item.channelId)!;return <article key={item.id}><div className="demo-post-head-v2"><span style={{background:channel.accent}}>{channel.initials}</span><div><strong>{channel.title}</strong><small>{channel.username?`@${channel.username}`:'Telegram source'} · {timeAgo(item.timestamp)}</small></div></div>{item.media?<div className="demo-media-v2" style={{background:item.media.gradient}}><span>{item.media.label}</span></div>:null}<p>{item.text}</p><div className="demo-actions-v2"><span><button className={liked.has(item.id)?'is-active':''} onClick={()=>toggle(setLiked,liked,item.id)}><HeartIcon/></button><button><MessageIcon/></button><button><SendIcon/></button></span><button className={saved.has(item.id)?'is-active':''} onClick={()=>toggle(setSaved,saved,item.id)}><BookmarkIcon/></button></div></article>})}{!visible.length?<div className="demo-empty-v2"><strong>No matching posts</strong><span>Try another search or feed view.</span></div>:null}</section></main>
+  <aside className="demo-context-v2"><section><strong>What this preview shows</strong><p>Supergram turns Telegram sources into a focused social feed while keeping reactions, replies, forwarding, and Saved Messages connected to Telegram.</p></section><section><strong>Try it</strong><ul><li>Search the sample feed</li><li>Switch between Home, Discover, and Saved</li><li>Like and save posts locally</li><li>Resize the browser to test responsive behavior</li></ul></section><Button onClick={onConnect}>Connect Telegram</Button></aside>
+  <nav className="demo-mobile-nav-v2"><button className={filter==='all'?'is-active':''} onClick={()=>setFilter('all')}><HomeIcon/><span>Home</span></button><button className={filter==='media'?'is-active':''} onClick={()=>setFilter('media')}><SearchIcon/><span>Discover</span></button><button><MessageIcon/><span>Chats</span></button><button><BellIcon/><span>Activity</span></button><button className={filter==='saved'?'is-active':''} onClick={()=>setFilter('saved')}><BookmarkIcon/><span>Saved</span></button></nav>
+ </div>
 }
