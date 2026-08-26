@@ -787,12 +787,22 @@ app.post('/api/auth/begin', async (req, res) => {
   res.json(publicFlow(flow))
 })
 
+function finalizeAuthFlow(id, flow, res) {
+  if (flow?.step !== 'done' || !flow.session) return false
+  res.cookie(SESSION_COOKIE, encrypt(flow.session), cookieOptions(true))
+  res.clearCookie(FLOW_COOKIE, { path: '/' })
+  pending.delete(id)
+  return true
+}
+
 app.get('/api/auth/flow', async (req, res) => {
   const id = req.cookies?.[FLOW_COOKIE]
   const flow = id && pending.get(id)
   if (!flow) return res.status(404).json({ error: 'No active Telegram login.' })
   await waitForStepChange(flow, flow.step)
-  res.json(publicFlow(flow))
+  const payload = publicFlow(flow)
+  finalizeAuthFlow(id, flow, res)
+  res.json(payload)
 })
 
 app.post('/api/auth/input', async (req, res) => {
@@ -811,12 +821,9 @@ app.post('/api/auth/input', async (req, res) => {
   resolve(value)
   await waitForStepChange(flow, 'processing', 4500)
 
-  if (flow.step === 'done' && flow.session) {
-    res.cookie(SESSION_COOKIE, encrypt(flow.session), cookieOptions(true))
-    res.clearCookie(FLOW_COOKIE, { path: '/' })
-    pending.delete(id)
-  }
-  res.json(publicFlow(flow))
+  const payload = publicFlow(flow)
+  finalizeAuthFlow(id, flow, res)
+  res.json(payload)
 })
 
 app.post('/api/auth/logout', async (req, res) => {
