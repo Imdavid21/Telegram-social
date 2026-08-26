@@ -61,11 +61,14 @@ function ProductPreview() {
 }
 
 export function LandingPage({ onConnect, onDemo, connecting, backendReady, booting, error }: LandingPageProps) {
+  const connectLabel = connecting ? 'Connecting…' : 'Open Supergram'
+  const heroConnectLabel = connecting ? 'Connecting to Telegram…' : 'Continue with Telegram'
+
   return <div className="lp-page">
     <header className="lp-nav">
       <a className="lp-wordmark" href="/" aria-label="Supergram home"><BrandMark /><strong>Supergram</strong></a>
       <nav><button type="button" className="lp-nav-link" onClick={onDemo}>Demo</button><a href="#product">Product</a><a href="#privacy">Privacy</a><a href="/terms.html">Terms</a></nav>
-      <button className="lp-nav-cta pressable" type="button" onClick={onConnect} disabled={booting || connecting || !backendReady}>{connecting ? 'Connecting…' : 'Open Supergram'}</button>
+      <button className="lp-nav-cta pressable" type="button" onClick={onConnect} disabled={connecting}>{connectLabel}</button>
     </header>
 
     <main>
@@ -75,7 +78,7 @@ export function LandingPage({ onConnect, onDemo, connecting, backendReady, booti
           <h1>Follow Telegram like a feed, not an inbox.</h1>
           <p className="lp-hero-body">Supergram turns the channels, groups, and conversations you already follow into one continuous timeline, with media that loads when it matters and new posts that never knock you out of place.</p>
           <div className="lp-hero-actions">
-            <button className="lp-primary pressable" type="button" onClick={onConnect} disabled={booting || connecting || !backendReady}>{booting ? 'Checking connection…' : connecting ? 'Connecting to Telegram…' : 'Continue with Telegram'}</button>
+            <button className="lp-primary pressable" type="button" onClick={onConnect} disabled={connecting}>{heroConnectLabel}</button>
             <button className="lp-secondary pressable" type="button" onClick={onDemo}>Open live demo</button>
           </div>
           <p className="lp-demo-note">The demo uses sample content and works without a Telegram login.</p>
@@ -101,7 +104,7 @@ export function LandingPage({ onConnect, onDemo, connecting, backendReady, booti
         <Reveal className="lp-privacy-panel"><div><strong>Session</strong><span>Encrypted HttpOnly cookie</span></div><div><strong>Messages</strong><span>Fetched from Telegram on demand</span></div><div><strong>Media</strong><span>Short-lived authenticated delivery</span></div><div><strong>Local state</strong><span>Read, saved, theme, and feed preferences</span></div></Reveal>
       </section>
 
-      <section className="lp-final"><Reveal><BrandMark className="lp-final-mark" /><h2>Your Telegram is already full of things worth following. Supergram gives them a better place to land.</h2><div className="lp-hero-actions lp-final-actions"><button className="lp-primary pressable" type="button" onClick={onConnect} disabled={booting || connecting || !backendReady}>Open Supergram</button><button className="lp-secondary pressable" type="button" onClick={onDemo}>View demo</button></div></Reveal></section>
+      <section className="lp-final"><Reveal><BrandMark className="lp-final-mark" /><h2>Your Telegram is already full of things worth following. Supergram gives them a better place to land.</h2><div className="lp-hero-actions lp-final-actions"><button className="lp-primary pressable" type="button" onClick={onConnect} disabled={connecting}>Open Supergram</button><button className="lp-secondary pressable" type="button" onClick={onDemo}>View demo</button></div></Reveal></section>
     </main>
 
     <footer className="lp-footer"><a className="lp-wordmark" href="/"><BrandMark /><strong>Supergram</strong></a><p>Independent software using the Telegram API. Supergram is not affiliated with Telegram.</p><div><button type="button" className="lp-footer-button" onClick={onDemo}>Demo</button><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a><a href="https://github.com/Imdavid21/Telegram-social" target="_blank" rel="noreferrer">GitHub</a></div></footer>
