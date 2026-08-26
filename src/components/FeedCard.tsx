@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Skeleton } from '@mui/material'
 import type { Channel, FeedItem } from '../types'
-import { BookmarkIcon, EyeIcon, LockIcon, MessageIcon, MoreIcon, SendIcon } from './Icons'
+import { BookmarkIcon, EyeIcon, HeartIcon, LockIcon, MessageIcon, MoreIcon, SendIcon } from './Icons'
 import { MediaRenderer } from './MediaRenderer'
 import { SuccessConfirm } from './SuccessConfirm'
 import { BottomSheet } from './BottomSheet'
 import { haptics } from '../lib/interaction'
-import { summarizeMessage } from '../lib/api'
+import { fetchShareTargets, forwardTelegramPost, replyToTelegramPost, setTelegramReaction, summarizeMessage, type ShareTarget } from '../lib/api'
 import { recordViewerAction } from '../lib/storage'
 
 const HOUR = 60 * 60 * 1000
@@ -82,6 +82,16 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
   const [expanded, setExpanded] = useState(false)
   const [saveConfirm, setSaveConfirm] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
+  const [liked, setLiked] = useState(false)
+  const [likeBusy, setLikeBusy] = useState(false)
+  const [replyOpen, setReplyOpen] = useState(false)
+  const [replyText, setReplyText] = useState('')
+  const [replyBusy, setReplyBusy] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
+  const [shareTargets, setShareTargets] = useState<ShareTarget[]>([])
+  const [shareLoading, setShareLoading] = useState(false)
+  const [shareBusy, setShareBusy] = useState('')
+  const [interactionError, setInteractionError] = useState('')
   const [brief, setBrief] = useState<Brief | null>(null)
   const [briefState, setBriefState] = useState<BriefState>('idle')
   const original = originalPostUrl(item, channel)
@@ -186,12 +196,27 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
     }
   }, [item.id, item.unread, onRead])
 
-  const share = async () => {
+  async function toggleLike() {
+    if (likeBusy) return
+    const next = !liked
+    setLiked(next); setLikeBusy(true); setInteractionError(''); haptics.light()
+    try { await setTelegramReaction(item, next) } catch (error) { setLiked(!next); setInteractionError(String((error as Error)?.message || 'Could not update reaction.')); haptics.error() } finally { setLikeBusy(false) }
+  }
+  async function sendReply() {
+    const value = replyText.trim(); if (!value || replyBusy) return
+    setReplyBusy(true); setInteractionError('')
+    try { await replyToTelegramPost(item, value); setReplyText(''); setReplyOpen(false); haptics.success() } catch (error) { setInteractionError(String((error as Error)?.message || 'Could not send reply.')); haptics.error() } finally { setReplyBusy(false) }
+  }
+  async function openShare() {
     if (item.noForwards) return
-    haptics.light()
-    const payload = { title: String(channel.title || 'Supergram'), text, url: original || location.href }
-    if (navigator.share) await navigator.share(payload).catch(() => {})
-    else await navigator.clipboard?.writeText([payload.text, payload.url].filter(Boolean).join('\n\n')).catch(() => {})
+    setShareOpen(true); if (shareTargets.length || shareLoading) return
+    setShareLoading(true); setInteractionError('')
+    try { const result = await fetchShareTargets(); setShareTargets(Array.isArray(result.targets) ? result.targets : []) } catch (error) { setInteractionError(String((error as Error)?.message || 'Could not load contacts.')) } finally { setShareLoading(false) }
+  }
+  async function forwardTo(targetId: string) {
+    if (shareBusy) return
+    setShareBusy(targetId); setInteractionError('')
+    try { await forwardTelegramPost(item, targetId); setShareOpen(false); haptics.success() } catch (error) { setInteractionError(String((error as Error)?.message || 'Could not forward post.')); haptics.error() } finally { setShareBusy('') }
   }
 
   const handleSave = useCallback(() => {
@@ -245,16 +270,15 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
       {isLong && <button className="sg-more-text pressable" onClick={() => setExpanded(value => !value)}>{expanded ? 'less' : 'more'}</button>}
     </div>}
 
-    <div className="sg-post-actions">
+    <div className="sg-post-actions sg-post-actions-ref">
       <div className="sg-actions-left">
-        <button className={`sg-action pressable ${item.noForwards ? 'is-disabled' : ''}`} disabled={item.noForwards} onClick={share} aria-label={item.noForwards ? 'Sharing restricted' : 'Share'}><SendIcon /></button>
-        {original ? <a className="sg-action pressable" href={original} target="_blank" rel="noreferrer" aria-label="Open in Telegram" onClick={handleOriginalOpen}><MessageIcon /></a> : <span className="sg-action is-disabled" title="Private source"><MessageIcon /></span>}
+        <button className={`sg-action pressable sg-like ${liked ? 'is-liked' : ''}`} disabled={likeBusy} onClick={() => void toggleLike()} aria-label={liked ? 'Unlike on Telegram' : 'Like on Telegram'}><HeartIcon /></button>
+        <button className="sg-action pressable" onClick={() => { setInteractionError(''); setReplyOpen(true) }} aria-label="Quote reply on Telegram"><MessageIcon /></button>
+        <button className={`sg-action pressable ${item.noForwards ? 'is-disabled' : ''}`} disabled={item.noForwards} onClick={() => void openShare()} aria-label={item.noForwards ? 'Forwarding restricted' : 'Forward to contact'}><SendIcon /></button>
       </div>
-      <span className="sg-save-slot">
-        <button className={`sg-action pressable ${item.saved ? 'is-active' : ''}`} onClick={handleSave} aria-label={item.saved ? 'Remove from saved' : 'Save'}><BookmarkIcon /></button>
-        {saveConfirm ? <SuccessConfirm onComplete={() => setSaveConfirm(false)} /> : null}
-      </span>
+      <span className="sg-save-slot"><button className={`sg-action pressable ${item.saved ? 'is-active' : ''}`} onClick={handleSave} aria-label={item.saved ? 'Remove from saved' : 'Save'}><BookmarkIcon /></button>{saveConfirm ? <SuccessConfirm onComplete={() => setSaveConfirm(false)} /> : null}</span>
     </div>
+    {interactionError && <div className="sg-interaction-error">{interactionError}</div>}
 
     {(reactions.length > 0 || item.views || item.comments) && <div className="sg-engagement">
       {reactions.length > 0 && <span className="sg-reaction-summary">{reactions.map((reaction, i) => <span key={`${String(reaction?.emoji || '♥')}-${i}`}>{String(reaction?.emoji || '♥')} {Number(reaction?.count || 0)}</span>)}</span>}
@@ -263,6 +287,10 @@ export function FeedCard({ item, channel, onSave, onRead, index = 0 }: {
         {!!Number(item.comments || 0) && <span><MessageIcon />{Number(item.comments || 0)}</span>}
       </span>
     </div>}
+
+    <BottomSheet open={replyOpen} onClose={() => setReplyOpen(false)} title="Reply"><div className="sg-reply-box"><div className="sg-reply-context"><strong>{channel.title}</strong><span>{clipAtWord(cleanText(text) || 'Original post', 120)}</span></div><textarea value={replyText} onChange={event => setReplyText(event.target.value)} placeholder="Write a reply…" autoFocus /><button type="button" disabled={!replyText.trim() || replyBusy} onClick={() => void sendReply()}>{replyBusy ? 'Sending…' : 'Reply on Telegram'}</button></div></BottomSheet>
+
+    <BottomSheet open={shareOpen} onClose={() => setShareOpen(false)} title="Forward to"><div className="sg-share-picker">{shareLoading ? <><Skeleton height={52} /><Skeleton height={52} /><Skeleton height={52} /></> : shareTargets.length ? shareTargets.map(target => <button type="button" key={target.id} disabled={Boolean(shareBusy)} onClick={() => void forwardTo(target.id)}><span className="sg-share-avatar" style={{ background: target.accent || '#777' }}>{target.initials || target.title.slice(0, 2).toUpperCase()}</span><span><strong>{target.title}</strong>{target.username && <small>@{target.username}</small>}</span><em>{shareBusy === target.id ? 'Sending…' : 'Send'}</em></button>) : <div className="sg-share-empty">No Telegram contacts found.</div>}</div></BottomSheet>
 
     <BottomSheet open={moreOpen} onClose={() => setMoreOpen(false)} title={channel.title || 'Post options'}>
       <div className="sg-sheet-source"><SourceAvatar channel={channel} /><div><strong>{channel.title}</strong><span>{channel.username ? `@${channel.username}` : channel.type === 'person' ? 'Private chat' : channel.type === 'group' ? 'Group' : 'Telegram source'}</span></div></div>

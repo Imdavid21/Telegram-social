@@ -1,7 +1,7 @@
 import crypto from 'node:crypto'
 import express from 'express'
 import cookieParser from 'cookie-parser'
-import { TelegramClient } from 'teleproto'
+import { Api, TelegramClient } from 'teleproto'
 import { StringSession } from 'teleproto/sessions/index.js'
 import { NewMessage, EditedMessage, DeletedMessage } from 'teleproto/events/index.js'
 
@@ -1018,6 +1018,68 @@ app.get('/media/:ticket', async (req, res) => {
     else if (!res.writableEnded) res.end()
     console.error('Direct media stream failed', String(err?.message || err))
   }
+})
+
+app.post('/api/reaction', async (req, res) => {
+  if (!requireConfig(res)) return
+  try {
+    const entry = await getClientEntry(req)
+    if (!entry) return res.status(401).json({ error: 'Connect Telegram first.' })
+    await ensureInventory(entry)
+    const sourceId = String(req.body?.channelId || '')
+    const messageId = Number(req.body?.messageId || 0)
+    const liked = Boolean(req.body?.liked)
+    const entity = entry.entityMap.get(sourceId)
+    if (!entity || !messageId) return res.status(400).json({ error: 'Invalid post.' })
+    await entry.client.sendReaction(entity, messageId, liked ? [new Api.ReactionEmoji({ emoticon: '❤' })] : [])
+    res.json({ ok: true, liked })
+  } catch (error) { res.status(400).json({ error: String(error?.message || 'Could not react to this post.') }) }
+})
+
+app.post('/api/reply', async (req, res) => {
+  if (!requireConfig(res)) return
+  try {
+    const entry = await getClientEntry(req)
+    if (!entry) return res.status(401).json({ error: 'Connect Telegram first.' })
+    await ensureInventory(entry)
+    const sourceId = String(req.body?.channelId || '')
+    const messageId = Number(req.body?.messageId || 0)
+    const text = String(req.body?.text || '').trim()
+    const entity = entry.entityMap.get(sourceId)
+    if (!entity || !messageId || !text) return res.status(400).json({ error: 'Reply text is required.' })
+    const sent = await entry.client.sendMessage(entity, isBroadcastEntity(entity) ? { message: text, commentTo: messageId } : { message: text, replyTo: messageId })
+    res.json({ ok: true, messageId: Number(sent?.id || 0) })
+  } catch (error) { res.status(400).json({ error: String(error?.message || 'Could not send this reply.') }) }
+})
+
+app.get('/api/share-targets', async (req, res) => {
+  if (!requireConfig(res)) return
+  try {
+    const entry = await getClientEntry(req)
+    if (!entry) return res.status(401).json({ error: 'Connect Telegram first.' })
+    await ensureInventory(entry)
+    const me = await entry.client.getMe().catch(() => null)
+    const selfId = me?.id ? `user:${String(me.id)}` : ''
+    const targets = [...entry.sourceMap.values()].filter(source => source.type === 'person' && source.id !== selfId).slice(0, 250).map(source => ({ id: source.id, title: source.title, username: source.username, initials: source.initials, accent: source.accent, avatar: source.avatar }))
+    res.json({ targets })
+  } catch (error) { res.status(400).json({ error: String(error?.message || 'Could not load contacts.') }) }
+})
+
+app.post('/api/forward', async (req, res) => {
+  if (!requireConfig(res)) return
+  try {
+    const entry = await getClientEntry(req)
+    if (!entry) return res.status(401).json({ error: 'Connect Telegram first.' })
+    await ensureInventory(entry)
+    const sourceId = String(req.body?.channelId || '')
+    const messageId = Number(req.body?.messageId || 0)
+    const targetId = String(req.body?.targetId || '')
+    const source = entry.entityMap.get(sourceId)
+    const target = entry.entityMap.get(targetId)
+    if (!source || !target || !messageId) return res.status(400).json({ error: 'Invalid forwarding target.' })
+    await entry.client.forwardMessages(target, { messages: messageId, fromPeer: source })
+    res.json({ ok: true })
+  } catch (error) { res.status(400).json({ error: String(error?.message || 'Could not forward this post.') }) }
 })
 
 app.post('/api/save', async (req, res) => {
