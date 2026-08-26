@@ -15,6 +15,7 @@ const isProd = process.env.NODE_ENV === 'production'
 const configured = Boolean(API_ID && API_HASH && SESSION_SECRET.length >= 32 && (!isProd || BACKEND_PROXY_SECRET.length >= 32))
 
 const FEED_PAGE_SIZE = 40
+const SEARCH_RESULT_LIMIT = 50
 const SOURCE_BATCH_SIZE = 20
 const INVENTORY_TTL = 10 * 60 * 1000
 const CURSOR_TTL = 30 * 60 * 1000
@@ -235,15 +236,36 @@ function initials(title) {
   return String(title || 'SG').split(/\s+/).filter(Boolean).slice(0, 2).map(x => x[0]?.toUpperCase()).join('') || 'SG'
 }
 
-function reactions(message) {
-  return (message?.reactions?.results || []).slice(0, 6).map(row => ({
-    emoji: row?.reaction?.emoticon || '♥',
-    count: Number(row?.count || 0)
-  }))
-}
-
 function className(value) {
   return String(value?.className || value?.constructor?.name || '').toLowerCase()
+}
+
+function reactionLabel(reaction) {
+  if (reaction?.emoticon) return String(reaction.emoticon)
+  const name = className(reaction)
+  if (name.includes('reactionpaid')) return '⭐'
+  if (reaction?.documentId != null || name.includes('reactioncustomemoji')) return '◈'
+  return '♥'
+}
+
+function isHeartReaction(reaction) {
+  const value = reactionLabel(reaction)
+  return value === '❤' || value === '❤️' || value === '♥' || value === '♥️'
+}
+
+function reactionSummary(state) {
+  let myReaction
+  const reactions = (state?.results || []).slice(0, 6).map(row => {
+    const emoji = reactionLabel(row?.reaction)
+    const chosen = row?.chosenOrder !== undefined && row?.chosenOrder !== null
+    if (chosen && !myReaction) myReaction = emoji
+    return {
+      emoji,
+      count: Number(row?.count || 0),
+      chosen
+    }
+  })
+  return { reactions, myReaction }
 }
 
 function entityKind(entity) {
@@ -364,6 +386,8 @@ function sourceFromEntity(entity, dialog) {
   if (!id) return null
   const title = entityTitle(entity)
   const kind = entityKind(entity)
+  const scam = Boolean(entity?.scam)
+  const fake = Boolean(entity?.fake)
   return {
     id,
     title,
@@ -375,6 +399,10 @@ function sourceFromEntity(entity, dialog) {
     type: sourceTypeLabel(kind),
     private: kind === 'user',
     archived: Boolean(dialog?.archived || dialog?.folderId === 1),
+    verified: Boolean(entity?.verified && !scam && !fake),
+    scam,
+    fake,
+    bot: Boolean(entity?.bot),
     avatar: `/api/avatar/${encodeURIComponent(id)}`
   }
 }
@@ -388,6 +416,7 @@ function postFromMessage(message, source, readMax = 0) {
   const media = classifyMedia(message, source.id)
   const text = String(message.message || message.text || '')
   if (!text && !media) return null
+  const reactionState = reactionSummary(message?.reactions)
   return {
     id: `${source.id}:${Number(message.id)}`,
     messageId: Number(message.id),
@@ -398,7 +427,9 @@ function postFromMessage(message, source, readMax = 0) {
     saved: false,
     media,
     groupId: media?.groupId,
-    reactions: reactions(message),
+    reactions: reactionState.reactions,
+    myReaction: reactionState.myReaction,
+    reactionStateIncomplete: Boolean(message?.reactions?.min),
     views: compactNumber(message.views),
     comments: Number(message.replies?.replies || 0) || 0,
     outgoing: Boolean(message.out),
@@ -419,6 +450,55 @@ async function mapLimit(items, limit, worker) {
   }
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, run))
   return output
+}
+
+async function fullReactionUpdates(entry, entity, messageIds) {
+  if (!entity || !messageIds.length) return []
+  const peer = await entry.client.getInputEntity(entity)
+  const result = await entry.client.invoke(new Api.messages.GetMessagesReactions({ peer, id: messageIds }))
+  return Array.isArray(result?.updates) ? result.updates : []
+}
+
+function reactionStateFromUpdates(updates, messageId) {
+  const update = updates.find(row => className(row).includes('updatemessagereactions') && Number(row?.msgId || 0) === Number(messageId))
+  return update?.reactions || null
+}
+
+async function hydrateReactionOwnership(entry, posts) {
+  const candidates = posts.filter(post => post?.reactionStateIncomplete && post?.messageId && !post?.sponsored)
+  if (!candidates.length) {
+    for (const post of posts) delete post.reactionStateIncomplete
+    return posts
+  }
+
+  const groups = new Map()
+  for (const post of candidates) {
+    const list = groups.get(post.channelId) || []
+    list.push(post)
+    groups.set(post.channelId, list)
+  }
+
+  await mapLimit([...groups.entries()], 4, async ([sourceId, sourcePosts]) => {
+    try {
+      const entity = entry.entityMap.get(sourceId)
+      if (!entity) return
+      const ids = [...new Set(sourcePosts.map(post => Number(post.messageId)).filter(Boolean))].slice(0, 100)
+      const updates = await fullReactionUpdates(entry, entity, ids)
+      for (const post of sourcePosts) {
+        const state = reactionStateFromUpdates(updates, post.messageId)
+        if (!state) continue
+        const summary = reactionSummary(state)
+        post.reactions = summary.reactions
+        post.myReaction = summary.myReaction
+        post.reactionStateIncomplete = false
+      }
+    } catch (error) {
+      console.warn('Telegram reaction ownership hydration skipped', sourceId, String(error?.message || error))
+    }
+  })
+
+  for (const post of posts) delete post.reactionStateIncomplete
+  return posts
 }
 
 function pushUpdate(entry, payload) {
@@ -450,7 +530,10 @@ async function attachUpdateHandlers(entry) {
       const entity = message?.chat || await message?.getChat?.()
       const source = entity ? upsertDynamicSource(entry, entity) : null
       const post = source ? postFromMessage(message, source, 0) : null
-      if (post) pushUpdate(entry, { type: 'upsert', post, source })
+      if (post) {
+        await hydrateReactionOwnership(entry, [post])
+        pushUpdate(entry, { type: 'upsert', post, source })
+      }
     } catch (error) {
       console.error('Telegram incremental new-message mapping failed', String(error?.message || error))
     }
@@ -462,7 +545,10 @@ async function attachUpdateHandlers(entry) {
       const entity = message?.chat || await message?.getChat?.()
       const source = entity ? upsertDynamicSource(entry, entity) : null
       const post = source ? postFromMessage(message, source, 0) : null
-      if (post) pushUpdate(entry, { type: 'upsert', post, source })
+      if (post) {
+        await hydrateReactionOwnership(entry, [post])
+        pushUpdate(entry, { type: 'upsert', post, source })
+      }
     } catch (error) {
       console.error('Telegram incremental edit mapping failed', String(error?.message || error))
     }
@@ -569,6 +655,45 @@ async function ensureInventory(entry, force = false) {
   }
 
   console.log('Telegram dialog inventory', entry.inventoryDiagnostics)
+}
+
+async function searchHistory(entry, query, sourceId, limit) {
+  await ensureInventory(entry)
+  const entity = sourceId ? entry.entityMap.get(sourceId) : undefined
+  if (sourceId && !entity) {
+    const error = new Error('Source not loaded.')
+    error.code = 'SOURCE_NOT_FOUND'
+    throw error
+  }
+
+  const messages = await entry.client.getMessages(entity, { search: query, limit })
+  const raw = Array.from(messages || []).filter(Boolean)
+  const results = []
+  const foundSources = new Map()
+  const seen = new Set()
+
+  for (const message of raw) {
+    let messageEntity = entity || message?.chat
+    if (!messageEntity && typeof message?.getChat === 'function') {
+      try { messageEntity = await message.getChat() } catch {}
+    }
+    if (!messageEntity) continue
+    const source = upsertDynamicSource(entry, messageEntity)
+    if (!source) continue
+    const dialog = entry.dialogMap.get(source.id)
+    const post = postFromMessage(message, source, readInboxMax(dialog))
+    if (!post || seen.has(post.id)) continue
+    seen.add(post.id)
+    results.push(post)
+    foundSources.set(source.id, source)
+  }
+
+  await hydrateReactionOwnership(entry, results)
+  return {
+    channels: [...foundSources.values()],
+    results,
+    total: Number(messages?.total ?? results.length)
+  }
 }
 
 async function getSponsoredFor(client, entity) {
@@ -698,8 +823,6 @@ async function nextPaginatorPage(entry, paginator, limit) {
   let refillCursor = Number(paginator.refillCursor || 0)
   let refillRounds = 0
 
-  // Drain already-known dialog heads first. This makes the first feed paint depend on
-  // Telegram's dialog inventory, not on N sequential message-history requests.
   while (posts.length < limit) {
     let best = null
     for (const state of paginator.states) {
@@ -716,8 +839,6 @@ async function nextPaginatorPage(entry, paginator, limit) {
       continue
     }
 
-    // History is fetched in bounded parallel waves only when the visible page needs it.
-    // Rotating the starting point prevents large accounts from blocking on every dialog.
     const refillable = paginator.states.filter(state => !state.buffer.length && !state.exhausted)
     if (!refillable.length || refillRounds >= 4) break
     const waveSize = Math.min(16, refillable.length)
@@ -729,8 +850,6 @@ async function nextPaginatorPage(entry, paginator, limit) {
   }
 
   paginator.refillCursor = refillCursor
-  // Sponsored lookups must never hold up the user's content. They are skipped on the
-  // latency-critical first paint and can arrive naturally on later pages.
   if (paginator.lastUsed !== paginator.createdAt) await injectSponsored(entry, paginator, posts)
   paginator.lastUsed = Date.now()
   return posts
@@ -749,7 +868,7 @@ app.get('/', (_req, res) => {
 })
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, configured, runtime: 'persistent-node', version: '0.4.0' })
+  res.json({ ok: true, configured, runtime: 'persistent-node', version: '0.5.0' })
 })
 
 app.get('/api/ready', (_req, res) => {
@@ -801,7 +920,7 @@ async function accountSnapshot(entry) {
       media: true,
       unread: true,
       searchLoadedHistory: true,
-      fullTelegramSearch: false,
+      fullTelegramSearch: true,
       localContextSummaries: true,
       privateChatContext: true
     }
@@ -819,7 +938,6 @@ app.get('/api/auth/status', async (req, res) => {
     res.json({ connected: false })
   }
 })
-
 
 app.get('/api/account', async (req, res) => {
   try {
@@ -923,6 +1041,32 @@ app.post('/api/auth/logout', async (req, res) => {
   res.json({ ok: true })
 })
 
+app.get('/api/search', async (req, res) => {
+  if (!requireConfig(res)) return
+  try {
+    const entry = await getClientEntry(req)
+    if (!entry) return res.status(401).json({ error: 'Connect Telegram first.' })
+    const query = String(req.query?.q || '').trim().slice(0, 256)
+    if (query.length < 2) return res.status(400).json({ error: 'Search needs at least 2 characters.' })
+    const sourceId = String(req.query?.sourceId || '').trim() || undefined
+    const limit = Math.min(80, Math.max(1, Number(req.query?.limit || SEARCH_RESULT_LIMIT)))
+    const result = await searchHistory(entry, query, sourceId, limit)
+    res.setHeader('Cache-Control', 'private, no-store')
+    res.json({
+      query,
+      channels: result.channels,
+      results: result.results,
+      total: result.total,
+      hasMore: result.total > result.results.length,
+      scope: sourceId ? 'source' : 'global',
+      sourceId
+    })
+  } catch (error) {
+    const status = error?.code === 'SOURCE_NOT_FOUND' ? 404 : 500
+    res.status(status).json({ error: String(error?.message || 'Could not search Telegram.') })
+  }
+})
+
 app.get('/api/feed', async (req, res) => {
   if (!requireConfig(res)) return
   try {
@@ -946,6 +1090,7 @@ app.get('/api/feed', async (req, res) => {
     }
 
     const feed = await nextPaginatorPage(entry, paginator, requestedLimit)
+    await hydrateReactionOwnership(entry, feed)
     const hasMore = paginatorHasMore(paginator)
     const channels = initial ? [...entry.sourceMap.values()] : []
     console.log('Telegram feed page', {
@@ -1117,8 +1262,27 @@ app.post('/api/reaction', async (req, res) => {
     const liked = Boolean(req.body?.liked)
     const entity = entry.entityMap.get(sourceId)
     if (!entity || !messageId) return res.status(400).json({ error: 'Invalid post.' })
-    await entry.client.sendReaction(entity, messageId, liked ? [new Api.ReactionEmoji({ emoticon: '❤' })] : [])
-    res.json({ ok: true, liked })
+
+    let currentState = null
+    try {
+      currentState = reactionStateFromUpdates(await fullReactionUpdates(entry, entity, [messageId]), messageId)
+    } catch {}
+    const currentChosen = (currentState?.results || [])
+      .filter(row => row?.chosenOrder !== undefined && row?.chosenOrder !== null)
+      .sort((a, b) => Number(a.chosenOrder || 0) - Number(b.chosenOrder || 0))
+      .map(row => row.reaction)
+      .filter(Boolean)
+    const withoutHeart = currentChosen.filter(reaction => !isHeartReaction(reaction))
+    const nextReactions = liked ? [...withoutHeart, new Api.ReactionEmoji({ emoticon: '❤' })] : withoutHeart
+    await entry.client.sendReaction(entity, messageId, nextReactions)
+
+    let updatedSummary = { reactions: [], myReaction: liked ? '❤' : undefined }
+    try {
+      const updatedState = reactionStateFromUpdates(await fullReactionUpdates(entry, entity, [messageId]), messageId)
+      if (updatedState) updatedSummary = reactionSummary(updatedState)
+    } catch {}
+
+    res.json({ ok: true, liked: isHeartReaction({ emoticon: updatedSummary.myReaction || '' }), ...updatedSummary })
   } catch (error) { res.status(400).json({ error: String(error?.message || 'Could not react to this post.') }) }
 })
 
