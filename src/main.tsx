@@ -11,6 +11,7 @@ import './landing.css'
 import './demo.css'
 import './identity.css'
 import './app-system.css'
+import './session-boot.css'
 
 const muiTheme = createTheme({
   palette: {
