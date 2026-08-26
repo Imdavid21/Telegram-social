@@ -4,7 +4,7 @@ type AnchorState = { postId: string; offset: number }
 const memory = new Map<string, AnchorState>()
 const STORAGE_KEY = 'supergram-scroll-anchors-v1'
 
-function keyForButton(button: HTMLButtonElement | null) {
+function keyForButton(button: HTMLButtonElement | null | undefined) {
   if (!button) return null
   const label = String(button.getAttribute('aria-label') || button.textContent || '').trim().toLowerCase()
   if (label.includes('unread')) return 'unread'

@@ -60,6 +60,9 @@ export interface Channel {
   private?: boolean
   archived?: boolean
   verified?: boolean
+  scam?: boolean
+  fake?: boolean
+  bot?: boolean
 }
 
 export interface MediaAsset {
@@ -144,6 +147,16 @@ export interface FeedPage {
   hasMore: boolean
   syncToken: number
   diagnostics?: FeedDiagnostics
+}
+
+export interface TelegramSearchResponse {
+  query: string
+  channels: Channel[]
+  results: FeedItem[]
+  total: number
+  hasMore: boolean
+  scope: 'global' | 'source'
+  sourceId?: string
 }
 
 export type FeedUpdate =
