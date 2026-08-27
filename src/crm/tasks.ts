@@ -25,7 +25,7 @@ function cleanTask(value: unknown): CRMTask | null {
     completed: Boolean(row.completed),
     createdAt: Number(row.createdAt) || Date.now(),
     updatedAt: Number(row.updatedAt) || Date.now()
-  }
+  };
 }
 
 export function loadTasks(): CRMTask[] {

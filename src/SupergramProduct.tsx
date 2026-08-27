@@ -22,7 +22,7 @@ const wait=(ms:number)=>new Promise(resolve=>setTimeout(resolve,ms))
 type Destination='home'|'explore'|'pulse'|'profile'
 type HomeMode='for-you'|'following'|'groups'
 
-function initials(value?:string){return String(value||'SG').split(/\s+/).filter(Boolean).slice(0,2).map(row=>row[0]?.toUpperCase()).join('')||'SG'}
+function initials(value?:string){return String(value||'SG').split(/\s+/).filter(Boolean).slice(0,2).map(row=>row[0]?.toUpperCase()).join('')||'SG';}
 function mergeChannels(current:Channel[],incoming:Channel[]){const map=new Map(current.map(row=>[row.id,row]));for(const row of incoming||[])if(row?.id)map.set(row.id,{...map.get(row.id),...row});return [...map.values()]}
 function mergeFeed(current:FeedItem[],incoming:FeedItem[]){const map=new Map(current.map(row=>[row.id,row]));const saved=loadSet('saved');const read=loadSet('read');for(const row of incoming||[]){if(!row?.id)continue;const old=map.get(row.id);map.set(row.id,{...old,...row,text:String(row.text||''),reactions:Array.isArray(row.reactions)?row.reactions:[],saved:old?.saved??(saved.has(row.id)||Boolean(row.saved)),unread:old?.unread===false||read.has(row.id)?false:Boolean(row.unread)})}return [...map.values()].sort((a,b)=>b.timestamp-a.timestamp||b.id.localeCompare(a.id))}
 function searchExcerpt(text:string){const value=String(text||'').replace(/\s+/g,' ').trim();return value.length>180?`${value.slice(0,177)}…`:value}

@@ -13,7 +13,7 @@ import { hasOpenAIKey } from '../lib/userOpenAI'
 type StoryEntry={member:StoryMember;channel:Channel}
 function timeAgo(timestamp:number){const mins=Math.max(1,Math.floor((Date.now()-Number(timestamp||0))/60000));if(mins<60)return`${mins}m`;const hours=Math.floor(mins/60);if(hours<24)return`${hours}h`;const days=Math.floor(hours/24);return days<7?`${days}d`:new Date(timestamp).toLocaleDateString(undefined,{month:'short',day:'numeric'})}
 function isHeart(value?:string){return value==='❤'||value==='❤️'||value==='♥'||value==='♥️'}
-function clean(value:string){return String(value||'').replace(/\s+/g,' ').trim()}
+function clean(value:string){return String(value||'').replace(/\s+/g,' ').trim();}
 function clip(value:string,limit=180){const text=clean(value);return text.length>limit?`${text.slice(0,limit-1).trim()}…`:text}
 function telegramPostUrl(channel:Channel|undefined,messageId?:number){return channel?.username&&messageId?`https://t.me/${encodeURIComponent(channel.username)}/${Number(messageId)}`:null}
 function avatarText(channel:Channel){return String(channel.initials||channel.title?.slice(0,2)||'SG').toUpperCase()}
