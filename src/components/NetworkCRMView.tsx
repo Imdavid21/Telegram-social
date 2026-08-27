@@ -20,7 +20,6 @@ import {
   TableHead,
   TableRow,
   TextField,
-  Tooltip,
   Typography
 } from '@mui/material'
 import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded'
@@ -342,10 +341,10 @@ export function NetworkCRMView({ onOpenContact }: { onOpenContact?: (sourceId: s
         <TableBody>{filtered.map((row, index) => <TableRow component={motion.tr as any} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: Math.min(index * .012, .18) }} hover key={row.telegramUserId} onClick={() => onOpenContact?.(row.sourceId)} sx={{ cursor: onOpenContact ? 'pointer' : 'default' }}>
           <TableCell><Typography variant="body2" sx={{ fontWeight: 650 }}>{row.name}</Typography><Typography variant="caption" sx={{ color: 'text.secondary' }}>{row.username ? `@${row.username}` : `ID ${row.telegramUserId}`}</Typography></TableCell>
           <TableCell><Typography variant="body2">{row.category}</Typography>{row.secondaryCategory ? <Typography variant="caption" sx={{ color: 'text.secondary' }}>{row.secondaryCategory}</Typography> : null}</TableCell>
-          <TableCell><Typography variant="body2">{row.company || '—'}</Typography><Typography variant="caption" sx={{ color: 'text.secondary' }}>{row.role || '—'}</Typography></TableCell>
+          <TableCell><Typography variant="body2">{row.company || 'Not set'}</Typography><Typography variant="caption" sx={{ color: 'text.secondary' }}>{row.role || 'Not set'}</Typography></TableCell>
           <TableCell>{row.totalMessages.toLocaleString()}</TableCell>
           <TableCell>{formatRelative(row.lastMessageAt)}</TableCell>
-          <TableCell>{row.flag ? <Chip size="small" variant="outlined" label={row.flag} color={row.flag === 'you never replied' ? 'warning' : 'default'} /> : <Typography variant="caption" sx={{ color: 'text.disabled' }}>—</Typography>}</TableCell>
+          <TableCell>{row.flag ? <Chip size="small" variant="outlined" label={row.flag} color={row.flag === 'you never replied' ? 'warning' : 'default'} /> : <Typography variant="caption" sx={{ color: 'text.disabled' }}>None</Typography>}</TableCell>
           <TableCell>{row.confidence}</TableCell>
         </TableRow>)}</TableBody>
       </Table>
