@@ -1,0 +1,80 @@
+:root{
+  --sg-feed-inset:14px;
+  --sg-feed-avatar:38px;
+  --sg-feed-action:44px;
+}
+
+/* One visual axis for every feed object. */
+.sg2-feed,.sg2-virtual-row,.sg2-post{width:100%;max-width:100%;box-sizing:border-box}
+.sg2-post{margin:0!important;padding:0!important;border-left:0!important;border-right:0!important;box-shadow:none!important}
+.sg2-post-head,.sg2-post-copy,.sg2-post-social{box-sizing:border-box;width:100%;padding-left:var(--sg-feed-inset)!important;padding-right:var(--sg-feed-inset)!important}
+.sg2-post-head{display:grid!important;grid-template-columns:minmax(0,1fr) var(--sg-feed-action)!important;align-items:center!important;column-gap:8px!important}
+.sg2-post-source{width:100%!important;min-width:0!important}
+.sg2-post-source>span:last-child{min-width:0!important;width:100%!important}
+.sg2-post-source strong,.sg2-post-source small{display:block!important;max-width:100%!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}
+.sg2-post-more{margin:0!important;justify-self:end!important}
+.sg2-warning{display:none!important}
+
+/* No source/category decoration in the feed. */
+.sg2-private-label,.sg2-eyebrow,.sg2-post-source .verified,.sg2-post-source [data-verified],.sg2-post-source .badge{display:none!important}
+.sg2-post::before,.sg2-post::after,.sg2-post.is-unread::before,.sg2-post.is-unread::after{display:none!important;content:none!important}
+
+/* One text scale and one text width. */
+.sg2-post-copy,.sg2-post-copy.is-editorial{padding-top:10px!important;padding-bottom:8px!important}
+.sg2-post-copy p,.sg2-post-copy.is-editorial p{font-size:14px!important;line-height:1.5!important;font-weight:400!important;letter-spacing:-.005em!important;max-width:none!important;width:100%!important}
+.sg2-post-copy>button{font-size:12px!important;line-height:1.4!important}
+.sg2-ai-inline{font-size:11px!important;line-height:1.35!important;margin-top:5px!important}
+.sg2-post-source strong{font-size:14px!important;line-height:1.25!important}
+.sg2-post-source small{font-size:12px!important;line-height:1.25!important}
+
+/* Media gets a predictable rhythm and never leaks into adjacent rows. */
+.sg2-post-media{position:relative!important;overflow:hidden!important;width:100%!important;contain:paint!important}
+.sg2-post-media>.sg-media-asset,.sg2-post-media>.sg-media-placeholder{width:100%!important;aspect-ratio:4/5!important;max-height:720px!important;margin:0!important;overflow:hidden!important}
+.sg2-post-media img,.sg2-post-media video{display:block!important;width:100%!important;height:100%!important;object-fit:cover!important}
+.sg2-post-media .sg-album{width:100%!important;aspect-ratio:1/1!important;margin:0!important;overflow:hidden!important}
+.sg2-post-media .sg-album-cell{overflow:hidden!important}
+.sg2-post-media .sg-album-cell img,.sg2-post-media .sg-album-cell video{object-fit:cover!important}
+.sg2-virtual-row{position:relative!important;overflow:hidden!important;isolation:isolate!important;contain:layout paint style!important}
+
+/* Provenance follows the same left/right inset as caption and metadata. */
+.sg2-provenance{box-sizing:border-box!important;width:calc(100% - (var(--sg-feed-inset) * 2))!important;margin:4px var(--sg-feed-inset) 0!important;padding:8px 0!important;border-left:0!important;border-right:0!important;border-bottom:0!important;border-radius:0!important;background:transparent!important}
+.sg2-provenance span,.sg2-provenance small{font-size:11px!important;line-height:1.3!important}
+
+/* Symmetric four-action row. No count badges floating off-axis. */
+.sg2-post-actions{box-sizing:border-box!important;width:100%!important;display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:0!important;padding:4px var(--sg-feed-inset)!important}
+.sg2-post-actions button{justify-self:center!important;display:grid!important;place-items:center!important;width:var(--sg-feed-action)!important;height:var(--sg-feed-action)!important;min-height:var(--sg-feed-action)!important;margin:0!important;padding:0!important;border-radius:50%!important}
+.sg2-post-actions button b{display:none!important}
+.sg2-post-actions svg{width:22px!important;height:22px!important}
+
+/* Engagement metadata uses one baseline instead of detached emoji rows. */
+.sg2-post-social{min-height:26px!important;display:flex!important;justify-content:flex-start!important;align-items:center!important;gap:6px!important;padding-top:0!important;padding-bottom:9px!important;font-size:11px!important;line-height:1.3!important}
+.sg2-post-social>span,.sg2-post-social>small{display:inline!important;margin:0!important;font-size:11px!important;color:var(--sg2-muted)!important}
+.sg2-post-social>small:not(:first-child)::before{content:'·';padding-right:6px}
+.sg2-post-social em{display:none!important}
+
+/* Strip one-off decorative colors from embedded UI while preserving actual media. */
+.sg2-app :is(.sg-link-preview,.sg-document,.sg-audio,.sg-media-meta,.sg2-provenance,.sg2-source-evidence article,.sg2-option-list>a,.sg2-option-list>button,.sg2-share>button,.sg2-why>div){border-color:var(--sg2-border)!important;color:var(--sg2-text)!important;box-shadow:none!important}
+.sg2-app :is(.sg-link-preview,.sg-document,.sg-audio,.sg-media-meta)::before,
+.sg2-app :is(.sg-link-preview,.sg-document,.sg-audio,.sg-media-meta)::after{background:var(--sg2-border)!important;border-color:var(--sg2-border)!important}
+.sg2-app :is(.sg-duration,.sg-album-more){background:rgba(0,0,0,.72)!important;color:#fff!important}
+.sg2-app a:not(.sg-lightbox-button){text-decoration-color:currentColor!important}
+
+/* Remove logo artwork anywhere the authenticated app shell can expose it. */
+.sg2-app .sg2-brand svg,.sg2-app .sg2-mobile-brand svg,.sg2-loading svg{display:none!important}
+
+/* Navigation stays balanced and badge-free. */
+.sg2-nav nav button{grid-template-columns:24px minmax(0,1fr)!important}
+.sg2-nav nav button>b,.sg2-nav nav button>i,.sg2-top-actions i{display:none!important}
+.sg2-pulse-icon{width:24px!important;display:grid!important;place-items:center!important;margin:0!important}
+
+/* Normalize secondary feed-adjacent text so old styles cannot reintroduce size drift. */
+.sg2-app :is(.sg2-option-list,.sg2-share,.sg2-source-evidence,.sg2-why,.sg2-reply) strong{font-size:13px!important;line-height:1.35!important}
+.sg2-app :is(.sg2-option-list,.sg2-share,.sg2-source-evidence,.sg2-why,.sg2-reply) small,
+.sg2-app :is(.sg2-option-list,.sg2-share,.sg2-source-evidence,.sg2-why,.sg2-reply) p{font-size:12px!important;line-height:1.45!important}
+
+@media(max-width:720px){
+  :root{--sg-feed-inset:14px}
+  .sg2-post-media>.sg-media-asset,.sg2-post-media>.sg-media-placeholder{max-height:none!important}
+  .sg2-post-head{min-height:60px!important}
+  .sg2-post-actions{padding-top:3px!important;padding-bottom:3px!important}
+}
