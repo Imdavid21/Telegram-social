@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Box, Fade, LinearProgress, Skeleton, Stack, Typography } from '@mui/material'
 import CRMApp from './CRMApp'
-import { LandingPage } from './components/LandingPage'
+import { MinimalLandingPage } from './components/MinimalLandingPage'
 import { PromptModal } from './components/AuthModal'
 import type { AuthPrompt } from './types'
 import { authFlow, authStatus, beginAuth, healthStatus, submitAuth } from './lib/api'
@@ -113,7 +113,7 @@ export default function App() {
   if (connected) return <CRMApp />
 
   return <>
-    <LandingPage onConnect={connect} connecting={connecting} backendReady={backendReady} error={error} />
+    <MinimalLandingPage onConnect={connect} connecting={connecting} backendReady={backendReady} error={error} />
     <PromptModal prompt={authPrompt} onSubmit={submitPrompt} onCancel={() => { setAuthPrompt(null); setConnecting(false) }} />
   </>
 }
