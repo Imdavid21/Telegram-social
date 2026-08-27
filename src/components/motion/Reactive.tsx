@@ -22,9 +22,9 @@ export function Presence({show,children}:{show:boolean;children:ReactNode}){
  return <AnimatePresence initial={false}>{show&&<motion.div initial={reduced?false:{opacity:0,y:10,scale:.985}} animate={{opacity:1,y:0,scale:1}} exit={reduced?{opacity:0}:{opacity:0,y:-6,scale:.99}} transition={reduced?{duration:.01}:motionTheme.transition.ui}>{children}</motion.div>}</AnimatePresence>
 }
 
-export function Ripple({children,className,...props}:{children:ReactNode;className?:string}&HTMLMotionProps<'button'>){
+export function Ripple({children,className,onMouseDown,...props}:{children:ReactNode;className?:string}&HTMLMotionProps<'button'>){
  const reduced=useReducedMotion();const[ripples,setRipples]=useState<Array<{id:number;x:number;y:number;size:number}>>([])
- function down(e:MouseEvent<HTMLButtonElement>){props.onClick; if(reduced)return;const rect=e.currentTarget.getBoundingClientRect();const size=Math.max(rect.width,rect.height)*2;const ripple={id:Date.now()+Math.random(),x:e.clientX-rect.left-size/2,y:e.clientY-rect.top-size/2,size};setRipples(rows=>[...rows.slice(-2),ripple]);window.setTimeout(()=>setRipples(rows=>rows.filter(row=>row.id!==ripple.id)),520)}
+ function down(e:MouseEvent<HTMLButtonElement>){onMouseDown?.(e);if(e.defaultPrevented||reduced)return;const rect=e.currentTarget.getBoundingClientRect();const size=Math.max(rect.width,rect.height)*2;const ripple={id:Date.now()+Math.random(),x:e.clientX-rect.left-size/2,y:e.clientY-rect.top-size/2,size};setRipples(rows=>[...rows.slice(-2),ripple]);window.setTimeout(()=>setRipples(rows=>rows.filter(row=>row.id!==ripple.id)),520)}
  return <motion.button className={`sg-motion-ripple ${className||''}`} whileTap={reduced?undefined:{scale:.975}} transition={motionTheme.transition.snap} onMouseDown={down} {...props}>{children}<span className="sg-motion-ripple-layer" aria-hidden="true">{ripples.map(row=><motion.i key={row.id} style={{left:row.x,top:row.y,width:row.size,height:row.size}} initial={{opacity:.22,scale:0}} animate={{opacity:0,scale:1}} transition={{duration:.5,ease:'easeOut'}}/>)}</span></motion.button>
 }
 
