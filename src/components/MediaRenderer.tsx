@@ -24,7 +24,8 @@ function formatDuration(value?: number) {
 
 function aspect(asset: MediaAsset) {
   if (!asset.width || !asset.height) return undefined
-  const ratio = Math.max(.55, Math.min(1.9, asset.width / asset.height))
+  const ratio = asset.width / asset.height
+  if (!Number.isFinite(ratio) || ratio <= 0) return undefined
   return `${ratio}`
 }
 
@@ -117,7 +118,9 @@ function TicketAsset({ asset, compact = false }: { asset: MediaAsset; compact?: 
     setLightboxRect({ top: rect.top, left: rect.left, width: rect.width, height: rect.height })
   }
 
-  const style = aspect(asset) ? { aspectRatio: aspect(asset) } : undefined
+  const ratio = aspect(asset)
+  const placeholderStyle = ratio ? { aspectRatio: ratio } : undefined
+  const videoStyle = ratio ? { aspectRatio: ratio } : undefined
   const mime = String(asset.mimeType || '')
   const animatedSticker = asset.kind === 'sticker' && mime.includes('tgsticker')
 
@@ -148,14 +151,14 @@ function TicketAsset({ asset, compact = false }: { asset: MediaAsset; compact?: 
   }
 
   if (!url) {
-    return <div ref={root} className={`sg-media-placeholder ${compact ? 'is-compact' : ''}`} style={style}>
+    return <div ref={root} className={`sg-media-placeholder ${compact ? 'is-compact' : ''}`} style={placeholderStyle}>
       <span>{error || 'Loading media…'}</span>
     </div>
   }
 
   if (asset.kind === 'video' || (asset.kind === 'gif' && mime.startsWith('video/'))) {
     const gif = asset.kind === 'gif'
-    return <div ref={root} className={`sg-media-asset ${compact ? 'is-compact' : ''}`} style={style}>
+    return <div ref={root} className={`sg-media-asset sg-media-video ${compact ? 'is-compact' : ''}`} style={compact ? undefined : videoStyle}>
       <video
         ref={video}
         className={`media-reveal ${loaded ? 'loaded' : ''}`}
@@ -179,7 +182,7 @@ function TicketAsset({ asset, compact = false }: { asset: MediaAsset; compact?: 
   }
 
   return <>
-    <div ref={root} className={`sg-media-asset ${asset.kind === 'sticker' ? 'is-sticker' : ''} ${compact ? 'is-compact' : ''}`} style={style}>
+    <div ref={root} className={`sg-media-asset sg-media-image ${asset.kind === 'sticker' ? 'is-sticker' : ''} ${compact ? 'is-compact' : ''}`}>
       <button type="button" className="sg-lightbox-button" onClick={openLightbox} aria-label={`Open ${imageAlt.toLowerCase()}`}>
         <img className={`media-reveal sg-lightbox-trigger ${loaded ? 'loaded' : ''}`} src={url} alt={imageAlt} loading="lazy" decoding="async" onLoad={() => setLoaded(true)} onError={retry} />
       </button>
