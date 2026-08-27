@@ -5,6 +5,52 @@ export type AutoplayMode = 'off' | 'on'
 
 export type SourceType = 'person' | 'group' | 'channel' | 'conversation'
 export type MediaKind = 'photo' | 'video' | 'gif' | 'audio' | 'voice' | 'document' | 'sticker' | 'album' | 'poll' | 'location' | 'contact'
+export type SocialEntityType = 'person' | 'post' | 'story' | 'channel' | 'community' | 'chat' | 'event' | 'mini-app' | 'topic' | 'place'
+export type ActivityKind = 'reply' | 'mention' | 'reaction' | 'follow' | 'follow-request' | 'repost' | 'tag' | 'invite' | 'collaboration'
+export type RelationshipState = 'none' | 'requested' | 'following' | 'muted' | 'restricted' | 'blocked'
+export type Audience = 'everyone' | 'followers' | 'close-friends' | 'selected'
+
+export interface SocialIdentity {
+  id: string
+  type: 'person' | 'channel' | 'community'
+  name: string
+  username?: string
+  avatar?: string
+  bio?: string
+  verified?: boolean
+  private?: boolean
+  relationship?: RelationshipState
+}
+
+export interface ActivityItem {
+  id: string
+  kind: ActivityKind
+  actor: SocialIdentity
+  createdAt: number
+  read: boolean
+  postId?: string
+  threadId?: string
+  aggregateCount?: number
+  excerpt?: string
+}
+
+export interface SavedCollection {
+  id: string
+  name: string
+  itemIds: string[]
+  updatedAt: number
+}
+
+export interface PostDraft {
+  id: string
+  text: string
+  audience: Audience
+  media: MediaAsset[]
+  destinationId?: string
+  collaboratorIds?: string[]
+  scheduledAt?: number
+  updatedAt: number
+}
 
 export interface TelegramAccount {
   id: string
