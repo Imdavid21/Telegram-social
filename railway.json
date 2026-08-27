@@ -4,7 +4,7 @@
     "builder": "RAILPACK"
   },
   "deploy": {
-    "startCommand": "NODE_ENV=production node --env-file-if-exists=.env server/index.mjs",
+    "startCommand": "NODE_ENV=production node --env-file-if-exists=.env server/crm-routes.mjs",
     "healthcheckPath": "/api/ready",
     "healthcheckTimeout": 120,
     "restartPolicyType": "ALWAYS",
