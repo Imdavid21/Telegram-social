@@ -8,6 +8,7 @@ import {
   Inbox,
   ListTodo,
   LogOut,
+  MessageCircle,
   RefreshCw,
   Search,
   Send,
@@ -304,7 +305,7 @@ export default function CRMProduct() {
     </aside>
 
     <main className="crm-main">
-      {error ? <div className="crm-error"><span>{error}</span><button onClick={() => setError('')} aria-label="Dismiss"><X /></button></div> : null}
+      {error ? <div className="crm-error"><span>{error}</span><button onClick={() => setError('')} aria-label="Dismiss"><X /></button> : null}
 
       {view === 'inbox' ? <section className="crm-inbox">
         <aside className="crm-inbox-list">
