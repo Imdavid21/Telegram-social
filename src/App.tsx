@@ -6,6 +6,7 @@ import { DemoPage } from './components/DemoPage'
 import { PromptModal } from './components/AuthModal'
 import { ScrollAnchorBridge } from './components/ScrollAnchorBridge'
 import { BrandMark } from './components/BrandMark'
+import { GlobalSocialLayer } from './components/GlobalSocialLayer'
 import type { AuthPrompt } from './types'
 import { authFlow, authStatus, beginAuth, healthStatus, submitAuth } from './lib/api'
 import { haptics } from './lib/interaction'
@@ -52,17 +53,12 @@ export default function App() {
         const health = await healthStatus()
         if (!active) return
         setBackendReady(Boolean(health.ok && health.configured))
-        if (!health.ok || !health.configured) {
-          setConnected(false)
-          return
-        }
+        if (!health.ok || !health.configured) { setConnected(false); return }
         const status = await authStatus()
         if (active) setConnected(Boolean(status.connected))
       } catch (e) {
         if (!active) return
-        setBackendReady(false)
-        setConnected(false)
-        setError(String((e as Error)?.message || 'Could not reach Telegram.'))
+        setBackendReady(false); setConnected(false); setError(String((e as Error)?.message || 'Could not reach Telegram.'))
       }
     }
     void check()
@@ -74,28 +70,20 @@ export default function App() {
 
   async function settleFlow(initial: Flow): Promise<Flow> {
     let flow = initial
-    for (let i = 0; i < 25 && (flow.step === 'starting' || flow.step === 'processing'); i++) {
-      await delay(400)
-      flow = await authFlow()
-    }
+    for (let i = 0; i < 25 && (flow.step === 'starting' || flow.step === 'processing'); i++) { await delay(400); flow = await authFlow() }
     return flow
   }
 
   async function finishConnection() {
     const status = await authStatus()
     if (!status.connected) throw new Error('Telegram authorization did not complete.')
-    haptics.success()
-    setAuthPrompt(null)
-    setError('')
-    setConnected(true)
+    haptics.success(); setAuthPrompt(null); setError(''); setConnected(true)
     if (demoMode) window.location.href = '/'
   }
 
   async function connect() {
     if (connecting) return
-    haptics.light()
-    setError('')
-    setConnecting(true)
+    haptics.light(); setError(''); setConnecting(true)
     try {
       const health = await healthStatus()
       if (!health.ok || !health.configured) throw new Error('Supergram can’t connect to Telegram right now.')
@@ -105,35 +93,23 @@ export default function App() {
       const prompt = promptFromFlow(flow)
       if (!prompt) throw new Error(flow.error || 'Telegram login could not start.')
       setAuthPrompt(prompt)
-    } catch (e) {
-      haptics.error()
-      setError(String((e as Error)?.message || e))
-      setConnecting(false)
-    }
+    } catch (e) { haptics.error(); setError(String((e as Error)?.message || e)); setConnecting(false) }
   }
 
   async function submitPrompt(value: string) {
     setError('')
     try {
       const flow = await settleFlow(await submitAuth(value))
-      if (flow.step === 'done') {
-        setConnecting(false)
-        return void await finishConnection()
-      }
+      if (flow.step === 'done') { setConnecting(false); return void await finishConnection() }
       if (flow.step === 'error') throw new Error(flow.error || 'Telegram login failed.')
       const prompt = promptFromFlow(flow)
       if (prompt) setAuthPrompt(prompt)
-    } catch (e) {
-      haptics.error()
-      setConnecting(false)
-      setAuthPrompt(null)
-      setError(String((e as Error)?.message || e))
-    }
+    } catch (e) { haptics.error(); setConnecting(false); setAuthPrompt(null); setError(String((e as Error)?.message || e)) }
   }
 
   if (connected === null) return <SessionBoot />
   if (demoMode && !connected) return <><DemoPage onConnect={connect} /><PromptModal prompt={authPrompt} onSubmit={submitPrompt} onCancel={() => { setAuthPrompt(null); setConnecting(false) }} /></>
-  if (connected) return <ScrollAnchorBridge><ProductApp /></ScrollAnchorBridge>
+  if (connected) return <ScrollAnchorBridge><ProductApp /><GlobalSocialLayer /></ScrollAnchorBridge>
 
   return <>
     <LandingPage onConnect={connect} onDemo={() => { window.location.href = '/?demo=1' }} connecting={connecting} backendReady={backendReady} booting={false} error={error} />
