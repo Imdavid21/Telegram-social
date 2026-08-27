@@ -9,7 +9,6 @@ import {
   Box,
   Button,
   Checkbox,
-  Chip,
   CircularProgress,
   Dialog,
   DialogActions,
@@ -20,6 +19,7 @@ import {
   FormControl,
   IconButton,
   InputAdornment,
+  LinearProgress,
   List,
   ListItemAvatar,
   ListItemButton,
@@ -74,7 +74,6 @@ type Contact = {
   meta: CRMContactState
 }
 type Toast = { open: boolean; message: string; severity: 'success' | 'error' | 'warning' | 'info' }
-
 type TaskDraft = Partial<CRMTask>
 type OpportunityDraft = Partial<CRMOpportunity>
 
@@ -396,7 +395,7 @@ export default function CRMApp() {
 
     <Drawer anchor="right" open={detailOpen} onClose={() => setDetailOpen(false)}>{details}</Drawer>
 
-    <BottomNavigation showLabels value={view} onChange={(_, value) => setView(value)} sx={{ display: { xs: 'flex', md: 'none' }, position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 1400, borderTop: 1, borderColor: 'divider' }}>{nav.slice(0, 4).map(item => <BottomNavigationAction key={item.id} value={item.id} label={item.label} icon={item.icon} />)}</BottomNavigation>
+    <BottomNavigation showLabels value={view} onChange={(_, value) => setView(value)} sx={{ display: { xs: 'flex', md: 'none' }, position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 1400, borderTop: 1, borderColor: 'divider' }}>{nav.map(item => <BottomNavigationAction key={item.id} value={item.id} label={item.label} icon={item.icon} />)}</BottomNavigation>
 
     <Dialog open={taskOpen} onClose={() => setTaskOpen(false)} fullWidth maxWidth="xs"><DialogTitle>{taskDraft.id ? 'Edit task' : 'New task'}</DialogTitle><DialogContent><Stack sx={{ gap: 1.5, pt: .5 }}><TextField autoFocus label="Task" value={taskDraft.title || ''} onChange={event => setTaskDraft(current => ({ ...current, title: event.target.value }))} /><Autocomplete options={contacts} value={contacts.find(row => row.id === taskDraft.contactId) || null} getOptionLabel={option => option.username ? `${option.name} (@${option.username})` : option.name} onChange={(_, contact) => setTaskDraft(current => ({ ...current, contactId: contact?.id, username: contact?.username }))} renderInput={params => <TextField {...params} label="Telegram person" />} /><TextField label="Username mapping" value={taskDraft.username || ''} onChange={event => setTaskDraft(current => ({ ...current, username: event.target.value.replace(/^@/, '') }))} slotProps={{ input: { startAdornment: <InputAdornment position="start">@</InputAdornment> } }} /><TextField type="datetime-local" label="Due" value={taskDraft.dueAt || ''} onChange={event => setTaskDraft(current => ({ ...current, dueAt: event.target.value || undefined }))} slotProps={{ inputLabel: { shrink: true } }} /></Stack></DialogContent><DialogActions>{taskDraft.id ? <Button color="error" onClick={() => deleteTask(taskDraft.id!)} startIcon={<DeleteOutlineRoundedIcon />}>Delete</Button> : null}<Box sx={{ flex: 1 }} /><Button onClick={() => setTaskOpen(false)}>Cancel</Button><Button variant="contained" disabled={!String(taskDraft.title || '').trim()} onClick={saveTask}>Save</Button></DialogActions></Dialog>
 
