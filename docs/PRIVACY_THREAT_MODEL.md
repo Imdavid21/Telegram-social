@@ -10,9 +10,11 @@ Browser to Supergram gateway, gateway to private Telegram backend, backend to Te
 
 ## BYOK design
 
-The OpenAI key is stored only in JavaScript module memory. It is never persisted in Web Storage, Redux, URLs, logs, or the Supergram backend. Local summarization is the default. OpenAI is opt-in. Private-chat summarization is a second independent opt-in. OpenAI failures fall back to the local summary. Requests specify `store: false`.
+The OpenAI key is stored in browser `sessionStorage`, not `localStorage`, Redux, URLs, logs, analytics, or the Supergram backend. This allows a normal page reload in the same browser tab to keep the credential while avoiding durable cross-session storage. Closing the tab or browser session clears it under normal browser sessionStorage behavior.
 
-This does not make a browser-held secret invulnerable. Same-origin XSS, a malicious extension, compromised dependencies, or a compromised device could read it while the page is open. Therefore Supergram should avoid third-party scripts, enforce a strict Content Security Policy, minimize dependencies, and maintain dependency/secret scanning.
+OpenAI is the only text-summary and AI-transform provider. There is no local text-summary fallback. Without a connected OpenAI key, Supergram keeps AI text features unavailable and makes default discovery surfaces media-first. Private-chat summarization remains a separate opt-in. Requests specify `store: false`.
+
+This does not make a browser-held secret invulnerable. Same-origin XSS, a malicious extension, compromised dependencies, or a compromised device could read sessionStorage while the page is open. Therefore Supergram should avoid third-party scripts, enforce a strict Content Security Policy, minimize dependencies, and maintain dependency and secret scanning.
 
 ## Telegram session design
 
@@ -20,4 +22,4 @@ Telegram session material is encrypted server-side with AES-256-GCM before being
 
 ## Residual risks
 
-The 30-day session lifetime increases exposure on shared or compromised devices. Local interaction state reveals behavioral metadata. The gateway should move toward an explicit backend-route allowlist. All mutation endpoints should receive abuse limits. Security headers and CSP should be verified at the deployed edges, not assumed from source code.
+The 30-day Telegram session lifetime increases exposure on shared or compromised devices. Local interaction state reveals behavioral metadata. A sessionStorage BYOK credential remains accessible to same-origin script execution for the lifetime of the browser tab. All mutation endpoints should receive abuse limits, and security headers and CSP should be verified at the deployed edges rather than assumed from source code.

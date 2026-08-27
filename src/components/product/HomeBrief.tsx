@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { SupergramFeedObject } from '../../product/feedObjects'
 import { deriveTopics } from '../../product/feedObjects'
-import { buildTelegramSummary, summarizeTelegramMessage, type TelegramSummary } from '../../lib/telegramSummary'
+import { summarizeTelegramMessage, type TelegramSummary } from '../../lib/telegramSummary'
+import { hasOpenAIKey } from '../../lib/userOpenAI'
 import { loadSettings } from '../../lib/storage'
 
 type Props={objects:SupergramFeedObject[];onTopic:(topic:string)=>void;onCatchUp:()=>void}
@@ -19,8 +20,11 @@ export function HomeBrief({objects,onTopic,onCatchUp}:Props){
   const [mode,setMode]=useState<Mode>('catchup')
   const [summary,setSummary]=useState<TelegramSummary|null>(null)
   const [summarizing,setSummarizing]=useState(false)
+  const [summaryError,setSummaryError]=useState('')
   const [settings,setSettings]=useState(()=>loadSettings())
+  const [keyConnected,setKeyConnected]=useState(()=>hasOpenAIKey())
   useEffect(()=>{const handler=(event:Event)=>setSettings((event as CustomEvent).detail||loadSettings());window.addEventListener('supergram:settings-changed',handler);return()=>window.removeEventListener('supergram:settings-changed',handler)},[])
+  useEffect(()=>{const handler=()=>setKeyConnected(hasOpenAIKey());window.addEventListener('supergram:openai-key-changed',handler);return()=>window.removeEventListener('supergram:openai-key-changed',handler)},[])
   const permitted=objects.filter(row=>row.source.type==='group'?settings.useGroupsForRecommendations:row.source.type==='channel'?settings.useChannelActivity:true)
   const unread=permitted.filter(row=>row.item.unread)
   const groups=new Set(unread.filter(row=>row.source.type==='group').map(row=>row.source.id)).size
@@ -35,25 +39,27 @@ export function HomeBrief({objects,onTopic,onCatchUp}:Props){
     return {source:rows[0]?.source,rows}
   },[unread])
   const aggregate=focus.rows.map(row=>row.item.text).filter(Boolean).join('\n')
+  const aiReady=settings.allowAISummaries&&keyConnected
 
   useEffect(()=>{
-    if(!settings.allowAISummaries||!expanded||aggregate.trim().length<20){setSummary(null);return}
+    if(!aiReady||!expanded||aggregate.trim().length<20){setSummary(null);setSummaryError('');return}
     const controller=new AbortController()
     const previous=focus.rows.slice(1).map(row=>({text:row.item.text,outgoing:row.item.outgoing,sourceType:row.item.sourceType,timestamp:row.item.timestamp,messageId:row.item.messageId}))
-    const local=buildTelegramSummary(aggregate,{sourceType:focus.source?.type||'group',sourceName:focus.source?.title,previousMessages:previous})
-    setSummary(local);setSummarizing(true)
-    void summarizeTelegramMessage(aggregate,{sourceType:focus.source?.type||'group',sourceName:focus.source?.title,previousMessages:previous},controller.signal).then(result=>setSummary(result)).catch(()=>{}).finally(()=>setSummarizing(false))
+    setSummary(null);setSummaryError('');setSummarizing(true)
+    void summarizeTelegramMessage(aggregate,{sourceType:focus.source?.type||'group',sourceName:focus.source?.title,previousMessages:previous},controller.signal).then(result=>setSummary(result)).catch(error=>{if(!controller.signal.aborted)setSummaryError(String((error as Error)?.message||'OpenAI summary failed.'))}).finally(()=>{if(!controller.signal.aborted)setSummarizing(false)})
     return()=>controller.abort()
-  },[settings.allowAISummaries,expanded,aggregate,focus.source?.id])
+  },[aiReady,expanded,aggregate,focus.source?.id])
 
   if(!permitted.length)return null
+  const summaryHeadline=summary?.headline||(summarizing?'Reading the conversation…':'Summary unavailable')
   return <section className={`sg2-brief ${expanded?'is-expanded':''}`} aria-label="While you were away">
-    <div className="sg2-brief-copy"><span className="sg2-eyebrow">While you were away</span><h2>{unread.length?`${unread.length} updates worth knowing`:'You’re caught up on the important stuff'}</h2><p>{unread.length?`${groups} groups and ${channels} channels have new activity. Supergram prioritizes what changed, not every message.`:'Keep exploring media from your network.'}</p></div>
-    <div className="sg2-brief-actions">{settings.allowAISummaries?<button type="button" className="sg2-primary" onClick={()=>{setExpanded(value=>!value);onCatchUp()}}>{expanded?'Close catch-up':'Catch me up'}</button>:<button type="button" className="sg2-primary" disabled>AI summaries are off</button>}{topics.map(topic=><button type="button" key={topic.name} onClick={()=>onTopic(topic.name)}>{topic.name}<span>{topic.sources} sources</span></button>)}</div>
-    {expanded&&settings.allowAISummaries&&focus.source&&<div className="sg2-catchup">
-      <div className="sg2-catchup-head"><span><b>AI summary</b><small>Based on {focus.rows.length} recent messages in {focus.source.title}</small></span><em>{summarizing?'Updating…':summary?.ml?'OpenAI · your key':'Local summary'}</em></div>
+    <div className="sg2-brief-copy"><span className="sg2-eyebrow">While you were away</span><h2>{unread.length?`${unread.length} updates worth knowing`:'You’re caught up on the important stuff'}</h2><p>{aiReady?`${groups} groups and ${channels} channels have new activity. OpenAI can compress the important context.`:'No OpenAI key connected. Supergram is prioritizing media instead of generating text summaries.'}</p></div>
+    <div className="sg2-brief-actions">{aiReady?<button type="button" className="sg2-primary" onClick={()=>{setExpanded(value=>!value);onCatchUp()}}>{expanded?'Close catch-up':'Catch me up'}</button>:<button type="button" className="sg2-primary" disabled>Add OpenAI key for summaries</button>}{topics.map(topic=><button type="button" key={topic.name} onClick={()=>onTopic(topic.name)}>{topic.name}<span>{topic.sources} sources</span></button>)}</div>
+    {expanded&&aiReady&&focus.source&&<div className="sg2-catchup">
+      <div className="sg2-catchup-head"><span><b>AI summary</b><small>Based on {focus.rows.length} recent messages in {focus.source.title}</small></span><em>{summarizing?'Reading with OpenAI…':'OpenAI · your key'}</em></div>
       <div className="sg2-catchup-modes">{([['catchup','Catch me up'],['decisions','Key decisions'],['actions','What do I need to do?'],['changes','What changed?']] as Array<[Mode,string]>).map(([id,label])=><button type="button" className={mode===id?'is-active':''} key={id} onClick={()=>setMode(id)}>{label}</button>)}</div>
-      <h3>{summary?.headline||'Reading the conversation…'}</h3><p>{summary?modeText(summary,mode):'Finding the important parts.'}</p>
+      <h3>{summaryHeadline}</h3>
+      {summary?<p>{modeText(summary,mode)}</p>:summaryError?<p>{summaryError} Check your API key or OpenAI quota, then try again.</p>:<p>Finding the important parts.</p>}
       <details><summary>Sources · inspect supporting messages</summary><div className="sg2-catchup-sources">{focus.rows.slice(0,8).map(row=><article key={row.id}><strong>{row.source.title}</strong><p>{String(row.item.text||'').slice(0,260)||'Media message'}</p></article>)}</div></details>
       <small className="sg2-catchup-trust">AI output can be incomplete. Source messages remain the authority.</small>
     </div>}

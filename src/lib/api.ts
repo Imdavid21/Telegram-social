@@ -106,7 +106,7 @@ export function fetchMediaTicket(endpoint: string, signal?: AbortSignal) {
   return request<{ url: string; expiresAt: number }>(endpoint, { signal })
 }
 
-export { buildTelegramSummary as buildContextualBrief, summarizeTelegramMessage as summarizeMessage } from './telegramSummary'
+export { summarizeTelegramMessage as summarizeMessage } from './telegramSummary'
 
 function isHeartEmoji(value?: string) {
   return value === '❤' || value === '❤️' || value === '♥' || value === '♥️'
