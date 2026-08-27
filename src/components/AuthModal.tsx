@@ -1,12 +1,42 @@
-import { useEffect,useState } from 'react'
-import { AnimatePresence,motion,useReducedMotion } from 'motion/react'
+import { useEffect, useState } from 'react'
+import { Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, Fade, LinearProgress, TextField } from '@mui/material'
 import type { AuthPrompt } from '../types'
-import { motionTheme } from '../lib/motionTheme'
-import { Dialog,DialogContent,DialogDescription,DialogFooter,DialogHeader,DialogTitle } from './ui/dialog'
-import { Button } from './ui/button'
-import { Input } from './ui/input'
-export function PromptModal({prompt,onSubmit,onCancel}:{prompt:AuthPrompt|null;onSubmit:(value:string)=>void|Promise<void>;onCancel:()=>void}){
- const[value,setValue]=useState('');const[busy,setBusy]=useState(false);const reduced=useReducedMotion();useEffect(()=>{setValue('');setBusy(false)},[prompt?.type]);if(!prompt)return null
- async function submit(e:React.FormEvent){e.preventDefault();if(!value.trim()||busy)return;setBusy(true);try{await onSubmit(value.trim())}finally{setBusy(false)}}
- return <Dialog open={Boolean(prompt)} onOpenChange={v=>!v&&onCancel()}><DialogContent className="max-w-[420px]"><AnimatePresence mode="wait" initial={false}><motion.form key={prompt.type} onSubmit={submit} initial={reduced?false:{opacity:0,x:14}} animate={{opacity:1,x:0}} exit={reduced?{opacity:0}:{opacity:0,x:-10}} transition={reduced?{duration:0}:motionTheme.transition.ui}><DialogHeader><DialogTitle>{prompt.title}</DialogTitle><DialogDescription>{prompt.hint}</DialogDescription></DialogHeader><div className="px-5 py-5"><Input autoFocus value={value} onChange={e=>setValue(e.target.value)} type={prompt.type==='password'?'password':prompt.type==='code'?'text':'tel'} inputMode={prompt.type==='code'?'numeric':prompt.type==='phone'?'tel':undefined} autoComplete={prompt.type==='password'?'current-password':'one-time-code'} /></div><DialogFooter><Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button><Button type="submit" disabled={!value.trim()||busy}>{busy?'Checking…':'Continue'}</Button></DialogFooter></motion.form></AnimatePresence></DialogContent></Dialog>
+
+export function PromptModal({ prompt, onSubmit, onCancel }: { prompt: AuthPrompt | null; onSubmit: (value: string) => void | Promise<void>; onCancel: () => void }) {
+  const [value, setValue] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => { setValue(''); setBusy(false) }, [prompt?.type])
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault()
+    if (!prompt || !value.trim() || busy) return
+    setBusy(true)
+    try { await onSubmit(value.trim()) } finally { setBusy(false) }
+  }
+
+  return <Dialog open={Boolean(prompt)} onClose={busy ? undefined : onCancel} fullWidth maxWidth="xs" TransitionComponent={Fade}>
+    {busy ? <LinearProgress /> : null}
+    <form onSubmit={submit}>
+      <DialogTitle>{prompt?.title}</DialogTitle>
+      <DialogContent>
+        <DialogContentText sx={{ mb: 2 }}>{prompt?.hint}</DialogContentText>
+        <TextField
+          autoFocus
+          fullWidth
+          value={value}
+          onChange={event => setValue(event.target.value)}
+          disabled={busy}
+          type={prompt?.type === 'password' ? 'password' : prompt?.type === 'phone' ? 'tel' : 'text'}
+          inputMode={prompt?.type === 'code' ? 'numeric' : prompt?.type === 'phone' ? 'tel' : undefined}
+          autoComplete={prompt?.type === 'password' ? 'current-password' : prompt?.type === 'phone' ? 'tel' : 'one-time-code'}
+          label={prompt?.type === 'phone' ? 'Phone number' : prompt?.type === 'password' ? 'Password' : 'Verification code'}
+        />
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onCancel} disabled={busy}>Cancel</Button>
+        <Button type="submit" variant="contained" disabled={!value.trim() || busy}>{busy ? 'Checking' : 'Continue'}</Button>
+      </DialogActions>
+    </form>
+  </Dialog>
 }
