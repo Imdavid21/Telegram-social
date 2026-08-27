@@ -5,7 +5,7 @@ import { AnimatedTabs,IconPressable,StaggerGroup,StaggerItem } from './motion/Re
 import { Dialog,DialogContent,DialogDescription,DialogHeader,DialogTitle } from './ui/dialog'
 import { Avatar,AvatarFallback,AvatarImage } from './ui/avatar'
 type SourceTab='all'|'favorites'|'channel'|'group'|'person'
-function initials(c:Channel){return c.initials||c.title.split(/\s+/).filter(Boolean).slice(0,2).map(p=>p[0]).join('').toUpperCase()||'SG'}
+function initials(c:Channel){return c.initials||c.title.split(/\s+/).filter(Boolean).slice(0,2).map(p=>p[0]).join('').toUpperCase()||'SG';}
 const tabs:Array<{value:SourceTab;label:string}>=[{value:'all',label:'All'},{value:'favorites',label:'Favorites'},{value:'channel',label:'Channels'},{value:'group',label:'Groups'},{value:'person',label:'People'}]
 export function SourceBrowser({open,channels,favorites,selectedSource,onClose,onSelect,onFavorite}:{open:boolean;channels:Channel[];favorites:Set<string>;selectedSource:string|null;onClose:()=>void;onSelect:(id:string|null)=>void;onFavorite:(channel:Channel)=>void}){
  const[query,setQuery]=useState('');const[tab,setTab]=useState<SourceTab>('all')

@@ -19,7 +19,7 @@ const TOKEN=/\b[A-Z][A-Za-z0-9-]{2,20}\b|\$[A-Z0-9]{2,12}|#[A-Za-z0-9_]{3,}/g
 
 export function topicHints(text:string){
   const rows=String(text||'').match(TOKEN)||[]
-  return [...new Set(rows.map(value=>value.replace(/^#/,'')).filter(value=>!['The','This','That','With','From','Telegram'].includes(value)))].slice(0,6)
+  return [...new Set(rows.map(value=>value.replace(/^#/,'')).filter(value=>!['The','This','That','With','From','Telegram'].includes(value)))].slice(0,6);
 }
 
 export function normalizeFeedObject(item:FeedItem,source:Channel):SupergramFeedObject{

@@ -34,7 +34,7 @@ function clean(value: unknown): CRMOpportunity | null {
     notes: typeof row.notes === 'string' && row.notes.trim() ? row.notes.trim().slice(0, 3000) : undefined,
     createdAt: Number(row.createdAt) || Date.now(),
     updatedAt: Number(row.updatedAt) || Date.now()
-  }
+  };
 }
 
 export function loadOpportunities(): CRMOpportunity[] {

@@ -18,20 +18,37 @@ function promptFromFlow(flow: Flow): AuthPrompt | null {
 }
 
 function SessionBoot() {
-  return <Fade in timeout={220}>
-    <Box sx={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: { xs: '1fr', md: '260px 1fr' } }}>
-      <Box sx={{ display: { xs: 'none', md: 'block' }, borderRight: 1, borderColor: 'divider', p: 2.5 }}>
-        <Typography variant="h3" sx={{ mb: 3 }}>Telegram CRM</Typography>
-        <Stack gap={1.2}>{[0, 1, 2, 3].map(row => <Stack direction="row" gap={1.2} alignItems="center" key={row}><Skeleton variant="rounded" width={36} height={36} /><Skeleton width={100} /></Stack>)}</Stack>
+  return (
+    <Fade in timeout={220}>
+      <Box sx={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: { xs: '1fr', md: '260px 1fr' } }}>
+        <Box sx={{ display: { xs: 'none', md: 'block' }, borderRight: 1, borderColor: 'divider', p: 2.5 }}>
+          <Typography variant="h3" sx={{ mb: 3 }}>Telegram CRM</Typography>
+          <Stack sx={{
+            gap: 1.2
+          }}>{[0, 1, 2, 3].map(row => <Stack
+            direction="row"
+            key={row}
+            sx={{
+              gap: 1.2,
+              alignItems: "center"
+            }}><Skeleton variant="rounded" width={36} height={36} /><Skeleton width={100} /></Stack>)}</Stack>
+        </Box>
+        <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 900, width: '100%', mx: 'auto' }}>
+          <LinearProgress sx={{ mb: 3, borderRadius: 99 }} />
+          <Typography variant="h2">Restoring your workspace</Typography>
+          <Typography
+            sx={{
+              color: "text.secondary",
+              mt: 1,
+              mb: 3
+            }}>Loading Telegram relationships and CRM context.</Typography>
+          <Stack sx={{
+            gap: 1.5
+          }}>{[0, 1, 2, 3, 4].map(row => <Skeleton key={row} variant="rounded" height={74} />)}</Stack>
+        </Box>
       </Box>
-      <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 900, width: '100%', mx: 'auto' }}>
-        <LinearProgress sx={{ mb: 3, borderRadius: 99 }} />
-        <Typography variant="h2">Restoring your workspace</Typography>
-        <Typography color="text.secondary" sx={{ mt: 1, mb: 3 }}>Loading Telegram relationships and CRM context.</Typography>
-        <Stack gap={1.5}>{[0, 1, 2, 3, 4].map(row => <Skeleton key={row} variant="rounded" height={74} />)}</Stack>
-      </Box>
-    </Box>
-  </Fade>
+    </Fade>
+  );
 }
 
 export default function App() {
@@ -92,7 +109,7 @@ export default function App() {
       if (!health.ok || !health.configured) throw new Error('Telegram CRM cannot connect to Telegram right now.')
       setBackendReady(true)
       const flow = await settleFlow(await beginAuth())
-      if (flow.step === 'done') return void await finishConnection()
+      if (flow.step === 'done') return void (await finishConnection());
       const prompt = promptFromFlow(flow)
       if (!prompt) throw new Error(flow.error || 'Telegram login could not start.')
       setAuthPrompt(prompt)
@@ -109,7 +126,7 @@ export default function App() {
       const flow = await settleFlow(await submitAuth(value))
       if (flow.step === 'done') {
         setConnecting(false)
-        return void await finishConnection()
+        return void (await finishConnection());
       }
       if (flow.step === 'error') throw new Error(flow.error || 'Telegram login failed.')
       const prompt = promptFromFlow(flow)

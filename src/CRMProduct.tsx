@@ -103,7 +103,7 @@ const defaultTags = ['partner', 'sponsor', 'investor', 'lead', 'customer', 'comm
 const drawerWidth = 218
 
 function initials(value: string) {
-  return value.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]?.toUpperCase()).join('') || 'TG'
+  return value.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]?.toUpperCase()).join('') || 'TG';
 }
 
 function formatActivity(ts: number) {
@@ -536,21 +536,54 @@ export default function CRMProduct() {
     { id: 'tasks' as View, label: 'Tasks', icon: <TaskAltRoundedIcon /> }
   ]
 
-  if (loading) return <Box sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}><Stack alignItems="center" gap={2}><CircularProgress /><Typography>Loading Telegram relationships</Typography></Stack></Box>
+  if (loading) return (
+    <Box sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}><Stack
+      sx={{
+        alignItems: "center",
+        gap: 2
+      }}><CircularProgress /><Typography>Loading Telegram relationships</Typography></Stack></Box>
+  );
 
   const relationshipPanel = selected ? <Box sx={{ p: 2.25, height: '100%', overflow: 'auto' }}>
-    <Stack direction="row" justifyContent="space-between" alignItems="center">
+    <Stack
+      direction="row"
+      sx={{
+        justifyContent: "space-between",
+        alignItems: "center"
+      }}>
       <Typography variant="h2">{selected.name}</Typography>
       {!wide ? <IconButton onClick={() => setProfileDrawerOpen(false)}><CloseRoundedIcon /></IconButton> : null}
     </Stack>
-    <Typography color="text.secondary" variant="body2" sx={{ mt: .4 }}>{selected.username ? `@${selected.username}` : 'Telegram contact'}</Typography>
+    <Typography
+      variant="body2"
+      sx={{
+        color: "text.secondary",
+        mt: .4
+      }}>{selected.username ? `@${selected.username}` : 'Telegram contact'}</Typography>
 
-    <Stack direction="row" gap={1.2} alignItems="center" sx={{ mt: 2 }}>
+    <Stack
+      direction="row"
+      sx={{
+        gap: 1.2,
+        alignItems: "center",
+        mt: 2
+      }}>
       <ContactAvatar contact={selected} size={56} />
       <Box sx={{ minWidth: 0 }}>
-        {profileLoading ? <Stack gap={.6}><LinearProgress sx={{ width: 140 }} /><Typography variant="caption" color="text.secondary">Loading full Telegram profile</Typography></Stack> : <>
-          <Typography variant="body2" fontWeight={700}>{profile?.status?.label || 'Profile loaded from Telegram'}</Typography>
-          {profile?.bio ? <Typography variant="body2" color="text.secondary" sx={{ mt: .4 }}>{profile.bio}</Typography> : null}
+        {profileLoading ? <Stack sx={{
+          gap: .6
+        }}><LinearProgress sx={{ width: 140 }} /><Typography variant="caption" sx={{
+          color: "text.secondary"
+        }}>Loading full Telegram profile</Typography></Stack> : <>
+          <Typography variant="body2" sx={{
+            fontWeight: 700
+          }}>{profile?.status?.label || 'Profile loaded from Telegram'}</Typography>
+          {profile?.bio ? <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+              mt: .4
+            }}>{profile.bio}</Typography> : null}
         </>}
       </Box>
     </Stack>
@@ -559,7 +592,11 @@ export default function CRMProduct() {
 
     <Divider sx={{ my: 2 }} />
     <Typography variant="h3">CRM details</Typography>
-    <Stack gap={1.4} sx={{ mt: 1.5 }}>
+    <Stack
+      sx={{
+        gap: 1.4,
+        mt: 1.5
+      }}>
       <FormControl size="small" fullWidth><Select displayEmpty value={selected.meta.stage || ''} onChange={event => patchContact(selected.id, { stage: (event.target.value || undefined) as CRMStage | undefined })}><MenuItem value=""><em>Stage not set</em></MenuItem>{stages.map(stage => <MenuItem key={stage} value={stage}>{stage}</MenuItem>)}</Select></FormControl>
       <TextField label="Company" value={selected.meta.company || ''} onChange={event => patchContact(selected.id, { company: event.target.value || undefined })} />
       <TextField label="Owner" value={selected.meta.owner || ''} onChange={event => patchContact(selected.id, { owner: event.target.value || undefined })} />
@@ -567,125 +604,432 @@ export default function CRMProduct() {
       <TextField type="datetime-local" label="Follow up" value={selected.meta.followUpAt || ''} onChange={event => patchContact(selected.id, { followUpAt: event.target.value || undefined })} slotProps={{ inputLabel: { shrink: true } }} />
       <Autocomplete multiple freeSolo options={tagOptions} value={selected.meta.tags || []} onChange={(_, value) => { patchContact(selected.id, { tags: value as string[] }); notify('Tags saved') }} renderInput={params => <TextField {...params} label="Tags" placeholder="Add tags" />} />
       <Box>
-        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: .7 }}><Typography variant="body2" color="text.secondary">Notes</Typography><Stack direction="row" alignItems="center" gap={.5}>{notesSaving ? <><CircularProgress size={13} /><Typography variant="caption" color="text.secondary">Saving</Typography></> : null}<Zoom in={notesSaved}><CheckRoundedIcon color="primary" sx={{ fontSize: 17 }} /></Zoom></Stack></Stack>
+        <Stack
+          direction="row"
+          sx={{
+            justifyContent: "space-between",
+            alignItems: "center",
+            mb: .7
+          }}><Typography variant="body2" sx={{
+          color: "text.secondary"
+        }}>Notes</Typography><Stack
+          direction="row"
+          sx={{
+            alignItems: "center",
+            gap: .5
+          }}>{notesSaving ? <><CircularProgress size={13} /><Typography variant="caption" sx={{
+          color: "text.secondary"
+        }}>Saving</Typography></> : null}<Zoom in={notesSaved}><CheckRoundedIcon color="primary" sx={{ fontSize: 17 }} /></Zoom></Stack></Stack>
         <TextField fullWidth multiline minRows={4} value={notesDraft} onChange={event => setNotesDraft(event.target.value)} placeholder="Private relationship notes" />
       </Box>
     </Stack>
 
     <Divider sx={{ my: 2 }} />
-    <Stack direction="row" justifyContent="space-between" alignItems="center"><Typography variant="h3">AI relationship brief</Typography><Button size="small" startIcon={aiBusy ? <CircularProgress size={14} /> : <AutoAwesomeRoundedIcon />} onClick={() => void runRelationshipAI()} disabled={aiBusy}>{selected.meta.brief ? 'Refresh' : 'Generate'}</Button></Stack>
+    <Stack
+      direction="row"
+      sx={{
+        justifyContent: "space-between",
+        alignItems: "center"
+      }}><Typography variant="h3">AI relationship brief</Typography><Button size="small" startIcon={aiBusy ? <CircularProgress size={14} /> : <AutoAwesomeRoundedIcon />} onClick={() => void runRelationshipAI()} disabled={aiBusy}>{selected.meta.brief ? 'Refresh' : 'Generate'}</Button></Stack>
     {aiError ? <Alert severity="error" sx={{ mt: 1 }}>{aiError}</Alert> : null}
-    <Collapse in={Boolean(selected.meta.brief)}><Box sx={{ mt: 1.3 }}>{selected.meta.brief ? <><Typography variant="body2" fontWeight={750}>{selected.meta.brief.headline}</Typography><Typography variant="body2" color="text.secondary" sx={{ mt: .6 }}>{selected.meta.brief.summary}</Typography>{selected.meta.brief.actionItems[0] ? <Button size="small" sx={{ mt: 1 }} onClick={() => patchContact(selected.id, { nextAction: selected.meta.brief?.actionItems[0] })}>Use suggested next action</Button> : null}</> : null}</Box></Collapse>
+    <Collapse in={Boolean(selected.meta.brief)}><Box sx={{ mt: 1.3 }}>{selected.meta.brief ? <><Typography variant="body2" sx={{
+      fontWeight: 750
+    }}>{selected.meta.brief.headline}</Typography><Typography
+      variant="body2"
+      sx={{
+        color: "text.secondary",
+        mt: .6
+      }}>{selected.meta.brief.summary}</Typography>{selected.meta.brief.actionItems[0] ? <Button size="small" sx={{ mt: 1 }} onClick={() => patchContact(selected.id, { nextAction: selected.meta.brief?.actionItems[0] })}>Use suggested next action</Button> : null}</> : null}</Box></Collapse>
 
     <Divider sx={{ my: 2 }} />
     <Typography variant="h3">Telegram profile</Typography>
-    {profile ? <Stack gap={1.1} sx={{ mt: 1.4 }}>
-      {profile.phone ? <Typography variant="body2"><Box component="span" color="text.secondary">Phone: </Box>{profile.phone}</Typography> : null}
-      {profile.birthday ? <Typography variant="body2"><Box component="span" color="text.secondary">Birthday: </Box>{profile.birthday}</Typography> : null}
-      {profile.usernames.length > 1 ? <Typography variant="body2"><Box component="span" color="text.secondary">Usernames: </Box>{profile.usernames.map(row => `@${row}`).join(', ')}</Typography> : null}
-      <Typography variant="body2"><Box component="span" color="text.secondary">Mutual groups: </Box>{profile.commonChatsCount}</Typography>
-      {profile.mutualGroups.length ? <Stack gap={.8} sx={{ mt: .4 }}>{profile.mutualGroups.slice(0, 12).map(group => <Paper variant="outlined" key={group.id} sx={{ p: 1, display: 'flex', alignItems: 'center', gap: 1 }}><Avatar src={group.avatar} sx={{ width: 28, height: 28, fontSize: 10 }}>{group.initials}</Avatar><Box sx={{ minWidth: 0 }}><Typography variant="body2" noWrap>{group.title}</Typography>{group.username ? <Typography variant="caption" color="text.secondary">@{group.username}</Typography> : null}</Box></Paper>)}</Stack> : <Typography variant="body2" color="text.secondary">No mutual groups returned by Telegram.</Typography>}
+    {profile ? <Stack
+      sx={{
+        gap: 1.1,
+        mt: 1.4
+      }}>
+      {profile.phone ? <Typography variant="body2"><Box component="span" sx={{
+        color: "text.secondary"
+      }}>Phone: </Box>{profile.phone}</Typography> : null}
+      {profile.birthday ? <Typography variant="body2"><Box component="span" sx={{
+        color: "text.secondary"
+      }}>Birthday: </Box>{profile.birthday}</Typography> : null}
+      {profile.usernames.length > 1 ? <Typography variant="body2"><Box component="span" sx={{
+        color: "text.secondary"
+      }}>Usernames: </Box>{profile.usernames.map(row => `@${row}`).join(', ')}</Typography> : null}
+      <Typography variant="body2"><Box component="span" sx={{
+        color: "text.secondary"
+      }}>Mutual groups: </Box>{profile.commonChatsCount}</Typography>
+      {profile.mutualGroups.length ? <Stack
+        sx={{
+          gap: .8,
+          mt: .4
+        }}>{profile.mutualGroups.slice(0, 12).map(group => <Paper variant="outlined" key={group.id} sx={{ p: 1, display: 'flex', alignItems: 'center', gap: 1 }}><Avatar src={group.avatar} sx={{ width: 28, height: 28, fontSize: 10 }}>{group.initials}</Avatar><Box sx={{ minWidth: 0 }}><Typography variant="body2" noWrap>{group.title}</Typography>{group.username ? <Typography variant="caption" sx={{
+        color: "text.secondary"
+      }}>@{group.username}</Typography> : null}</Box></Paper>)}</Stack> : <Typography variant="body2" sx={{
+        color: "text.secondary"
+      }}>No mutual groups returned by Telegram.</Typography>}
     </Stack> : null}
 
     <Divider sx={{ my: 2 }} />
-    <Stack direction="row" justifyContent="space-between" alignItems="center"><Typography variant="h3">Work linked to this contact</Typography><Stack direction="row"><Tooltip title="Add task"><IconButton size="small" onClick={() => openTaskDialog(undefined, selected)}><TaskAltRoundedIcon /></IconButton></Tooltip><Tooltip title="Add opportunity"><IconButton size="small" onClick={() => openOpportunityDialog(undefined, 'Lead', selected)}><ViewKanbanRoundedIcon /></IconButton></Tooltip></Stack></Stack>
-    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>{selectedTasks.filter(task => !task.completed).length} open tasks · {selectedOpportunities.length} opportunities</Typography>
+    <Stack
+      direction="row"
+      sx={{
+        justifyContent: "space-between",
+        alignItems: "center"
+      }}><Typography variant="h3">Work linked to this contact</Typography><Stack direction="row"><Tooltip title="Add task"><IconButton size="small" onClick={() => openTaskDialog(undefined, selected)}><TaskAltRoundedIcon /></IconButton></Tooltip><Tooltip title="Add opportunity"><IconButton size="small" onClick={() => openOpportunityDialog(undefined, 'Lead', selected)}><ViewKanbanRoundedIcon /></IconButton></Tooltip></Stack></Stack>
+    <Typography
+      variant="body2"
+      sx={{
+        color: "text.secondary",
+        mt: 1
+      }}>{selectedTasks.filter(task => !task.completed).length} open tasks · {selectedOpportunities.length} opportunities</Typography>
   </Box> : null
 
-  return <Box sx={{ minHeight: '100vh', display: 'flex', bgcolor: 'background.default' }}>
-    <Drawer variant="permanent" sx={{ display: { xs: 'none', md: 'block' }, width: drawerWidth, flexShrink: 0, '& .MuiDrawer-paper': { width: drawerWidth, borderRightColor: 'divider', bgcolor: '#0A0C0B' } }}>
-      <Toolbar sx={{ gap: 1.2, px: 2 }}><Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main', color: 'primary.contrastText', fontSize: 13, fontWeight: 900 }}>CRM</Avatar><Typography fontWeight={800}>Telegram CRM</Typography></Toolbar>
-      <List sx={{ px: 1.2 }}>{navItems.map(item => <ListItemButton key={item.id} selected={view === item.id} onClick={() => setView(item.id)} sx={{ borderRadius: 2, mb: .5 }}><Badge color="primary" badgeContent={item.badge || 0} max={99} sx={{ '& .MuiBadge-badge': { color: '#101310' } }}>{item.icon}</Badge><ListItemText primary={item.label} sx={{ ml: 1.4 }} /></ListItemButton>)}</List>
-      <Box sx={{ flex: 1 }} />
-      <List sx={{ px: 1.2 }}><ListItemButton selected={view === 'settings'} onClick={() => setView('settings')} sx={{ borderRadius: 2 }}><SettingsRoundedIcon /><ListItemText primary="Settings" sx={{ ml: 1.4 }} /></ListItemButton></List>
-      <Divider />
-      <Stack direction="row" gap={1} alignItems="center" sx={{ p: 1.5 }}><Avatar src={account?.avatar} sx={{ width: 34, height: 34 }}>{initials(account?.firstName || 'TG')}</Avatar><Box sx={{ minWidth: 0, flex: 1 }}><Typography variant="body2" fontWeight={700} noWrap>{account?.firstName || 'Telegram'}</Typography><Typography variant="caption" color="text.secondary" noWrap>{account?.username ? `@${account.username}` : 'Connected'}</Typography></Box><Tooltip title="Log out"><IconButton size="small" onClick={() => void logout()}><LogoutRoundedIcon fontSize="small" /></IconButton></Tooltip></Stack>
-    </Drawer>
+  return (
+    <Box sx={{ minHeight: '100vh', display: 'flex', bgcolor: 'background.default' }}>
+      <Drawer variant="permanent" sx={{ display: { xs: 'none', md: 'block' }, width: drawerWidth, flexShrink: 0, '& .MuiDrawer-paper': { width: drawerWidth, borderRightColor: 'divider', bgcolor: '#0A0C0B' } }}>
+        <Toolbar sx={{ gap: 1.2, px: 2 }}><Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main', color: 'primary.contrastText', fontSize: 13, fontWeight: 900 }}>CRM</Avatar><Typography sx={{
+          fontWeight: 800
+        }}>Telegram CRM</Typography></Toolbar>
+        <List sx={{ px: 1.2 }}>{navItems.map(item => <ListItemButton key={item.id} selected={view === item.id} onClick={() => setView(item.id)} sx={{ borderRadius: 2, mb: .5 }}><Badge color="primary" badgeContent={item.badge || 0} max={99} sx={{ '& .MuiBadge-badge': { color: '#101310' } }}>{item.icon}</Badge><ListItemText primary={item.label} sx={{ ml: 1.4 }} /></ListItemButton>)}</List>
+        <Box sx={{ flex: 1 }} />
+        <List sx={{ px: 1.2 }}><ListItemButton selected={view === 'settings'} onClick={() => setView('settings')} sx={{ borderRadius: 2 }}><SettingsRoundedIcon /><ListItemText primary="Settings" sx={{ ml: 1.4 }} /></ListItemButton></List>
+        <Divider />
+        <Stack
+          direction="row"
+          sx={{
+            gap: 1,
+            alignItems: "center",
+            p: 1.5
+          }}><Avatar src={account?.avatar} sx={{ width: 34, height: 34 }}>{initials(account?.firstName || 'TG')}</Avatar><Box sx={{ minWidth: 0, flex: 1 }}><Typography variant="body2" noWrap sx={{
+          fontWeight: 700
+        }}>{account?.firstName || 'Telegram'}</Typography><Typography variant="caption" noWrap sx={{
+          color: "text.secondary"
+        }}>{account?.username ? `@${account.username}` : 'Connected'}</Typography></Box><Tooltip title="Log out"><IconButton size="small" onClick={() => void logout()}><LogoutRoundedIcon fontSize="small" /></IconButton></Tooltip></Stack>
+      </Drawer>
 
-    <Box component="main" sx={{ minWidth: 0, flex: 1, pb: { xs: 8, md: 0 } }}>
-      <AppBar position="sticky" color="transparent" elevation={0} sx={{ display: { xs: 'block', md: 'none' }, bgcolor: 'rgba(11,13,12,.92)', backdropFilter: 'blur(14px)', borderBottom: 1, borderColor: 'divider' }}><Toolbar><Typography fontWeight={800} sx={{ flex: 1 }}>Telegram CRM</Typography><IconButton onClick={() => setView('settings')}><SettingsRoundedIcon /></IconButton></Toolbar>{refreshing ? <LinearProgress /> : null}</AppBar>
-      {error ? <Alert severity="error" action={<IconButton size="small" onClick={() => setError('')}><CloseRoundedIcon fontSize="small" /></IconButton>} sx={{ borderRadius: 0 }}>{error}</Alert> : null}
-      {view === 'inbox' ? <Box sx={{ height: { xs: 'calc(100vh - 120px)', md: '100vh' }, display: 'grid', gridTemplateColumns: { xs: '1fr', md: wide ? '320px minmax(0,1fr) 340px' : '320px minmax(0,1fr)' }, minWidth: 0 }}>
-        <Box sx={{ display: { xs: mobileThreadOpen ? 'none' : 'block', md: 'block' }, borderRight: 1, borderColor: 'divider', overflow: 'hidden', bgcolor: 'background.paper' }}>
-          <Box sx={{ p: 2, pb: 1 }}><Stack direction="row" justifyContent="space-between" alignItems="center"><Typography variant="h2">Relationships</Typography><Tooltip title="Refresh"><IconButton size="small" onClick={() => void loadTelegram(false)} disabled={refreshing}><RefreshRoundedIcon className={refreshing ? 'spin' : ''} /></IconButton></Tooltip></Stack><TextField fullWidth sx={{ mt: 1.5 }} placeholder="Search people, companies, or tags" value={query} onChange={event => setQuery(event.target.value)} slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchRoundedIcon fontSize="small" /></InputAdornment> } }} /></Box>
-          <Tabs value={filter} onChange={(_, value) => setFilter(value)} variant="scrollable" scrollButtons={false} sx={{ px: 1, minHeight: 42, borderBottom: 1, borderColor: 'divider', '& .MuiTab-root': { minHeight: 42, minWidth: 80, px: 1.2, fontSize: 12 } }}><Tab value="attention" label={`Attention ${attentionCount}`} /><Tab value="all" label="All" /><Tab value="unread" label={`Unread ${unreadCount}`} /><Tab value="followup" label={`Follow-up ${followUpCount}`} /></Tabs>
-          <List disablePadding sx={{ height: 'calc(100% - 126px)', overflow: 'auto' }}>{filteredContacts.length ? filteredContacts.map(contact => <ListItemButton key={contact.id} selected={selectedId === contact.id} onClick={() => openContact(contact)} sx={{ py: 1.25, borderBottom: 1, borderColor: 'divider', alignItems: 'flex-start' }}><ListItemAvatar sx={{ minWidth: 50 }}><ContactAvatar contact={contact} /></ListItemAvatar><ListItemText primary={<Stack direction="row" gap={1} alignItems="center"><Typography variant="body2" fontWeight={730} noWrap>{contact.name}</Typography>{contact.meta.stage ? <Chip size="small" label={contact.meta.stage} variant="outlined" sx={{ height: 20, fontSize: 10 }} /> : null}</Stack>} secondary={<Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block', mt: .35 }}>{preview(contact.latest)}</Typography>} /><Stack alignItems="flex-end" gap={.7} sx={{ ml: 1 }}><Typography variant="caption" color="text.secondary">{formatActivity(contact.lastActivity)}</Typography>{contact.unread ? <Badge color="primary" badgeContent={contact.unread} max={99} sx={{ '& .MuiBadge-badge': { color: '#101310' } }} /> : isDue(contact.meta.followUpAt) ? <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'warning.main' }} /> : null}</Stack></ListItemButton>) : <Box sx={{ p: 3 }}><Typography fontWeight={700}>{filter === 'attention' ? 'Nothing needs attention.' : 'No relationships found.'}</Typography><Typography variant="body2" color="text.secondary" sx={{ mt: .6 }}>{filter === 'attention' ? 'Unread conversations, due tasks, and next actions appear here.' : 'Try another search or filter.'}</Typography></Box>}</List>
-        </Box>
+      <Box component="main" sx={{ minWidth: 0, flex: 1, pb: { xs: 8, md: 0 } }}>
+        <AppBar position="sticky" color="transparent" elevation={0} sx={{ display: { xs: 'block', md: 'none' }, bgcolor: 'rgba(11,13,12,.92)', backdropFilter: 'blur(14px)', borderBottom: 1, borderColor: 'divider' }}><Toolbar><Typography
+          sx={{
+            fontWeight: 800,
+            flex: 1
+          }}>Telegram CRM</Typography><IconButton onClick={() => setView('settings')}><SettingsRoundedIcon /></IconButton></Toolbar>{refreshing ? <LinearProgress /> : null}</AppBar>
+        {error ? <Alert severity="error" action={<IconButton size="small" onClick={() => setError('')}><CloseRoundedIcon fontSize="small" /></IconButton>} sx={{ borderRadius: 0 }}>{error}</Alert> : null}
+        {view === 'inbox' ? <Box sx={{ height: { xs: 'calc(100vh - 120px)', md: '100vh' }, display: 'grid', gridTemplateColumns: { xs: '1fr', md: wide ? '320px minmax(0,1fr) 340px' : '320px minmax(0,1fr)' }, minWidth: 0 }}>
+          <Box sx={{ display: { xs: mobileThreadOpen ? 'none' : 'block', md: 'block' }, borderRight: 1, borderColor: 'divider', overflow: 'hidden', bgcolor: 'background.paper' }}>
+            <Box sx={{ p: 2, pb: 1 }}><Stack
+              direction="row"
+              sx={{
+                justifyContent: "space-between",
+                alignItems: "center"
+              }}><Typography variant="h2">Relationships</Typography><Tooltip title="Refresh"><IconButton size="small" onClick={() => void loadTelegram(false)} disabled={refreshing}><RefreshRoundedIcon className={refreshing ? 'spin' : ''} /></IconButton></Tooltip></Stack><TextField fullWidth sx={{ mt: 1.5 }} placeholder="Search people, companies, or tags" value={query} onChange={event => setQuery(event.target.value)} slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchRoundedIcon fontSize="small" /></InputAdornment> } }} /></Box>
+            <Tabs value={filter} onChange={(_, value) => setFilter(value)} variant="scrollable" scrollButtons={false} sx={{ px: 1, minHeight: 42, borderBottom: 1, borderColor: 'divider', '& .MuiTab-root': { minHeight: 42, minWidth: 80, px: 1.2, fontSize: 12 } }}><Tab value="attention" label={`Attention ${attentionCount}`} /><Tab value="all" label="All" /><Tab value="unread" label={`Unread ${unreadCount}`} /><Tab value="followup" label={`Follow-up ${followUpCount}`} /></Tabs>
+            <List disablePadding sx={{ height: 'calc(100% - 126px)', overflow: 'auto' }}>{filteredContacts.length ? filteredContacts.map(contact => <ListItemButton key={contact.id} selected={selectedId === contact.id} onClick={() => openContact(contact)} sx={{ py: 1.25, borderBottom: 1, borderColor: 'divider', alignItems: 'flex-start' }}><ListItemAvatar sx={{ minWidth: 50 }}><ContactAvatar contact={contact} /></ListItemAvatar><ListItemText primary={<Stack
+              direction="row"
+              sx={{
+                gap: 1,
+                alignItems: "center"
+              }}><Typography variant="body2" noWrap sx={{
+              fontWeight: 730
+            }}>{contact.name}</Typography>{contact.meta.stage ? <Chip size="small" label={contact.meta.stage} variant="outlined" sx={{ height: 20, fontSize: 10 }} /> : null}</Stack>} secondary={<Typography
+              variant="caption"
+              noWrap
+              sx={{
+                color: "text.secondary",
+                display: 'block',
+                mt: .35
+              }}>{preview(contact.latest)}</Typography>} /><Stack
+              sx={{
+                alignItems: "flex-end",
+                gap: .7,
+                ml: 1
+              }}><Typography variant="caption" sx={{
+              color: "text.secondary"
+            }}>{formatActivity(contact.lastActivity)}</Typography>{contact.unread ? <Badge color="primary" badgeContent={contact.unread} max={99} sx={{ '& .MuiBadge-badge': { color: '#101310' } }} /> : isDue(contact.meta.followUpAt) ? <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'warning.main' }} /> : null}</Stack></ListItemButton>) : <Box sx={{ p: 3 }}><Typography sx={{
+              fontWeight: 700
+            }}>{filter === 'attention' ? 'Nothing needs attention.' : 'No relationships found.'}</Typography><Typography
+              variant="body2"
+              sx={{
+                color: "text.secondary",
+                mt: .6
+              }}>{filter === 'attention' ? 'Unread conversations, due tasks, and next actions appear here.' : 'Try another search or filter.'}</Typography></Box>}</List>
+          </Box>
 
-        <Box sx={{ display: { xs: mobileThreadOpen ? 'flex' : 'none', md: 'flex' }, flexDirection: 'column', minWidth: 0, bgcolor: '#0B0D0C' }}>
-          {selected ? <>
-            <Toolbar variant="dense" sx={{ minHeight: 64, borderBottom: 1, borderColor: 'divider', px: 2, gap: 1 }}>
-              {mobile ? <IconButton onClick={() => setMobileThreadOpen(false)}><ArrowBackRoundedIcon /></IconButton> : null}
-              <ContactAvatar contact={selected} size={38} />
-              <Box sx={{ minWidth: 0, flex: 1 }}><Typography fontWeight={750} noWrap>{selected.name}</Typography><Typography variant="caption" color="text.secondary" noWrap>{selected.username ? `@${selected.username}` : 'Telegram contact'}{profile?.status?.label ? ` · ${profile.status.label}` : ''}</Typography></Box>
-              <Tooltip title="Summarize relationship"><IconButton onClick={() => void runRelationshipAI()} disabled={aiBusy}>{aiBusy ? <CircularProgress size={20} /> : <AutoAwesomeRoundedIcon />}</IconButton></Tooltip>
-              <Tooltip title="Load full history"><IconButton onClick={() => void loadFullHistory()} disabled={fullHistoryLoading || !historyHasMore}>{fullHistoryLoading ? <CircularProgress size={20} /> : <MoreHorizRoundedIcon />}</IconButton></Tooltip>
-              {!wide ? <Tooltip title="Relationship details"><IconButton onClick={() => setProfileDrawerOpen(true)}><ChevronRightRoundedIcon /></IconButton></Tooltip> : null}
-            </Toolbar>
-            {fullHistoryLoading ? <Box><LinearProgress /><Typography variant="caption" color="text.secondary" sx={{ px: 2, py: .6, display: 'block' }}>Loading full history · {history.length}{historyTotal ? ` of about ${historyTotal}` : ''} messages loaded</Typography></Box> : null}
-            <Box ref={threadRef} onScroll={event => { if (event.currentTarget.scrollTop < 80) void loadOlder() }} sx={{ flex: 1, overflow: 'auto', p: 2, scrollBehavior: 'smooth' }}>
-              {historyLoading ? <Stack alignItems="center" sx={{ pt: 6 }} gap={1.5}><CircularProgress size={28} /><Typography variant="body2" color="text.secondary">Loading conversation history</Typography></Stack> : <>
-                {historyHasMore ? <Stack alignItems="center" sx={{ pb: 2 }}><Button size="small" onClick={() => void loadOlder()} disabled={olderLoading} startIcon={olderLoading ? <CircularProgress size={14} /> : undefined}>{olderLoading ? 'Loading older messages' : 'Load older messages'}</Button></Stack> : history.length ? <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', pb: 2 }}>Start of loaded Telegram history</Typography> : null}
-                <Stack gap={1}>{history.map(item => <Fade in key={item.id} timeout={180}><Paper variant="outlined" sx={{ p: 1.25, maxWidth: { xs: '88%', md: '74%' }, alignSelf: item.outgoing ? 'flex-end' : 'flex-start', ml: item.outgoing ? 'auto' : 0, bgcolor: item.outgoing ? 'rgba(208,255,79,.07)' : 'background.paper', borderColor: item.outgoing ? 'rgba(208,255,79,.2)' : 'divider', opacity: item.id.startsWith('optimistic:') ? .65 : 1, transition: 'opacity 180ms ease, transform 180ms ease' }}><Stack direction="row" gap={1} justifyContent="space-between"><Typography variant="caption" color="text.secondary">{item.outgoing ? 'You' : selected.name}</Typography><Typography variant="caption" color="text.secondary">{formatActivity(item.timestamp)}</Typography></Stack>{item.text ? <Typography variant="body2" sx={{ mt: .45, whiteSpace: 'pre-wrap' }}>{item.text}</Typography> : null}{item.media ? <Chip size="small" label={item.media.kind} variant="outlined" sx={{ mt: .8 }} /> : null}{item.edited ? <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: .4 }}>edited</Typography> : null}</Paper></Fade>)}</Stack>
-              </>}
-            </Box>
-            <Box sx={{ borderTop: 1, borderColor: 'divider', p: 1.25, bgcolor: 'background.paper' }}><Stack direction="row" gap={1} alignItems="flex-end"><TextField fullWidth multiline maxRows={5} value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void sendMessage() } }} placeholder={`Message ${selected.name}`} /><Zoom in><IconButton color="primary" onClick={() => void sendMessage()} disabled={!draft.trim() || sending} sx={{ width: 42, height: 42, bgcolor: draft.trim() ? 'rgba(208,255,79,.09)' : undefined }}>{sending ? <CircularProgress size={20} /> : <SendRoundedIcon />}</IconButton></Zoom></Stack></Box>
-          </> : <Box sx={{ flex: 1, display: 'grid', placeItems: 'center', p: 3, textAlign: 'center' }}><Box><ForumRoundedIcon sx={{ fontSize: 42, color: 'text.secondary' }} /><Typography variant="h2" sx={{ mt: 1 }}>Open a relationship</Typography><Typography color="text.secondary" sx={{ mt: .7 }}>Select a Telegram contact to load the full conversation and CRM context.</Typography></Box></Box>}
-        </Box>
+          <Box sx={{ display: { xs: mobileThreadOpen ? 'flex' : 'none', md: 'flex' }, flexDirection: 'column', minWidth: 0, bgcolor: '#0B0D0C' }}>
+            {selected ? <>
+              <Toolbar variant="dense" sx={{ minHeight: 64, borderBottom: 1, borderColor: 'divider', px: 2, gap: 1 }}>
+                {mobile ? <IconButton onClick={() => setMobileThreadOpen(false)}><ArrowBackRoundedIcon /></IconButton> : null}
+                <ContactAvatar contact={selected} size={38} />
+                <Box sx={{ minWidth: 0, flex: 1 }}><Typography noWrap sx={{
+                  fontWeight: 750
+                }}>{selected.name}</Typography><Typography variant="caption" noWrap sx={{
+                  color: "text.secondary"
+                }}>{selected.username ? `@${selected.username}` : 'Telegram contact'}{profile?.status?.label ? ` · ${profile.status.label}` : ''}</Typography></Box>
+                <Tooltip title="Summarize relationship"><IconButton onClick={() => void runRelationshipAI()} disabled={aiBusy}>{aiBusy ? <CircularProgress size={20} /> : <AutoAwesomeRoundedIcon />}</IconButton></Tooltip>
+                <Tooltip title="Load full history"><IconButton onClick={() => void loadFullHistory()} disabled={fullHistoryLoading || !historyHasMore}>{fullHistoryLoading ? <CircularProgress size={20} /> : <MoreHorizRoundedIcon />}</IconButton></Tooltip>
+                {!wide ? <Tooltip title="Relationship details"><IconButton onClick={() => setProfileDrawerOpen(true)}><ChevronRightRoundedIcon /></IconButton></Tooltip> : null}
+              </Toolbar>
+              {fullHistoryLoading ? <Box><LinearProgress /><Typography
+                variant="caption"
+                sx={{
+                  color: "text.secondary",
+                  px: 2,
+                  py: .6,
+                  display: 'block'
+                }}>Loading full history · {history.length}{historyTotal ? ` of about ${historyTotal}` : ''} messages loaded</Typography></Box> : null}
+              <Box ref={threadRef} onScroll={event => { if (event.currentTarget.scrollTop < 80) void loadOlder() }} sx={{ flex: 1, overflow: 'auto', p: 2, scrollBehavior: 'smooth' }}>
+                {historyLoading ? <Stack
+                  sx={{
+                    alignItems: "center",
+                    gap: 1.5,
+                    pt: 6
+                  }}><CircularProgress size={28} /><Typography variant="body2" sx={{
+                  color: "text.secondary"
+                }}>Loading conversation history</Typography></Stack> : <>
+                  {historyHasMore ? <Stack
+                    sx={{
+                      alignItems: "center",
+                      pb: 2
+                    }}><Button size="small" onClick={() => void loadOlder()} disabled={olderLoading} startIcon={olderLoading ? <CircularProgress size={14} /> : undefined}>{olderLoading ? 'Loading older messages' : 'Load older messages'}</Button></Stack> : history.length ? <Typography
+                    variant="caption"
+                    sx={{
+                      color: "text.secondary",
+                      display: 'block',
+                      textAlign: 'center',
+                      pb: 2
+                    }}>Start of loaded Telegram history</Typography> : null}
+                  <Stack sx={{
+                    gap: 1
+                  }}>{history.map(item => <Fade in key={item.id} timeout={180}><Paper variant="outlined" sx={{ p: 1.25, maxWidth: { xs: '88%', md: '74%' }, alignSelf: item.outgoing ? 'flex-end' : 'flex-start', ml: item.outgoing ? 'auto' : 0, bgcolor: item.outgoing ? 'rgba(208,255,79,.07)' : 'background.paper', borderColor: item.outgoing ? 'rgba(208,255,79,.2)' : 'divider', opacity: item.id.startsWith('optimistic:') ? .65 : 1, transition: 'opacity 180ms ease, transform 180ms ease' }}><Stack
+                    direction="row"
+                    sx={{
+                      gap: 1,
+                      justifyContent: "space-between"
+                    }}><Typography variant="caption" sx={{
+                    color: "text.secondary"
+                  }}>{item.outgoing ? 'You' : selected.name}</Typography><Typography variant="caption" sx={{
+                    color: "text.secondary"
+                  }}>{formatActivity(item.timestamp)}</Typography></Stack>{item.text ? <Typography variant="body2" sx={{ mt: .45, whiteSpace: 'pre-wrap' }}>{item.text}</Typography> : null}{item.media ? <Chip size="small" label={item.media.kind} variant="outlined" sx={{ mt: .8 }} /> : null}{item.edited ? <Typography
+                    variant="caption"
+                    sx={{
+                      color: "text.secondary",
+                      display: 'block',
+                      mt: .4
+                    }}>edited</Typography> : null}</Paper></Fade>)}</Stack>
+                </>}
+              </Box>
+              <Box sx={{ borderTop: 1, borderColor: 'divider', p: 1.25, bgcolor: 'background.paper' }}><Stack
+                direction="row"
+                sx={{
+                  gap: 1,
+                  alignItems: "flex-end"
+                }}><TextField fullWidth multiline maxRows={5} value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void sendMessage() } }} placeholder={`Message ${selected.name}`} /><Zoom in><IconButton color="primary" onClick={() => void sendMessage()} disabled={!draft.trim() || sending} sx={{ width: 42, height: 42, bgcolor: draft.trim() ? 'rgba(208,255,79,.09)' : undefined }}>{sending ? <CircularProgress size={20} /> : <SendRoundedIcon />}</IconButton></Zoom></Stack></Box>
+            </> : <Box sx={{ flex: 1, display: 'grid', placeItems: 'center', p: 3, textAlign: 'center' }}><Box><ForumRoundedIcon sx={{ fontSize: 42, color: 'text.secondary' }} /><Typography variant="h2" sx={{ mt: 1 }}>Open a relationship</Typography><Typography
+              sx={{
+                color: "text.secondary",
+                mt: .7
+              }}>Select a Telegram contact to load the full conversation and CRM context.</Typography></Box></Box>}
+          </Box>
 
-        {wide ? <Box sx={{ borderLeft: 1, borderColor: 'divider', bgcolor: 'background.paper', overflow: 'hidden' }}>{relationshipPanel}</Box> : null}
-      </Box> : null}
+          {wide ? <Box sx={{ borderLeft: 1, borderColor: 'divider', bgcolor: 'background.paper', overflow: 'hidden' }}>{relationshipPanel}</Box> : null}
+        </Box> : null}
 
-      {view === 'pipeline' ? <Box sx={{ p: { xs: 2, md: 3 }, minHeight: '100vh' }}>
-        <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" gap={2} alignItems={{ sm: 'flex-end' }}><Box><Typography variant="h1">Pipeline</Typography><Typography color="text.secondary" sx={{ mt: .7 }}>Drag opportunities between stages. Each card can map back to a Telegram username.</Typography></Box><Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => openOpportunityDialog()}>Add opportunity</Button></Stack>
-        <Box sx={{ mt: 3, display: 'grid', gridTemplateColumns: `repeat(${PIPELINE_STAGES.length}, minmax(240px, 1fr))`, gap: 1.2, overflowX: 'auto', alignItems: 'start', pb: 2 }}>
-          {PIPELINE_STAGES.map(stage => {
-            const rows = opportunities.filter(row => row.stage === stage)
-            return <Paper key={stage} variant="outlined" onDragOver={event => event.preventDefault()} onDrop={() => { if (dragId.current) moveOpportunity(dragId.current, stage); dragId.current = null }} sx={{ minHeight: 520, p: 1.2, bgcolor: '#0E110F' }}><Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ px: .6, pb: 1 }}><Typography fontWeight={760}>{stage}</Typography><Stack direction="row" alignItems="center" gap={.5}><Chip size="small" label={rows.length} /><IconButton size="small" onClick={() => openOpportunityDialog(undefined, stage)}><AddRoundedIcon fontSize="small" /></IconButton></Stack></Stack><Stack gap={1}>{rows.map((row, index) => <Grow in timeout={220 + index * 50} key={row.id}><Paper draggable onDragStart={() => { dragId.current = row.id }} onDragEnd={() => { dragId.current = null }} variant="outlined" sx={{ p: 1.4, cursor: 'grab', bgcolor: 'background.paper', '&:active': { cursor: 'grabbing', transform: 'scale(.99)' }, transition: 'transform 120ms ease' }}><Stack direction="row" justifyContent="space-between" gap={1}><Typography variant="body2" fontWeight={760}>{row.title}</Typography><IconButton size="small" onClick={() => openOpportunityDialog(row)}><EditRoundedIcon fontSize="small" /></IconButton></Stack>{row.username ? <Typography variant="caption" color="text.secondary">@{row.username}</Typography> : null}{row.company ? <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{row.company}</Typography> : null}{row.value !== undefined ? <Typography sx={{ mt: 1 }} fontWeight={780}>{formatMoney(row.value)}</Typography> : null}{row.notes ? <Typography variant="body2" color="text.secondary" sx={{ mt: .8 }}>{row.notes}</Typography> : null}</Paper></Grow>)}{!rows.length ? <Button onClick={() => openOpportunityDialog(undefined, stage)} sx={{ justifyContent: 'flex-start', color: 'text.secondary' }} startIcon={<AddRoundedIcon />}>Add card</Button> : null}</Stack></Paper>
-          })}
-        </Box>
-      </Box> : null}
+        {view === 'pipeline' ? <Box sx={{ p: { xs: 2, md: 3 }, minHeight: '100vh' }}>
+          <Stack
+            direction={{ xs: 'column', sm: 'row' }}
+            sx={{
+              justifyContent: "space-between",
+              gap: 2,
+              alignItems: { sm: 'flex-end' }
+            }}><Box><Typography variant="h1">Pipeline</Typography><Typography
+            sx={{
+              color: "text.secondary",
+              mt: .7
+            }}>Drag opportunities between stages. Each card can map back to a Telegram username.</Typography></Box><Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => openOpportunityDialog()}>Add opportunity</Button></Stack>
+          <Box sx={{ mt: 3, display: 'grid', gridTemplateColumns: `repeat(${PIPELINE_STAGES.length}, minmax(240px, 1fr))`, gap: 1.2, overflowX: 'auto', alignItems: 'start', pb: 2 }}>
+            {PIPELINE_STAGES.map(stage => {
+              const rows = opportunities.filter(row => row.stage === stage)
+              return (
+                <Paper key={stage} variant="outlined" onDragOver={event => event.preventDefault()} onDrop={() => { if (dragId.current) moveOpportunity(dragId.current, stage); dragId.current = null }} sx={{ minHeight: 520, p: 1.2, bgcolor: '#0E110F' }}><Stack
+                  direction="row"
+                  sx={{
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    px: .6,
+                    pb: 1
+                  }}><Typography sx={{
+                  fontWeight: 760
+                }}>{stage}</Typography><Stack
+                  direction="row"
+                  sx={{
+                    alignItems: "center",
+                    gap: .5
+                  }}><Chip size="small" label={rows.length} /><IconButton size="small" onClick={() => openOpportunityDialog(undefined, stage)}><AddRoundedIcon fontSize="small" /></IconButton></Stack></Stack><Stack sx={{
+                  gap: 1
+                }}>{rows.map((row, index) => <Grow in timeout={220 + index * 50} key={row.id}><Paper draggable onDragStart={() => { dragId.current = row.id }} onDragEnd={() => { dragId.current = null }} variant="outlined" sx={{ p: 1.4, cursor: 'grab', bgcolor: 'background.paper', '&:active': { cursor: 'grabbing', transform: 'scale(.99)' }, transition: 'transform 120ms ease' }}><Stack
+                  direction="row"
+                  sx={{
+                    justifyContent: "space-between",
+                    gap: 1
+                  }}><Typography variant="body2" sx={{
+                  fontWeight: 760
+                }}>{row.title}</Typography><IconButton size="small" onClick={() => openOpportunityDialog(row)}><EditRoundedIcon fontSize="small" /></IconButton></Stack>{row.username ? <Typography variant="caption" sx={{
+                  color: "text.secondary"
+                }}>@{row.username}</Typography> : null}{row.company ? <Typography
+                  variant="caption"
+                  sx={{
+                    color: "text.secondary",
+                    display: 'block'
+                  }}>{row.company}</Typography> : null}{row.value !== undefined ? <Typography
+                  sx={{
+                    fontWeight: 780,
+                    mt: 1
+                  }}>{formatMoney(row.value)}</Typography> : null}{row.notes ? <Typography
+                  variant="body2"
+                  sx={{
+                    color: "text.secondary",
+                    mt: .8
+                  }}>{row.notes}</Typography> : null}</Paper></Grow>)}{!rows.length ? <Button onClick={() => openOpportunityDialog(undefined, stage)} sx={{ justifyContent: 'flex-start', color: 'text.secondary' }} startIcon={<AddRoundedIcon />}>Add card</Button> : null}</Stack></Paper>
+              );
+            })}
+          </Box>
+        </Box> : null}
 
-      {view === 'contacts' ? <Box sx={{ p: { xs: 2, md: 3 } }}>
-        <Typography variant="h1">Contacts</Typography><Typography color="text.secondary" sx={{ mt: .7 }}>Telegram people with CRM context attached to their peer identity.</Typography>
-        <TextField sx={{ mt: 2.5, maxWidth: 420 }} fullWidth placeholder="Search contacts" value={query} onChange={event => setQuery(event.target.value)} slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchRoundedIcon fontSize="small" /></InputAdornment> } }} />
-        <Paper variant="outlined" sx={{ mt: 2, overflow: 'hidden' }}>{filteredContacts.map((contact, index) => <Fade in timeout={180 + index * 30} key={contact.id}><ListItem disablePadding divider><ListItemButton onClick={() => openContact(contact)} sx={{ py: 1.25 }}><ListItemAvatar><ContactAvatar contact={contact} /></ListItemAvatar><ListItemText primary={contact.name} secondary={contact.username ? `@${contact.username}` : contact.meta.company || 'Telegram contact'} /><Box sx={{ display: { xs: 'none', sm: 'block' }, width: 130 }}><Typography variant="body2">{contact.meta.stage || 'Not set'}</Typography></Box><Box sx={{ display: { xs: 'none', md: 'block' }, width: 190 }}><Typography variant="body2" color="text.secondary" noWrap>{contact.meta.nextAction || 'No next action'}</Typography></Box><Typography variant="caption" color="text.secondary">{formatActivity(contact.lastActivity)}</Typography><ChevronRightRoundedIcon sx={{ ml: 1, color: 'text.secondary' }} /></ListItemButton></ListItem></Fade>)}</Paper>
-      </Box> : null}
+        {view === 'contacts' ? <Box sx={{ p: { xs: 2, md: 3 } }}>
+          <Typography variant="h1">Contacts</Typography><Typography
+          sx={{
+            color: "text.secondary",
+            mt: .7
+          }}>Telegram people with CRM context attached to their peer identity.</Typography>
+          <TextField sx={{ mt: 2.5, maxWidth: 420 }} fullWidth placeholder="Search contacts" value={query} onChange={event => setQuery(event.target.value)} slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchRoundedIcon fontSize="small" /></InputAdornment> } }} />
+          <Paper variant="outlined" sx={{ mt: 2, overflow: 'hidden' }}>{filteredContacts.map((contact, index) => <Fade in timeout={180 + index * 30} key={contact.id}><ListItem disablePadding divider><ListItemButton onClick={() => openContact(contact)} sx={{ py: 1.25 }}><ListItemAvatar><ContactAvatar contact={contact} /></ListItemAvatar><ListItemText primary={contact.name} secondary={contact.username ? `@${contact.username}` : contact.meta.company || 'Telegram contact'} /><Box sx={{ display: { xs: 'none', sm: 'block' }, width: 130 }}><Typography variant="body2">{contact.meta.stage || 'Not set'}</Typography></Box><Box sx={{ display: { xs: 'none', md: 'block' }, width: 190 }}><Typography variant="body2" noWrap sx={{
+            color: "text.secondary"
+          }}>{contact.meta.nextAction || 'No next action'}</Typography></Box><Typography variant="caption" sx={{
+            color: "text.secondary"
+          }}>{formatActivity(contact.lastActivity)}</Typography><ChevronRightRoundedIcon sx={{ ml: 1, color: 'text.secondary' }} /></ListItemButton></ListItem></Fade>)}</Paper>
+        </Box> : null}
 
-      {view === 'tasks' ? <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1000 }}>
-        <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" gap={2} alignItems={{ sm: 'flex-end' }}><Box><Typography variant="h1">Tasks</Typography><Typography color="text.secondary" sx={{ mt: .7 }}>Create, edit, complete, or delete work and map each task to a Telegram username.</Typography></Box><Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => openTaskDialog()}>Add task</Button></Stack>
-        <Stack gap={1} sx={{ mt: 3 }}>{tasks.length ? [...tasks].sort((a, b) => Number(Boolean(a.completed)) - Number(Boolean(b.completed)) || String(a.dueAt || '').localeCompare(String(b.dueAt || ''))).map((task, index) => {
-          const contact = contacts.find(row => row.id === task.contactId)
-          return <Grow in timeout={220 + index * 45} key={task.id}><Paper variant="outlined" sx={{ p: 1.4, display: 'flex', alignItems: 'center', gap: 1.2, opacity: task.completed ? .55 : 1 }}><Checkbox checked={Boolean(task.completed)} onChange={() => toggleTask(task)} icon={<Box sx={{ width: 20, height: 20, border: 1, borderColor: 'divider', borderRadius: 1 }} />} checkedIcon={<Zoom in><CheckRoundedIcon color="primary" /></Zoom>} /><Box sx={{ flex: 1, minWidth: 0 }}><Typography variant="body2" fontWeight={730} sx={{ textDecoration: task.completed ? 'line-through' : 'none' }}>{task.title}</Typography><Stack direction="row" gap={1} flexWrap="wrap" sx={{ mt: .35 }}>{contact || task.username ? <Typography variant="caption" color="text.secondary">{contact ? contact.name : ''}{task.username ? ` @${task.username}` : ''}</Typography> : null}{task.dueAt ? <Typography variant="caption" color={isDue(task.dueAt) && !task.completed ? 'warning.main' : 'text.secondary'}>{formatDateTime(task.dueAt)}</Typography> : null}</Stack></Box><Tooltip title="Edit"><IconButton onClick={() => openTaskDialog(task)}><EditRoundedIcon /></IconButton></Tooltip><Tooltip title="Delete"><IconButton onClick={() => setConfirmState({ kind: 'task', id: task.id })}><DeleteOutlineRoundedIcon /></IconButton></Tooltip></Paper></Grow>
-        }) : <Paper variant="outlined" sx={{ p: 4, textAlign: 'center' }}><TaskAltRoundedIcon sx={{ fontSize: 38, color: 'text.secondary' }} /><Typography variant="h2" sx={{ mt: 1 }}>No tasks yet</Typography><Typography color="text.secondary" sx={{ mt: .6 }}>Add a task and optionally map it to a Telegram contact.</Typography><Button sx={{ mt: 2 }} variant="contained" onClick={() => openTaskDialog()}>Add first task</Button></Paper>}</Stack>
-      </Box> : null}
+        {view === 'tasks' ? <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1000 }}>
+          <Stack
+            direction={{ xs: 'column', sm: 'row' }}
+            sx={{
+              justifyContent: "space-between",
+              gap: 2,
+              alignItems: { sm: 'flex-end' }
+            }}><Box><Typography variant="h1">Tasks</Typography><Typography
+            sx={{
+              color: "text.secondary",
+              mt: .7
+            }}>Create, edit, complete, or delete work and map each task to a Telegram username.</Typography></Box><Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => openTaskDialog()}>Add task</Button></Stack>
+          <Stack
+            sx={{
+              gap: 1,
+              mt: 3
+            }}>{tasks.length ? [...tasks].sort((a, b) => Number(Boolean(a.completed)) - Number(Boolean(b.completed)) || String(a.dueAt || '').localeCompare(String(b.dueAt || ''))).map((task, index) => {
+            const contact = contacts.find(row => row.id === task.contactId)
+            return (
+              <Grow in timeout={220 + index * 45} key={task.id}><Paper variant="outlined" sx={{ p: 1.4, display: 'flex', alignItems: 'center', gap: 1.2, opacity: task.completed ? .55 : 1 }}><Checkbox checked={Boolean(task.completed)} onChange={() => toggleTask(task)} icon={<Box sx={{ width: 20, height: 20, border: 1, borderColor: 'divider', borderRadius: 1 }} />} checkedIcon={<Zoom in><CheckRoundedIcon color="primary" /></Zoom>} /><Box sx={{ flex: 1, minWidth: 0 }}><Typography
+                variant="body2"
+                sx={{
+                  fontWeight: 730,
+                  textDecoration: task.completed ? 'line-through' : 'none'
+                }}>{task.title}</Typography><Stack
+                direction="row"
+                sx={{
+                  gap: 1,
+                  flexWrap: "wrap",
+                  mt: .35
+                }}>{contact || task.username ? <Typography variant="caption" sx={{
+                color: "text.secondary"
+              }}>{contact ? contact.name : ''}{task.username ? ` @${task.username}` : ''}</Typography> : null}{task.dueAt ? <Typography variant="caption" color={isDue(task.dueAt) && !task.completed ? 'warning.main' : 'text.secondary'}>{formatDateTime(task.dueAt)}</Typography> : null}</Stack></Box><Tooltip title="Edit"><IconButton onClick={() => openTaskDialog(task)}><EditRoundedIcon /></IconButton></Tooltip><Tooltip title="Delete"><IconButton onClick={() => setConfirmState({ kind: 'task', id: task.id })}><DeleteOutlineRoundedIcon /></IconButton></Tooltip></Paper></Grow>
+            );
+          }) : <Paper variant="outlined" sx={{ p: 4, textAlign: 'center' }}><TaskAltRoundedIcon sx={{ fontSize: 38, color: 'text.secondary' }} /><Typography variant="h2" sx={{ mt: 1 }}>No tasks yet</Typography><Typography
+            sx={{
+              color: "text.secondary",
+              mt: .6
+            }}>Add a task and optionally map it to a Telegram contact.</Typography><Button sx={{ mt: 2 }} variant="contained" onClick={() => openTaskDialog()}>Add first task</Button></Paper>}</Stack>
+        </Box> : null}
 
-      {view === 'settings' ? <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 860 }}>
-        <Typography variant="h1">Settings</Typography><Typography color="text.secondary" sx={{ mt: .7 }}>Manage Telegram connection and optional AI features.</Typography>
-        <Paper variant="outlined" sx={{ mt: 3, p: 2.5 }}><Typography variant="h2">Telegram account</Typography><Stack direction="row" alignItems="center" gap={1.5} sx={{ mt: 2 }}><Avatar src={account?.avatar}>{initials(account?.firstName || 'TG')}</Avatar><Box sx={{ flex: 1 }}><Typography fontWeight={750}>{[account?.firstName, account?.lastName].filter(Boolean).join(' ') || 'Telegram'}</Typography><Typography variant="body2" color="text.secondary">{account?.username ? `@${account.username}` : 'Connected'}</Typography></Box><Button color="error" startIcon={<LogoutRoundedIcon />} onClick={() => void logout()}>Log out</Button></Stack></Paper>
-        <Paper variant="outlined" sx={{ mt: 1.5, p: 2.5 }}><Typography variant="h2">AI relationship briefs</Typography><Typography variant="body2" color="text.secondary" sx={{ mt: .8 }}>AI is optional. Your key is stored only for the current browser tab session, and message context is sent only when you explicitly generate a brief.</Typography>{keyConnected ? <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mt: 2 }}><Stack direction="row" gap={1} alignItems="center"><CheckRoundedIcon color="primary" /><Typography variant="body2">OpenAI key connected</Typography></Stack><Button onClick={() => { clearOpenAIKey(); setKeyConnected(false); notify('AI key removed') }}>Remove key</Button></Stack> : <Stack direction={{ xs: 'column', sm: 'row' }} gap={1} sx={{ mt: 2 }}><TextField fullWidth type="password" label="OpenAI API key" value={apiKeyDraft} onChange={event => setApiKeyDraft(event.target.value)} /><Button variant="contained" disabled={!apiKeyDraft.trim()} onClick={() => { saveOpenAIKey(apiKeyDraft.trim()); setApiKeyDraft(''); setKeyConnected(true); notify('AI key saved for this tab') }}>Save key</Button></Stack>}</Paper>
-        <Paper variant="outlined" sx={{ mt: 1.5, p: 2.5 }}><Typography variant="h2">CRM storage</Typography><Typography variant="body2" color="text.secondary" sx={{ mt: .8 }}>Notes, tags, tasks, opportunities, and CRM metadata are currently stored in this browser. Telegram messages remain in Telegram and are loaded on demand.</Typography></Paper>
-      </Box> : null}
+        {view === 'settings' ? <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 860 }}>
+          <Typography variant="h1">Settings</Typography><Typography
+          sx={{
+            color: "text.secondary",
+            mt: .7
+          }}>Manage Telegram connection and optional AI features.</Typography>
+          <Paper variant="outlined" sx={{ mt: 3, p: 2.5 }}><Typography variant="h2">Telegram account</Typography><Stack
+            direction="row"
+            sx={{
+              alignItems: "center",
+              gap: 1.5,
+              mt: 2
+            }}><Avatar src={account?.avatar}>{initials(account?.firstName || 'TG')}</Avatar><Box sx={{ flex: 1 }}><Typography sx={{
+            fontWeight: 750
+          }}>{[account?.firstName, account?.lastName].filter(Boolean).join(' ') || 'Telegram'}</Typography><Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>{account?.username ? `@${account.username}` : 'Connected'}</Typography></Box><Button color="error" startIcon={<LogoutRoundedIcon />} onClick={() => void logout()}>Log out</Button></Stack></Paper>
+          <Paper variant="outlined" sx={{ mt: 1.5, p: 2.5 }}><Typography variant="h2">AI relationship briefs</Typography><Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+              mt: .8
+            }}>AI is optional. Your key is stored only for the current browser tab session, and message context is sent only when you explicitly generate a brief.</Typography>{keyConnected ? <Stack
+            direction="row"
+            sx={{
+              alignItems: "center",
+              justifyContent: "space-between",
+              mt: 2
+            }}><Stack
+            direction="row"
+            sx={{
+              gap: 1,
+              alignItems: "center"
+            }}><CheckRoundedIcon color="primary" /><Typography variant="body2">OpenAI key connected</Typography></Stack><Button onClick={() => { clearOpenAIKey(); setKeyConnected(false); notify('AI key removed') }}>Remove key</Button></Stack> : <Stack
+            direction={{ xs: 'column', sm: 'row' }}
+            sx={{
+              gap: 1,
+              mt: 2
+            }}><TextField fullWidth type="password" label="OpenAI API key" value={apiKeyDraft} onChange={event => setApiKeyDraft(event.target.value)} /><Button variant="contained" disabled={!apiKeyDraft.trim()} onClick={() => { saveOpenAIKey(apiKeyDraft.trim()); setApiKeyDraft(''); setKeyConnected(true); notify('AI key saved for this tab') }}>Save key</Button></Stack>}</Paper>
+          <Paper variant="outlined" sx={{ mt: 1.5, p: 2.5 }}><Typography variant="h2">CRM storage</Typography><Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+              mt: .8
+            }}>Notes, tags, tasks, opportunities, and CRM metadata are currently stored in this browser. Telegram messages remain in Telegram and are loaded on demand.</Typography></Paper>
+        </Box> : null}
+      </Box>
+
+      {!wide ? <Drawer anchor="right" open={profileDrawerOpen} onClose={() => setProfileDrawerOpen(false)} slotProps={{
+        paper: { sx: { width: { xs: '92vw', sm: 380 }, bgcolor: 'background.paper' } }
+      }}>{relationshipPanel}</Drawer> : null}
+
+      <BottomNavigation showLabels value={view} onChange={(_, value) => setView(value)} sx={{ display: { xs: 'flex', md: 'none' }, position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: theme.zIndex.appBar, borderTop: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>{navItems.map(item => <BottomNavigationAction key={item.id} value={item.id} label={item.label} icon={item.badge ? <Badge color="primary" badgeContent={item.badge} max={99}>{item.icon}</Badge> : item.icon} />)}</BottomNavigation>
+
+      <Dialog open={taskDialogOpen} onClose={() => setTaskDialogOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>{taskDraft.id ? 'Edit task' : 'Add task'}</DialogTitle>
+        <DialogContent><Stack
+          sx={{
+            gap: 1.6,
+            pt: .5
+          }}><TextField autoFocus label="Task" value={taskDraft.title || ''} onChange={event => setTaskDraft(current => ({ ...current, title: event.target.value }))} /><Autocomplete options={contacts} value={contacts.find(row => row.id === taskDraft.contactId) || null} getOptionLabel={option => option.username ? `${option.name} (@${option.username})` : option.name} onChange={(_, contact) => setTaskDraft(current => ({ ...current, contactId: contact?.id, username: contact?.username }))} renderInput={params => <TextField {...params} label="Telegram contact" placeholder="Optional" />} /><TextField label="Username mapping" value={taskDraft.username || ''} onChange={event => setTaskDraft(current => ({ ...current, username: event.target.value.replace(/^@/, '') }))} slotProps={{ input: { startAdornment: <InputAdornment position="start">@</InputAdornment> } }} /><TextField type="datetime-local" label="Due" value={taskDraft.dueAt || ''} onChange={event => setTaskDraft(current => ({ ...current, dueAt: event.target.value || undefined }))} slotProps={{ inputLabel: { shrink: true } }} /></Stack></DialogContent>
+        <DialogActions>{taskDraft.id ? <Button color="error" onClick={() => { setTaskDialogOpen(false); setConfirmState({ kind: 'task', id: taskDraft.id! }) }}>Delete</Button> : null}<Box sx={{ flex: 1 }} /><Button onClick={() => setTaskDialogOpen(false)}>Cancel</Button><Button variant="contained" onClick={saveTaskDraft} disabled={!String(taskDraft.title || '').trim()}>Save task</Button></DialogActions>
+      </Dialog>
+
+      <Dialog open={opportunityDialogOpen} onClose={() => setOpportunityDialogOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>{opportunityDraft.id ? 'Edit opportunity' : 'Add opportunity'}</DialogTitle>
+        <DialogContent><Stack
+          sx={{
+            gap: 1.6,
+            pt: .5
+          }}><TextField autoFocus label="Opportunity" value={opportunityDraft.title || ''} onChange={event => setOpportunityDraft(current => ({ ...current, title: event.target.value }))} /><Autocomplete options={contacts} value={contacts.find(row => row.id === opportunityDraft.contactId) || null} getOptionLabel={option => option.username ? `${option.name} (@${option.username})` : option.name} onChange={(_, contact) => setOpportunityDraft(current => ({ ...current, contactId: contact?.id, username: contact?.username, company: current.company || contact?.meta.company }))} renderInput={params => <TextField {...params} label="Telegram contact" placeholder="Optional" />} /><TextField label="Username mapping" value={opportunityDraft.username || ''} onChange={event => setOpportunityDraft(current => ({ ...current, username: event.target.value.replace(/^@/, '') }))} slotProps={{ input: { startAdornment: <InputAdornment position="start">@</InputAdornment> } }} /><TextField label="Company" value={opportunityDraft.company || ''} onChange={event => setOpportunityDraft(current => ({ ...current, company: event.target.value }))} /><FormControl size="small"><Select value={opportunityDraft.stage || 'Lead'} onChange={event => setOpportunityDraft(current => ({ ...current, stage: event.target.value as PipelineStage }))}>{PIPELINE_STAGES.map(stage => <MenuItem key={stage} value={stage}>{stage}</MenuItem>)}</Select></FormControl><TextField type="number" label="Value (USD)" value={opportunityDraft.value ?? ''} onChange={event => setOpportunityDraft(current => ({ ...current, value: event.target.value === '' ? undefined : Math.max(0, Number(event.target.value) || 0) }))} /><TextField multiline minRows={3} label="Notes" value={opportunityDraft.notes || ''} onChange={event => setOpportunityDraft(current => ({ ...current, notes: event.target.value }))} /></Stack></DialogContent>
+        <DialogActions>{opportunityDraft.id ? <Button color="error" onClick={() => { setOpportunityDialogOpen(false); setConfirmState({ kind: 'opportunity', id: opportunityDraft.id! }) }}>Delete</Button> : null}<Box sx={{ flex: 1 }} /><Button onClick={() => setOpportunityDialogOpen(false)}>Cancel</Button><Button variant="contained" onClick={saveOpportunityDraft} disabled={!String(opportunityDraft.title || '').trim()}>Save opportunity</Button></DialogActions>
+      </Dialog>
+
+      <Dialog open={Boolean(confirmState)} onClose={() => setConfirmState(null)} maxWidth="xs" fullWidth><DialogTitle>Delete {confirmState?.kind === 'task' ? 'task' : 'opportunity'}?</DialogTitle><DialogContent><Typography sx={{
+        color: "text.secondary"
+      }}>This removes the CRM item from this browser. It does not change Telegram.</Typography></DialogContent><DialogActions><Button onClick={() => setConfirmState(null)}>Cancel</Button><Button color="error" variant="contained" onClick={confirmDelete}>Delete</Button></DialogActions></Dialog>
+
+      <Snackbar open={toast.open} autoHideDuration={2600} onClose={() => setToast(current => ({ ...current, open: false }))} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}><Alert variant="filled" severity={toast.severity} onClose={() => setToast(current => ({ ...current, open: false }))}>{toast.message}</Alert></Snackbar>
     </Box>
-
-    {!wide ? <Drawer anchor="right" open={profileDrawerOpen} onClose={() => setProfileDrawerOpen(false)} PaperProps={{ sx: { width: { xs: '92vw', sm: 380 }, bgcolor: 'background.paper' } }}>{relationshipPanel}</Drawer> : null}
-
-    <BottomNavigation showLabels value={view} onChange={(_, value) => setView(value)} sx={{ display: { xs: 'flex', md: 'none' }, position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: theme.zIndex.appBar, borderTop: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>{navItems.map(item => <BottomNavigationAction key={item.id} value={item.id} label={item.label} icon={item.badge ? <Badge color="primary" badgeContent={item.badge} max={99}>{item.icon}</Badge> : item.icon} />)}</BottomNavigation>
-
-    <Dialog open={taskDialogOpen} onClose={() => setTaskDialogOpen(false)} fullWidth maxWidth="sm">
-      <DialogTitle>{taskDraft.id ? 'Edit task' : 'Add task'}</DialogTitle>
-      <DialogContent><Stack gap={1.6} sx={{ pt: .5 }}><TextField autoFocus label="Task" value={taskDraft.title || ''} onChange={event => setTaskDraft(current => ({ ...current, title: event.target.value }))} /><Autocomplete options={contacts} value={contacts.find(row => row.id === taskDraft.contactId) || null} getOptionLabel={option => option.username ? `${option.name} (@${option.username})` : option.name} onChange={(_, contact) => setTaskDraft(current => ({ ...current, contactId: contact?.id, username: contact?.username }))} renderInput={params => <TextField {...params} label="Telegram contact" placeholder="Optional" />} /><TextField label="Username mapping" value={taskDraft.username || ''} onChange={event => setTaskDraft(current => ({ ...current, username: event.target.value.replace(/^@/, '') }))} slotProps={{ input: { startAdornment: <InputAdornment position="start">@</InputAdornment> } }} /><TextField type="datetime-local" label="Due" value={taskDraft.dueAt || ''} onChange={event => setTaskDraft(current => ({ ...current, dueAt: event.target.value || undefined }))} slotProps={{ inputLabel: { shrink: true } }} /></Stack></DialogContent>
-      <DialogActions>{taskDraft.id ? <Button color="error" onClick={() => { setTaskDialogOpen(false); setConfirmState({ kind: 'task', id: taskDraft.id! }) }}>Delete</Button> : null}<Box sx={{ flex: 1 }} /><Button onClick={() => setTaskDialogOpen(false)}>Cancel</Button><Button variant="contained" onClick={saveTaskDraft} disabled={!String(taskDraft.title || '').trim()}>Save task</Button></DialogActions>
-    </Dialog>
-
-    <Dialog open={opportunityDialogOpen} onClose={() => setOpportunityDialogOpen(false)} fullWidth maxWidth="sm">
-      <DialogTitle>{opportunityDraft.id ? 'Edit opportunity' : 'Add opportunity'}</DialogTitle>
-      <DialogContent><Stack gap={1.6} sx={{ pt: .5 }}><TextField autoFocus label="Opportunity" value={opportunityDraft.title || ''} onChange={event => setOpportunityDraft(current => ({ ...current, title: event.target.value }))} /><Autocomplete options={contacts} value={contacts.find(row => row.id === opportunityDraft.contactId) || null} getOptionLabel={option => option.username ? `${option.name} (@${option.username})` : option.name} onChange={(_, contact) => setOpportunityDraft(current => ({ ...current, contactId: contact?.id, username: contact?.username, company: current.company || contact?.meta.company }))} renderInput={params => <TextField {...params} label="Telegram contact" placeholder="Optional" />} /><TextField label="Username mapping" value={opportunityDraft.username || ''} onChange={event => setOpportunityDraft(current => ({ ...current, username: event.target.value.replace(/^@/, '') }))} slotProps={{ input: { startAdornment: <InputAdornment position="start">@</InputAdornment> } }} /><TextField label="Company" value={opportunityDraft.company || ''} onChange={event => setOpportunityDraft(current => ({ ...current, company: event.target.value }))} /><FormControl size="small"><Select value={opportunityDraft.stage || 'Lead'} onChange={event => setOpportunityDraft(current => ({ ...current, stage: event.target.value as PipelineStage }))}>{PIPELINE_STAGES.map(stage => <MenuItem key={stage} value={stage}>{stage}</MenuItem>)}</Select></FormControl><TextField type="number" label="Value (USD)" value={opportunityDraft.value ?? ''} onChange={event => setOpportunityDraft(current => ({ ...current, value: event.target.value === '' ? undefined : Math.max(0, Number(event.target.value) || 0) }))} /><TextField multiline minRows={3} label="Notes" value={opportunityDraft.notes || ''} onChange={event => setOpportunityDraft(current => ({ ...current, notes: event.target.value }))} /></Stack></DialogContent>
-      <DialogActions>{opportunityDraft.id ? <Button color="error" onClick={() => { setOpportunityDialogOpen(false); setConfirmState({ kind: 'opportunity', id: opportunityDraft.id! }) }}>Delete</Button> : null}<Box sx={{ flex: 1 }} /><Button onClick={() => setOpportunityDialogOpen(false)}>Cancel</Button><Button variant="contained" onClick={saveOpportunityDraft} disabled={!String(opportunityDraft.title || '').trim()}>Save opportunity</Button></DialogActions>
-    </Dialog>
-
-    <Dialog open={Boolean(confirmState)} onClose={() => setConfirmState(null)} maxWidth="xs" fullWidth><DialogTitle>Delete {confirmState?.kind === 'task' ? 'task' : 'opportunity'}?</DialogTitle><DialogContent><Typography color="text.secondary">This removes the CRM item from this browser. It does not change Telegram.</Typography></DialogContent><DialogActions><Button onClick={() => setConfirmState(null)}>Cancel</Button><Button color="error" variant="contained" onClick={confirmDelete}>Delete</Button></DialogActions></Dialog>
-
-    <Snackbar open={toast.open} autoHideDuration={2600} onClose={() => setToast(current => ({ ...current, open: false }))} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}><Alert variant="filled" severity={toast.severity} onClose={() => setToast(current => ({ ...current, open: false }))}>{toast.message}</Alert></Snackbar>
-  </Box>
+  );
 }

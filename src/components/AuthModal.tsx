@@ -15,28 +15,32 @@ export function PromptModal({ prompt, onSubmit, onCancel }: { prompt: AuthPrompt
     try { await onSubmit(value.trim()) } finally { setBusy(false) }
   }
 
-  return <Dialog open={Boolean(prompt)} onClose={busy ? undefined : onCancel} fullWidth maxWidth="xs" TransitionComponent={Fade}>
-    {busy ? <LinearProgress /> : null}
-    <form onSubmit={submit}>
-      <DialogTitle>{prompt?.title}</DialogTitle>
-      <DialogContent>
-        <DialogContentText sx={{ mb: 2 }}>{prompt?.hint}</DialogContentText>
-        <TextField
-          autoFocus
-          fullWidth
-          value={value}
-          onChange={event => setValue(event.target.value)}
-          disabled={busy}
-          type={prompt?.type === 'password' ? 'password' : prompt?.type === 'phone' ? 'tel' : 'text'}
-          inputMode={prompt?.type === 'code' ? 'numeric' : prompt?.type === 'phone' ? 'tel' : undefined}
-          autoComplete={prompt?.type === 'password' ? 'current-password' : prompt?.type === 'phone' ? 'tel' : 'one-time-code'}
-          label={prompt?.type === 'phone' ? 'Phone number' : prompt?.type === 'password' ? 'Password' : 'Verification code'}
-        />
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onCancel} disabled={busy}>Cancel</Button>
-        <Button type="submit" variant="contained" disabled={!value.trim() || busy}>{busy ? 'Checking' : 'Continue'}</Button>
-      </DialogActions>
-    </form>
-  </Dialog>
+  return (
+    <Dialog open={Boolean(prompt)} onClose={busy ? undefined : onCancel} fullWidth maxWidth="xs" slots={{
+      transition: Fade
+    }}>
+      {busy ? <LinearProgress /> : null}
+      <form onSubmit={submit}>
+        <DialogTitle>{prompt?.title}</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2 }}>{prompt?.hint}</DialogContentText>
+          <TextField
+            autoFocus
+            fullWidth
+            value={value}
+            onChange={event => setValue(event.target.value)}
+            disabled={busy}
+            type={prompt?.type === 'password' ? 'password' : prompt?.type === 'phone' ? 'tel' : 'text'}
+            inputMode={prompt?.type === 'code' ? 'numeric' : prompt?.type === 'phone' ? 'tel' : undefined}
+            autoComplete={prompt?.type === 'password' ? 'current-password' : prompt?.type === 'phone' ? 'tel' : 'one-time-code'}
+            label={prompt?.type === 'phone' ? 'Phone number' : prompt?.type === 'password' ? 'Password' : 'Verification code'}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={onCancel} disabled={busy}>Cancel</Button>
+          <Button type="submit" variant="contained" disabled={!value.trim() || busy}>{busy ? 'Checking' : 'Continue'}</Button>
+        </DialogActions>
+      </form>
+    </Dialog>
+  );
 }
