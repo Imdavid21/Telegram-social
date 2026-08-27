@@ -28,8 +28,9 @@ for (const file of files) {
   const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/)
   lines.forEach((line, index) => {
     if (line.includes('—')) violations.push({ file, line: index + 1, phrase: 'em dash' })
+    const scanLine = line.replace(/\b[A-Z][A-Za-z0-9]*Icon\b/g, '')
     regexes.forEach((regex, i) => {
-      if (regex.test(line)) violations.push({ file, line: index + 1, phrase: banned[i] })
+      if (regex.test(scanLine)) violations.push({ file, line: index + 1, phrase: banned[i] })
     })
   })
 }
