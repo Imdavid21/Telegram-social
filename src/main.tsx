@@ -23,6 +23,7 @@ import './product-v2.css'
 import './product-ai.css'
 import './product-feed.css'
 import './product-create.css'
+import './product-secondary.css'
 import './demo-v3.css'
 
 function ThemeBridge({children}:{children:ReactNode}){
