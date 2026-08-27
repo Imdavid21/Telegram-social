@@ -1,6 +1,8 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AnimatePresence } from 'motion/react'
 import type { FeedItem, FeedMode } from '../types'
 import { latestFeed, rankFeed } from '../lib/ranking'
+import { AnimatedListItem } from './motion/Reactive'
 
 const INITIAL_WINDOW = 36
 const WINDOW_CAP = 84
@@ -37,7 +39,7 @@ function MeasuredRow({ item, index, onHeight, children }: {
     return () => observer.disconnect()
   }, [item.id, onHeight])
 
-  return <div ref={ref} className="sg-virtual-row" data-feed-index={index} data-post-id={item.id}>{children}</div>
+  return <div ref={ref} className="sg-virtual-row" data-feed-index={index} data-post-id={item.id}><AnimatedListItem index={index}>{children}</AnimatedListItem></div>
 }
 
 export function VirtualFeed({ items, mode, favoriteSources, rankingRevision, renderItem }: {
@@ -133,10 +135,12 @@ export function VirtualFeed({ items, mode, favoriteSources, rankingRevision, ren
   return <div className="sg-virtual-feed" data-feed-mode={mode}>
     {spacers.top > 0 ? <div className="sg-virtual-spacer" style={{ height: spacers.top }} aria-hidden="true" /> : null}
     <div ref={topSentinel} className="sg-virtual-sentinel" aria-hidden="true" />
-    {orderedItems.slice(safeRange.start, safeRange.end).map((item, localIndex) => {
-      const index = safeRange.start + localIndex
-      return <MeasuredRow item={item} index={index} onHeight={onHeight} key={item.storyKey || item.id}>{renderItem(item, index)}</MeasuredRow>
-    })}
+    <AnimatePresence initial={false} mode="popLayout">
+      {orderedItems.slice(safeRange.start, safeRange.end).map((item, localIndex) => {
+        const index = safeRange.start + localIndex
+        return <MeasuredRow item={item} index={index} onHeight={onHeight} key={item.storyKey || item.id}>{renderItem(item, index)}</MeasuredRow>
+      })}
+    </AnimatePresence>
     <div ref={bottomSentinel} className="sg-virtual-sentinel" aria-hidden="true" />
     {spacers.bottom > 0 ? <div className="sg-virtual-spacer" style={{ height: spacers.bottom }} aria-hidden="true" /> : null}
   </div>
