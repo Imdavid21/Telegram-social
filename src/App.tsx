@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Skeleton } from './components/ui/skeleton'
-import SupergramProduct from './SupergramProduct'
+import CRMProduct from './CRMProduct'
 import { LandingPage } from './components/LandingPage'
 import { DemoPage } from './components/DemoPage'
 import { PromptModal } from './components/AuthModal'
-import { ScrollAnchorBridge } from './components/ScrollAnchorBridge'
 import { BrandMark } from './components/BrandMark'
 import type { AuthPrompt } from './types'
 import { authFlow, authStatus, beginAuth, healthStatus, submitAuth } from './lib/api'
@@ -21,9 +20,9 @@ function promptFromFlow(flow: Flow): AuthPrompt | null {
 }
 
 function SessionBoot() {
-  return <main className="sg-session-boot" aria-label="Restoring Supergram session">
-    <aside className="sg-session-boot-rail"><div className="sg-session-boot-brand"><BrandMark /><strong>Supergram</strong></div>{[0,1,2,3,4].map(i => <div className="sg-session-boot-nav" key={i}><Skeleton className="h-[22px] w-[22px] rounded-full" /><Skeleton className="h-[18px] w-[82px]" /></div>)}</aside>
-    <section className="sg-session-boot-feed"><div className="sg-session-boot-stories">{[0,1,2,3,4,5].map(i => <Skeleton key={i} className="h-[52px] w-[52px] rounded-full" />)}</div>{[0,1,2].map(i => <div className="sg-session-boot-card" key={i}><div><Skeleton className="h-9 w-9 rounded-full" /><span><Skeleton className="h-[17px] w-28" /><Skeleton className="h-[13px] w-[72px]" /></span></div><Skeleton className={i === 0 ? "h-[340px] w-full rounded-none" : "h-[180px] w-full rounded-none"} /><Skeleton className="h-4 w-[74%]" /><Skeleton className="h-4 w-[54%]" /></div>)}</section>
+  return <main className="sg-session-boot" aria-label="Restoring Telegram CRM session">
+    <aside className="sg-session-boot-rail"><div className="sg-session-boot-brand"><BrandMark /><strong>Telegram CRM</strong></div>{[0,1,2,3].map(i => <div className="sg-session-boot-nav" key={i}><Skeleton className="h-[22px] w-[22px] rounded-full" /><Skeleton className="h-[18px] w-[82px]" /></div>)}</aside>
+    <section className="sg-session-boot-feed">{[0,1,2,3].map(i => <div className="sg-session-boot-card" key={i}><div><Skeleton className="h-9 w-9 rounded-full" /><span><Skeleton className="h-[17px] w-28" /><Skeleton className="h-[13px] w-[72px]" /></span></div><Skeleton className="h-[84px] w-full rounded-none" /><Skeleton className="h-4 w-[74%]" /></div>)}</section>
   </main>
 }
 
@@ -75,7 +74,7 @@ export default function App() {
     haptics.light(); setError(''); setConnecting(true)
     try {
       const health = await healthStatus()
-      if (!health.ok || !health.configured) throw new Error('Supergram can’t connect to Telegram right now.')
+      if (!health.ok || !health.configured) throw new Error('Telegram CRM can’t connect to Telegram right now.')
       setBackendReady(true)
       const flow = await settleFlow(await beginAuth())
       if (flow.step === 'done') return void await finishConnection()
@@ -98,7 +97,7 @@ export default function App() {
 
   if (connected === null) return <SessionBoot />
   if (demoMode && !connected) return <><DemoPage onConnect={connect} /><PromptModal prompt={authPrompt} onSubmit={submitPrompt} onCancel={() => { setAuthPrompt(null); setConnecting(false) }} /></>
-  if (connected) return <ScrollAnchorBridge><SupergramProduct /></ScrollAnchorBridge>
+  if (connected) return <CRMProduct />
 
   return <><LandingPage onConnect={connect} onDemo={() => { window.location.href = '/?demo=1' }} connecting={connecting} backendReady={backendReady} booting={false} error={error} /><PromptModal prompt={authPrompt} onSubmit={submitPrompt} onCancel={() => { setAuthPrompt(null); setConnecting(false) }} /></>
 }
