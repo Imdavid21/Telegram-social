@@ -39,8 +39,15 @@ const theme = createTheme({
     MuiButton: {
       defaultProps: { disableElevation: true },
       styleOverrides: {
-        root: { minHeight: 38, borderRadius: 11, paddingInline: 14, transition: 'transform 140ms ease, background-color 140ms ease, border-color 140ms ease', '&:active': { transform: 'scale(.985)' } },
-        containedPrimary: { backgroundColor: '#F5F5F7', color: '#0A0A0B', '&:hover': { backgroundColor: '#FFFFFF' } }
+        root: {
+          minHeight: 38,
+          borderRadius: 11,
+          paddingInline: 14,
+          transition: 'transform 140ms ease, background-color 140ms ease, border-color 140ms ease',
+          '&:active': { transform: 'scale(.985)' },
+          '&.MuiButton-containedPrimary': { backgroundColor: '#F5F5F7', color: '#0A0A0B' },
+          '&.MuiButton-containedPrimary:hover': { backgroundColor: '#FFFFFF' }
+        }
       }
     },
     MuiIconButton: {
