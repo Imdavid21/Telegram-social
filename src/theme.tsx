@@ -34,8 +34,7 @@ const theme = createTheme({
     MuiButton: {
       defaultProps: { disableElevation: true },
       styleOverrides: {
-        root: { minHeight: 40, borderRadius: 10 },
-        containedPrimary: { color: '#101310' }
+        root: { minHeight: 40, borderRadius: 10 }
       }
     },
     MuiIconButton: {
