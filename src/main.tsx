@@ -28,6 +28,7 @@ import './demo-v3.css'
 import './motion-reactive.css'
 import './feed-system-cleanup.css'
 import './monochrome-ui.css'
+import './feed-symmetry.css'
 
 function ThemeBridge({children}:{children:ReactNode}){
  useEffect(()=>{
