@@ -1,16 +1,25 @@
 const HOP_BY_HOP = new Set(['connection','keep-alive','proxy-authenticate','proxy-authorization','te','trailer','transfer-encoding','upgrade','host','content-length'])
 const RESPONSE_STRIP = new Set([...HOP_BY_HOP,'set-cookie','content-encoding','etag','last-modified'])
+const PUBLIC_ROUTES = [
+ /^health$/, /^ready$/, /^auth\/(?:status|begin|input|flow|logout)$/, /^account$/, /^feed$/, /^feed\/(?:updates|diagnostics)$/,
+ /^search$/, /^avatar\/(?:[^/]+)$/, /^media\/ticket\/[^/]+\/\d+$/, /^media\/[^/]+$/, /^reaction$/, /^reply$/, /^share-targets$/,
+ /^forward$/, /^save$/, /^sponsored\/(?:view|click)$/
+]
+const SECRET_PATTERN=/(?:sk-[A-Za-z0-9_-]{12,}|bearer\s+[A-Za-z0-9._~+\/-]+=*|tgs_session=[^\s;]+|tgs_flow=[^\s;]+|(?:password|phoneCode|verificationCode|api[_ -]?key)\s*[:=]\s*[^\s,;]+)/gi
 
 function normalizeBaseUrl(value){return String(value||'').trim().replace(/\/$/,'')}
+function allowedPath(value){return PUBLIC_ROUTES.some(pattern=>pattern.test(value))}
+function redact(value,limit){return String(value||'').replace(SECRET_PATTERN,'[REDACTED]').slice(0,limit)}
 function copyRequestHeaders(req){const headers=new Headers();for(const [key,value] of Object.entries(req.headers||{})){if(HOP_BY_HOP.has(key.toLowerCase())||value==null)continue;if(Array.isArray(value))headers.set(key,value.join(', '));else headers.set(key,String(value))}headers.set('accept-encoding','identity');headers.delete('if-none-match');headers.delete('if-modified-since');headers.delete('if-match');headers.delete('if-unmodified-since');return headers}
 function copyResponseHeaders(upstream,res){for(const [key,value] of upstream.headers.entries()){if(RESPONSE_STRIP.has(key.toLowerCase()))continue;res.setHeader(key,value)}const cookies=typeof upstream.headers.getSetCookie==='function'?upstream.headers.getSetCookie():upstream.headers.get('set-cookie')?[upstream.headers.get('set-cookie')]:[];if(cookies.length)res.setHeader('set-cookie',cookies)}
-function clientErrorPayload(body){const source=body&&typeof body==='object'?body:{};return{kind:String(source.kind||'client').slice(0,32),message:String(source.message||'Unknown client error').slice(0,800),stack:String(source.stack||'').slice(0,5000),path:String(source.path||'/').slice(0,300)}}
+function clientErrorPayload(body){const source=body&&typeof body==='object'?body:{};return{kind:redact(source.kind||'client',32),message:redact(source.message||'Unknown client error',800),stack:redact(source.stack||'',3000),path:redact(source.path||'/',300)}}
 function jsonError(res,status,message){res.statusCode=status;res.setHeader('content-type','application/json; charset=utf-8');res.setHeader('cache-control','private, no-store, max-age=0');return res.end(JSON.stringify({error:message}))}
 
 export default async function handler(req,res){
  const rawPath=Array.isArray(req.query?.path)?req.query.path.join('/'):String(req.query?.path||'')
  if(rawPath==='client-error'&&String(req.method||'').toUpperCase()==='POST'){console.error('Supergram client error',clientErrorPayload(req.body));res.statusCode=204;res.setHeader('cache-control','no-store');return res.end()}
  if(rawPath==='summarize')return jsonError(res,410,'Server-side summaries were removed. Use local summaries or your own OpenAI API key in Settings.')
+ if(!allowedPath(rawPath))return jsonError(res,404,'Unknown API route.')
  const backend=normalizeBaseUrl(process.env.TELEGRAM_BACKEND_URL)
  const proxySecret=String(process.env.BACKEND_PROXY_SECRET||'')
  if(!backend)return jsonError(res,503,'Telegram backend URL is not configured in Vercel.')
@@ -24,9 +33,8 @@ export default async function handler(req,res){
   const upstream=await fetch(targetUrl,{method:req.method,headers,body,redirect:'manual',cache:'no-store',signal:AbortSignal.timeout(55_000)})
   if(upstream.status===304){console.error('Unexpected conditional Telegram backend response',{path:rawPath});return jsonError(res,502,'Telegram backend returned an empty conditional response.')}
   const contentType=String(upstream.headers.get('content-type')||'');const buffer=Buffer.from(await upstream.arrayBuffer());res.statusCode=upstream.status;copyResponseHeaders(upstream,res)
-  if(contentType.includes('application/json')){let parsed;try{parsed=buffer.length?JSON.parse(buffer.toString('utf8')):{}}catch(error){console.error('Invalid JSON from Telegram backend',{path:rawPath,status:upstream.status,bytes:buffer.length,contentEncoding:upstream.headers.get('content-encoding'),error:String(error?.message||error)});return jsonError(res,502,'Telegram backend returned malformed JSON.')}
-   if(rawPath==='feed')console.log('Telegram feed proxy payload',{status:upstream.status,bytes:buffer.length,channels:Array.isArray(parsed?.channels)?parsed.channels.length:null,feed:Array.isArray(parsed?.feed)?parsed.feed.length:null,keys:parsed&&typeof parsed==='object'?Object.keys(parsed):[]})
+  if(contentType.includes('application/json')){let parsed;try{parsed=buffer.length?JSON.parse(buffer.toString('utf8')):{}}catch(error){console.error('Invalid JSON from Telegram backend',{path:rawPath,status:upstream.status,bytes:buffer.length,error:redact(error?.message||error,400)});return jsonError(res,502,'Telegram backend returned malformed JSON.')}
    res.setHeader('content-type','application/json; charset=utf-8');res.setHeader('cache-control','private, no-store, max-age=0');return res.end(JSON.stringify(parsed))}
   return res.end(buffer)
- }catch(error){console.error('Telegram backend proxy failed',{path:rawPath,error:String(error?.message||error)});return jsonError(res,502,'Telegram backend is unreachable.')}
+ }catch(error){console.error('Telegram backend proxy failed',{path:rawPath,error:redact(error?.message||error,400)});return jsonError(res,502,'Telegram backend is unreachable.')}
 }
