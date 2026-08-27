@@ -16,5 +16,6 @@ jobs:
           node-version: 22
       - run: npm install
       - run: node --check server/index.mjs
+      - run: node --check server/crm-routes.mjs
       - run: node --check api/proxy.mjs
       - run: npm run build
