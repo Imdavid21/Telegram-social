@@ -40,7 +40,12 @@ function typedSourceId(entity) {
   return `${entityKind(entity)}:${String(entity.id)}`
 }
 
+function telegramUserId(entity) {
+  return entityKind(entity) === 'user' && entity?.id ? String(entity.id) : null
+}
+
 function entityTitle(entity) {
+  if (entityKind(entity) === 'user' && entity?.deleted && entity?.id) return `Deleted Account (ID: ${String(entity.id)})`
   const fullName = [entity?.firstName, entity?.lastName].filter(Boolean).join(' ').trim()
   return entity?.title || fullName || entity?.username || 'Telegram conversation'
 }
@@ -63,6 +68,28 @@ function sourceFromEntity(entity) {
     verified: Boolean(entity?.verified),
     bot: Boolean(entity?.bot),
     avatar: `/api/avatar/${encodeURIComponent(id)}`
+  }
+}
+
+function networkPersonFromEntity(entity) {
+  const userId = telegramUserId(entity)
+  const sourceId = typedSourceId(entity)
+  if (!userId || !sourceId) return null
+  const name = entityTitle(entity)
+  return {
+    telegramUserId: userId,
+    sourceId,
+    name,
+    username: entity?.username || '',
+    usernames: Array.isArray(entity?.usernames) ? entity.usernames.map(row => row?.username).filter(Boolean) : [],
+    phone: entity?.phone || '',
+    deleted: Boolean(entity?.deleted),
+    bot: Boolean(entity?.bot),
+    premium: Boolean(entity?.premium),
+    verified: Boolean(entity?.verified),
+    scam: Boolean(entity?.scam),
+    fake: Boolean(entity?.fake),
+    avatar: `/api/avatar/${encodeURIComponent(sourceId)}`
   }
 }
 
@@ -98,6 +125,24 @@ function mapMessage(message, sourceId) {
   }
 }
 
+function floodWaitSeconds(error) {
+  const direct = Number(error?.seconds || error?.value || error?.retryAfter || 0)
+  if (Number.isFinite(direct) && direct > 0) return direct
+  const message = String(error?.message || error || '')
+  const match = message.match(/FLOOD_WAIT[_\s-]?(\d+)/i) || message.match(/wait\s+(\d+)\s+seconds?/i)
+  return match ? Number(match[1]) : 0
+}
+
+function sendRouteError(res, error, fallback, defaultStatus = 500) {
+  const waitSeconds = floodWaitSeconds(error)
+  if (waitSeconds > 0) {
+    const retryAfterMs = Math.max(1000, waitSeconds * 1000)
+    res.setHeader('Retry-After', String(Math.ceil(retryAfterMs / 1000)))
+    return res.status(429).json({ error: `Telegram rate limit. Retry in ${waitSeconds}s.`, code: 'FLOOD_WAIT', retryAfterMs })
+  }
+  return res.status(Number(error?.status || defaultStatus)).json({ error: String(error?.message || fallback) })
+}
+
 async function getEntry(req) {
   const session = decrypt(req.cookies?.[SESSION_COOKIE])
   if (!session) return null
@@ -110,7 +155,7 @@ async function getEntry(req) {
       await client.disconnect().catch(() => {})
       return null
     }
-    entry = { client, entityMap: new Map(), sourceMap: new Map(), inventoryLoadedAt: 0, lastUsed: Date.now() }
+    entry = { client, entityMap: new Map(), sourceMap: new Map(), dialogMap: new Map(), inventoryLoadedAt: 0, lastUsed: Date.now() }
     crmClients.set(key, entry)
   }
   entry.lastUsed = Date.now()
@@ -122,15 +167,18 @@ async function ensureInventory(entry, force = false) {
   const dialogs = await entry.client.getDialogs({ limit: undefined })
   const entityMap = new Map()
   const sourceMap = new Map()
+  const dialogMap = new Map()
   for (const dialog of dialogs) {
     const entity = dialog?.entity
     const source = sourceFromEntity(entity)
     if (!source) continue
     entityMap.set(source.id, entity)
     sourceMap.set(source.id, source)
+    dialogMap.set(source.id, dialog)
   }
   entry.entityMap = entityMap
   entry.sourceMap = sourceMap
+  entry.dialogMap = dialogMap
   entry.inventoryLoadedAt = Date.now()
 }
 
@@ -143,6 +191,64 @@ function requireEntity(entry, sourceId) {
   }
   return entity
 }
+
+app.get('/api/crm/network/index', async (req, res) => {
+  try {
+    const entry = await getEntry(req)
+    if (!entry) return res.status(401).json({ error: 'Connect Telegram first.' })
+    await ensureInventory(entry, true)
+
+    const contacts = []
+    const excluded = []
+    const groups = []
+    for (const [sourceId, entity] of entry.entityMap) {
+      const kind = entityKind(entity)
+      const dialog = entry.dialogMap.get(sourceId)
+      const topMessage = dialog?.message || null
+      const lastMessageAt = timestamp(topMessage) || undefined
+      if (kind === 'user') {
+        const person = networkPersonFromEntity(entity)
+        if (!person) continue
+        const row = { ...person, lastMessageAt }
+        if (person.bot) excluded.push({ key: `bot:${person.telegramUserId}`, telegramUserId: person.telegramUserId, sourceId, name: person.name, username: person.username, type: 'bot', reason: 'Bot account', lastMessageAt })
+        else contacts.push(row)
+        continue
+      }
+      const source = entry.sourceMap.get(sourceId)
+      const reason = kind === 'channel' ? 'Channel dialog' : 'Group dialog'
+      const row = { key: `${kind}:${sourceId}`, sourceId, name: source?.title || entityTitle(entity), username: source?.username || '', type: kind, reason, lastMessageAt }
+      excluded.push(row)
+      if (kind === 'group') groups.push(row)
+    }
+
+    contacts.sort((a, b) => Number(b.lastMessageAt || 0) - Number(a.lastMessageAt || 0))
+    res.setHeader('Cache-Control', 'private, no-store')
+    res.json({ contacts, excluded, groups, indexedAt: new Date().toISOString(), source: 'telegram-mtproto' })
+  } catch (error) {
+    sendRouteError(res, error, 'Could not enumerate Telegram dialogs.')
+  }
+})
+
+app.get('/api/crm/network/group-members/:sourceId', async (req, res) => {
+  try {
+    const entry = await getEntry(req)
+    if (!entry) return res.status(401).json({ error: 'Connect Telegram first.' })
+    await ensureInventory(entry)
+    const sourceId = String(req.params.sourceId || '')
+    const entity = requireEntity(entry, sourceId)
+    if (entityKind(entity) !== 'group') return res.status(400).json({ error: 'Participants are only available for Telegram groups.' })
+    const limit = Math.min(200, Math.max(20, Number(req.query?.limit || 100)))
+    const offset = Math.max(0, Number(req.query?.offset || 0))
+    const result = await entry.client.getParticipants(entity, { limit, offset })
+    const raw = Array.from(result || []).filter(Boolean)
+    const members = raw.map(networkPersonFromEntity).filter(Boolean)
+    const total = Number(result?.total ?? offset + members.length)
+    res.setHeader('Cache-Control', 'private, no-store')
+    res.json({ members, total, offset, nextOffset: offset + raw.length, hasMore: raw.length === limit && offset + raw.length < total })
+  } catch (error) {
+    sendRouteError(res, error, 'Could not load group participants.')
+  }
+})
 
 app.get('/api/crm/history/:sourceId', async (req, res) => {
   try {
@@ -160,7 +266,7 @@ app.get('/api/crm/history/:sourceId', async (req, res) => {
     res.setHeader('Cache-Control', 'private, no-store')
     res.json({ messages, hasMore: raw.length === limit, nextBeforeId, total: Number(result?.total ?? messages.length) })
   } catch (error) {
-    res.status(Number(error?.status || 500)).json({ error: String(error?.message || 'Could not load Telegram history.') })
+    sendRouteError(res, error, 'Could not load Telegram history.')
   }
 })
 
@@ -177,7 +283,7 @@ app.post('/api/crm/message', async (req, res) => {
     const message = mapMessage(sent, sourceId)
     res.json({ ok: true, message })
   } catch (error) {
-    res.status(Number(error?.status || 400)).json({ error: String(error?.message || 'Could not send this Telegram message.') })
+    sendRouteError(res, error, 'Could not send this Telegram message.', 400)
   }
 })
 
@@ -244,7 +350,7 @@ app.get('/api/crm/profile/:sourceId', async (req, res) => {
       }
     })
   } catch (error) {
-    res.status(Number(error?.status || 500)).json({ error: String(error?.message || 'Could not load Telegram profile.') })
+    sendRouteError(res, error, 'Could not load Telegram profile.')
   }
 })
 

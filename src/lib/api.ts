@@ -54,14 +54,60 @@ export type CRMContactProfile = {
   mutualGroups: CRMMutualGroup[]
 }
 
+export type NetworkContactIndex = {
+  telegramUserId: string
+  sourceId: string
+  name: string
+  username: string
+  usernames: string[]
+  phone: string
+  deleted: boolean
+  bot: boolean
+  premium: boolean
+  verified: boolean
+  scam: boolean
+  fake: boolean
+  avatar?: string
+  lastMessageAt?: number
+}
+
+export type NetworkExcludedIndex = {
+  key: string
+  telegramUserId?: string
+  sourceId?: string
+  name: string
+  username?: string
+  type: string
+  reason: string
+  lastMessageAt?: number
+}
+
+export type NetworkIndexResponse = {
+  contacts: NetworkContactIndex[]
+  excluded: NetworkExcludedIndex[]
+  groups: NetworkExcludedIndex[]
+  indexedAt: string
+  source: string
+}
+
+export type NetworkGroupMembersPage = {
+  members: NetworkContactIndex[]
+  total: number
+  offset: number
+  nextOffset: number
+  hasMore: boolean
+}
+
 export class ApiError extends Error {
   status: number
   code?: string
-  constructor(message: string, status: number, code?: string) {
+  retryAfterMs?: number
+  constructor(message: string, status: number, code?: string, retryAfterMs?: number) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.code = code
+    this.retryAfterMs = retryAfterMs
   }
 }
 
@@ -86,7 +132,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
     throw new ApiError(`Empty API response from ${url} (${res.status}).`, res.status)
   }
 
-  if (!res.ok) throw new ApiError(data?.error || `Request failed (${res.status})`, res.status, data?.code)
+  if (!res.ok) throw new ApiError(data?.error || `Request failed (${res.status})`, res.status, data?.code, Number(data?.retryAfterMs || 0) || undefined)
   return data as T
 }
 
@@ -127,6 +173,15 @@ export function sendCRMMessage(channelId: string, text: string) {
 
 export function fetchCRMProfile(sourceId: string, signal?: AbortSignal) {
   return request<{ profile: CRMContactProfile }>(`/api/crm/profile/${encodeURIComponent(sourceId)}`, { signal })
+}
+
+export function fetchNetworkIndex(signal?: AbortSignal) {
+  return request<NetworkIndexResponse>('/api/crm/network/index', { signal })
+}
+
+export function fetchNetworkGroupMembers(sourceId: string, offset = 0, limit = 100, signal?: AbortSignal) {
+  const params = new URLSearchParams({ offset: String(Math.max(0, offset)), limit: String(Math.min(200, Math.max(20, limit))) })
+  return request<NetworkGroupMembersPage>(`/api/crm/network/group-members/${encodeURIComponent(sourceId)}?${params}`, { signal })
 }
 
 export function fetchFeedUpdates(after: number, signal?: AbortSignal) {

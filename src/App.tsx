@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Box, Fade, LinearProgress, Skeleton, Stack, Typography } from '@mui/material'
-import CRMProduct from './CRMProduct'
-import { LandingPage } from './components/LandingPage'
+import CRMApp from './CRMApp'
+import { MinimalLandingPage } from './components/MinimalLandingPage'
 import { PromptModal } from './components/AuthModal'
 import type { AuthPrompt } from './types'
 import { authFlow, authStatus, beginAuth, healthStatus, submitAuth } from './lib/api'
@@ -18,37 +18,7 @@ function promptFromFlow(flow: Flow): AuthPrompt | null {
 }
 
 function SessionBoot() {
-  return (
-    <Fade in timeout={220}>
-      <Box sx={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: { xs: '1fr', md: '260px 1fr' } }}>
-        <Box sx={{ display: { xs: 'none', md: 'block' }, borderRight: 1, borderColor: 'divider', p: 2.5 }}>
-          <Typography variant="h3" sx={{ mb: 3 }}>Telegram CRM</Typography>
-          <Stack sx={{
-            gap: 1.2
-          }}>{[0, 1, 2, 3].map(row => <Stack
-            direction="row"
-            key={row}
-            sx={{
-              gap: 1.2,
-              alignItems: "center"
-            }}><Skeleton variant="rounded" width={36} height={36} /><Skeleton width={100} /></Stack>)}</Stack>
-        </Box>
-        <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 900, width: '100%', mx: 'auto' }}>
-          <LinearProgress sx={{ mb: 3, borderRadius: 99 }} />
-          <Typography variant="h2">Restoring your workspace</Typography>
-          <Typography
-            sx={{
-              color: "text.secondary",
-              mt: 1,
-              mb: 3
-            }}>Loading Telegram relationships and CRM context.</Typography>
-          <Stack sx={{
-            gap: 1.5
-          }}>{[0, 1, 2, 3, 4].map(row => <Skeleton key={row} variant="rounded" height={74} />)}</Stack>
-        </Box>
-      </Box>
-    </Fade>
-  );
+  return <Fade in timeout={180}><Box sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center', p: 3 }}><Box sx={{ width: '100%', maxWidth: 420 }}><LinearProgress sx={{ mb: 2.5, borderRadius: 99 }} /><Typography variant="h2">Opening your CRM</Typography><Typography sx={{ color: 'text.secondary', mt: .7, mb: 2 }}>Restoring Telegram relationships and local context.</Typography><Stack sx={{ gap: 1 }}>{[0, 1, 2].map(row => <Skeleton key={row} variant="rounded" height={58} />)}</Stack></Box></Box></Fade>
 }
 
 export default function App() {
@@ -109,7 +79,7 @@ export default function App() {
       if (!health.ok || !health.configured) throw new Error('Telegram CRM cannot connect to Telegram right now.')
       setBackendReady(true)
       const flow = await settleFlow(await beginAuth())
-      if (flow.step === 'done') return void (await finishConnection());
+      if (flow.step === 'done') return void (await finishConnection())
       const prompt = promptFromFlow(flow)
       if (!prompt) throw new Error(flow.error || 'Telegram login could not start.')
       setAuthPrompt(prompt)
@@ -126,7 +96,7 @@ export default function App() {
       const flow = await settleFlow(await submitAuth(value))
       if (flow.step === 'done') {
         setConnecting(false)
-        return void (await finishConnection());
+        return void (await finishConnection())
       }
       if (flow.step === 'error') throw new Error(flow.error || 'Telegram login failed.')
       const prompt = promptFromFlow(flow)
@@ -140,10 +110,10 @@ export default function App() {
   }
 
   if (connected === null) return <SessionBoot />
-  if (connected) return <CRMProduct />
+  if (connected) return <CRMApp />
 
   return <>
-    <LandingPage onConnect={connect} connecting={connecting} backendReady={backendReady} error={error} />
+    <MinimalLandingPage onConnect={connect} connecting={connecting} backendReady={backendReady} error={error} />
     <PromptModal prompt={authPrompt} onSubmit={submitPrompt} onCancel={() => { setAuthPrompt(null); setConnecting(false) }} />
   </>
 }
