@@ -97,7 +97,7 @@ export function classifyNetworkContact(contact: NetworkContactRecord, messages: 
   const scores = categoryScores(combined)
   const first = scores[0]
   const second = scores[1]
-  let category: NetworkCategory = first?.score > 0 ? first.category : 'Unknown'
+  const category: NetworkCategory = first?.score > 0 ? first.category : 'Unknown'
   let confidence: 'High' | 'Medium' | 'Low' = 'Low'
   if (category !== 'Unknown') {
     if (first.score >= 9 && first.score >= (second?.score || 0) + 4 && textMessages.length >= 8) confidence = 'High'
@@ -125,9 +125,14 @@ function activityFlag(messages: NetworkRawMessage[]): NetworkFlag {
   const last = sorted[sorted.length - 1]
   const lastAge = Date.now() - Number(last.timestamp || 0) * 1000
   if (lastAge < 14 * DAY) return ''
-  if (last.outgoing) return 'no reply from them'
-  if (!last.outgoing) return 'you never replied'
-  return ''
+
+  const fromMe = sorted.filter(row => row.outgoing).length
+  const fromThem = sorted.length - fromMe
+  const dominantShare = sorted.length ? Math.max(fromMe, fromThem) / sorted.length : 0
+
+  if (lastAge >= 90 * DAY && sorted.length >= 6 && fromMe >= 2 && fromThem >= 2 && dominantShare < .9) return 'mutual silence'
+  if (sorted.length >= 3 && dominantShare >= .9) return 'one-sided'
+  return last.outgoing ? 'no reply from them' : 'you never replied'
 }
 
 export function analyzeNetworkContact(contact: NetworkContactRecord, messages: NetworkRawMessage[]): NetworkAnalysisRow {
@@ -138,10 +143,7 @@ export function analyzeNetworkContact(contact: NetworkContactRecord, messages: N
   const last = sorted[sorted.length - 1]
   const firstAt = first?.timestamp ? new Date(first.timestamp * 1000) : undefined
   const lastAt = last?.timestamp ? new Date(last.timestamp * 1000) : undefined
-  const age = lastAt ? Date.now() - lastAt.getTime() : 0
-  let flag = activityFlag(sorted)
-  if (!flag && age >= 90 * DAY && sorted.length >= 4 && fromMe > 0 && fromThem > 0) flag = 'mutual silence'
-  if (!flag && age >= 14 * DAY && sorted.length >= 2 && Math.max(fromMe, fromThem) / sorted.length >= .9) flag = 'one-sided'
+  const flag = activityFlag(sorted)
   const classification = contact.classification || classifyNetworkContact(contact, sorted)
 
   return {
@@ -166,6 +168,6 @@ export function analyzeNetworkContact(contact: NetworkContactRecord, messages: N
     flag,
     cachedMessages: contact.sync.cachedMessages,
     reportedMessages: contact.sync.total,
-    coverage: contact.sync.failed ? 'Failed' : contact.sync.complete && contact.sync.cachedMessages >= Math.min(contact.sync.total || contact.sync.cachedMessages, contact.sync.cachedMessages) ? 'Complete' : 'Partial'
+    coverage: contact.sync.failed ? 'Failed' : contact.sync.complete ? 'Complete' : 'Partial'
   }
 }
