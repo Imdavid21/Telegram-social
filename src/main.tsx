@@ -18,6 +18,7 @@ import './session-boot.css'
 import './ux-overhaul.css'
 import './instagram-desktop.css'
 import './backend-search.css'
+import './social-system.css'
 
 function ThemeBridge({children}:{children:ReactNode}){
  const mode=useAppSelector(s=>s.ui.settings.themeMode)
