@@ -19,3 +19,7 @@ export function saveSettings(value:UserSettings){try{localStorage.setItem(STORAG
 export function loadViewerActions():ViewerAction[]{try{const raw=localStorage.getItem(STORAGE_KEYS.viewerActions);const parsed=raw?JSON.parse(raw):[];if(!Array.isArray(parsed))return[];return parsed.filter(row=>row&&typeof row==='object'&&typeof row.type==='string'&&typeof row.itemId==='string'&&typeof row.channelId==='string'&&Number.isFinite(Number(row.timestamp))).slice(-ACTION_CAP)}catch{return[]}}
 export function recordViewerAction(action:ViewerAction){try{const actions=loadViewerActions();localStorage.setItem(STORAGE_KEYS.viewerActions,JSON.stringify([...actions,{...action,timestamp:Number(action.timestamp||Date.now())}].slice(-ACTION_CAP)))}catch{}}
 export function resetViewerPersonalization(){try{localStorage.removeItem(STORAGE_KEYS.viewerActions)}catch{}}
+export function clearLocalSupergramData(){
+ try{for(const key of Object.values(STORAGE_KEYS))localStorage.removeItem(key)}catch{}
+ try{window.dispatchEvent(new CustomEvent('supergram:local-data-cleared'))}catch{}
+}
