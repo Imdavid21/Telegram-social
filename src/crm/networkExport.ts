@@ -108,9 +108,7 @@ export async function exportNetworkWorkbook(rows: NetworkAnalysisRow[], excluded
     { header: 'Coverage', key: 'coverage', width: 13 }
   ]
   setHeader(network.getRow(1))
-  for (const row of rows) {
-    network.addRow({ ...row, firstMessageAt: isoDate(row.firstMessageAt), lastMessageAt: isoDate(row.lastMessageAt) })
-  }
+  for (const row of rows) network.addRow({ ...row, firstMessageAt: isoDate(row.firstMessageAt), lastMessageAt: isoDate(row.lastMessageAt) })
   network.autoFilter = { from: 'A1', to: `S${Math.max(1, network.rowCount)}` }
   network.getColumn('firstMessageAt').numFmt = 'yyyy-mm-dd hh:mm'
   network.getColumn('lastMessageAt').numFmt = 'yyyy-mm-dd hh:mm'
@@ -119,7 +117,7 @@ export async function exportNetworkWorkbook(rows: NetworkAnalysisRow[], excluded
   if (network.rowCount > 1) {
     network.addConditionalFormatting({
       ref: `R2:R${network.rowCount}`,
-      rules: [{ type: 'expression', formulae: ['LEN($R2)>0'], style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFFE5E5' }, fgColor: { argb: 'FFFFE5E5' } }, font: { color: { argb: 'FF9F1A1A' } } } }]
+      rules: [{ priority: 1, type: 'expression', formulae: ['LEN($R2)>0'], style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFFE5E5' }, fgColor: { argb: 'FFFFE5E5' } }, font: { color: { argb: 'FF9F1A1A' } } } }]
     })
   }
 
@@ -143,7 +141,7 @@ export async function exportNetworkWorkbook(rows: NetworkAnalysisRow[], excluded
     cell.value = { formula }
     cell.font = { name: 'Aptos Display', size: 22, bold: true, color: { argb: 'FF1D1D1F' } }
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F5F7' } }
-    cell.alignment = { horizontal: 'center', vertical: 'center' }
+    cell.alignment = { horizontal: 'center', vertical: 'middle' }
     const start = range.split(':')[0]
     const labelCell = dashboard.getCell(Number(start.match(/\d+/)?.[0] || 4) - 1, dashboard.getColumn(start.replace(/\d/g, '')).number)
     labelCell.value = label
@@ -155,16 +153,16 @@ export async function exportNetworkWorkbook(rows: NetworkAnalysisRow[], excluded
   const roles = tally(rows.map(row => row.role), 1, 12)
   const years = tally(rows.map(row => row.lastMessageAt ? String(row.lastMessageAt.getFullYear()) : ''), 1, 12).sort((a, b) => a[0].localeCompare(b[0]))
   const chartData = [
-    ['Category breakdown', categories, 'A9', 'G24'],
-    ['Companies with 2+ contacts', companies, 'H9', 'N24'],
-    ['Top roles', roles, 'A26', 'G41'],
-    ['Last contact by year', years, 'H26', 'N41']
+    ['Category breakdown', categories, 'A9:G24'],
+    ['Companies with 2+ contacts', companies, 'H9:N24'],
+    ['Top roles', roles, 'A26:G41'],
+    ['Last contact by year', years, 'H26:N41']
   ] as const
-  for (const [title, entries, start, end] of chartData) {
+  for (const [title, entries, range] of chartData) {
     const dataUrl = chartPng(title, entries)
     if (!dataUrl) continue
     const imageId = workbook.addImage({ base64: dataUrl, extension: 'png' })
-    dashboard.addImage(imageId, { tl: { col: dashboard.getColumn(start.replace(/\d/g, '')).number - 1, row: Number(start.match(/\d+/)?.[0] || 1) - 1 }, br: { col: dashboard.getColumn(end.replace(/\d/g, '')).number, row: Number(end.match(/\d+/)?.[0] || 1) } })
+    dashboard.addImage(imageId, range)
   }
 
   dashboard.mergeCells('A43:N43')
