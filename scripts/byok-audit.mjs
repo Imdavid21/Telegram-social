@@ -8,7 +8,7 @@ function walk(dir){for(const entry of fs.readdirSync(dir,{withFileTypes:true})){
 walk(root)
 const violations=[]
 for(const file of textFiles){
-  const rel=path.relative(root,file)
+  const rel=path.relative(root,file).replaceAll('\\','/')
   if(rel==='scripts/byok-audit.mjs'||rel==='AUDIT_2026-08-27.md')continue
   const text=fs.readFileSync(file,'utf8')
   if(/process\.env\.OPENAI_API_KEY|OPENAI_SUMMARY_MODEL/.test(text))violations.push(`${rel}: shared OpenAI server configuration`)

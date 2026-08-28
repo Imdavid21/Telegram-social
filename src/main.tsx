@@ -16,8 +16,8 @@ class RootErrorBoundary extends Component<{ children: ReactNode }, { error: Erro
     if (!this.state.error) return this.props.children
     return <Box sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center', p: 3 }}>
       <Box sx={{ width: '100%', maxWidth: 520 }}>
-        <Typography variant="h2" component="h1">The CRM could not render.</Typography>
-        <Alert severity="error" sx={{ mt: 2 }}>Reload the app. If the error returns, the latest client build needs attention.</Alert>
+        <Typography variant="h2" component="h1">The app couldn’t open.</Typography>
+        <Alert severity="error" sx={{ mt: 2 }}>Reload to try again. Your Telegram data has not been changed.</Alert>
         <Button sx={{ mt: 2 }} variant="contained" startIcon={<RefreshRoundedIcon />} onClick={() => location.reload()}>Reload</Button>
       </Box>
     </Box>

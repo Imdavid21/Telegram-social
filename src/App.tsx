@@ -11,14 +11,14 @@ type Flow = { step: string; error?: string | null; meta?: Record<string, unknown
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 function promptFromFlow(flow: Flow): AuthPrompt | null {
-  if (flow.step === 'phone') return { type: 'phone', title: 'Connect Telegram', hint: 'Enter your Telegram number with country code.' }
-  if (flow.step === 'code') return { type: 'code', title: 'Verification code', hint: flow.meta?.viaApp ? 'Telegram sent the code to another signed-in device.' : 'Enter the code Telegram sent you.' }
-  if (flow.step === 'password') return { type: 'password', title: 'Two-step verification', hint: String(flow.meta?.hint || 'Enter your Telegram password.') }
+  if (flow.step === 'phone') return { type: 'phone', title: 'Connect Telegram', hint: '1 of 3 · Enter your phone number with country code.' }
+  if (flow.step === 'code') return { type: 'code', title: 'Enter your code', hint: flow.meta?.viaApp ? '2 of 3 · Telegram sent it to another signed-in device.' : '2 of 3 · Enter the code Telegram sent you.' }
+  if (flow.step === 'password') return { type: 'password', title: 'Two-step verification', hint: String(flow.meta?.hint || '3 of 3 · Enter your Telegram password.') }
   return null
 }
 
 function SessionBoot() {
-  return <Fade in timeout={180}><Box sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center', p: 3 }}><Box sx={{ width: '100%', maxWidth: 420 }}><LinearProgress sx={{ mb: 2.5, borderRadius: 99 }} /><Typography variant="h2">Opening your CRM</Typography><Typography sx={{ color: 'text.secondary', mt: .7, mb: 2 }}>Restoring Telegram relationships and local context.</Typography><Stack sx={{ gap: 1 }}>{[0, 1, 2].map(row => <Skeleton key={row} variant="rounded" height={58} />)}</Stack></Box></Box></Fade>
+  return <Fade in timeout={180}><Box sx={{ height: '100dvh', display: 'grid', placeItems: 'center', p: 3 }}><Box sx={{ width: '100%', maxWidth: 420 }}><LinearProgress sx={{ mb: 2.5, borderRadius: 99 }} /><Typography variant="h2">Checking your relationships</Typography><Typography sx={{ color: 'text.secondary', mt: .7, mb: 2 }}>Finding the conversations that need attention.</Typography><Stack sx={{ gap: 1 }}>{[0, 1, 2].map(row => <Skeleton key={row} variant="rounded" height={58} />)}</Stack></Box></Box></Fade>
 }
 
 export default function App() {
@@ -76,7 +76,7 @@ export default function App() {
     setConnecting(true)
     try {
       const health = await healthStatus()
-      if (!health.ok || !health.configured) throw new Error('Telegram CRM cannot connect to Telegram right now.')
+      if (!health.ok || !health.configured) throw new Error('Telegram cannot be connected right now. Please try again shortly.')
       setBackendReady(true)
       const flow = await settleFlow(await beginAuth())
       if (flow.step === 'done') return void (await finishConnection())

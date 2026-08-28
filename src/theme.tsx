@@ -28,8 +28,8 @@ const theme = createTheme({
   components: {
     MuiCssBaseline: {
       styleOverrides: {
-        'html,body,#root': { minHeight: '100%', margin: 0 },
-        body: { backgroundColor: '#0A0A0B', color: '#F5F5F7' },
+        'html,body,#root': { width: '100%', height: '100%', margin: 0, overflow: 'hidden' },
+        body: { backgroundColor: '#0A0A0B', color: '#F5F5F7', overscrollBehavior: 'none' },
         '*': { boxSizing: 'border-box' },
         '*::-webkit-scrollbar': { width: 9, height: 9 },
         '*::-webkit-scrollbar-thumb': { background: '#2A2A2D', borderRadius: 99, border: '2px solid transparent', backgroundClip: 'padding-box' },

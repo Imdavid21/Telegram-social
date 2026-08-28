@@ -18,6 +18,7 @@ export type CRMContactState = {
   tags?: string[]
   nextAction?: string
   followUpAt?: string
+  dismissedUntil?: string
   brief?: CRMBrief
   updatedAt: number
 }
@@ -62,6 +63,7 @@ function cleanContact(value: unknown): CRMContactState | null {
     tags: Array.isArray(row.tags) ? row.tags.map(tag => cleanString(tag, 48)).filter(Boolean).slice(0, 12) : [],
     nextAction: cleanString(row.nextAction, 500) || undefined,
     followUpAt: cleanString(row.followUpAt, 64) || undefined,
+    dismissedUntil: cleanString(row.dismissedUntil, 64) || undefined,
     brief: cleanBrief(row.brief),
     updatedAt: Number(row.updatedAt) || Date.now()
   }
